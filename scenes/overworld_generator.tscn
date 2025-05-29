@@ -1,11 +1,13 @@
-[gd_scene load_steps=3 format=3 uid="uid://dhf66farcler8"]
+[gd_scene load_steps=4 format=3 uid="uid://dhf66farcler8"]
 
 [ext_resource type="Script" path="res://scripts/OverworldGenerator.gd" id="1_trkcv"]
 [ext_resource type="TileSet" uid="uid://cl85gl6rje07u" path="res://resources/the_roguelike.tres" id="2_nnekg"]
+[ext_resource type="PackedScene" uid="uid://di36j8ada143j" path="res://scenes/npc.tscn" id="2_ot0f3"]
 
 [node name="OverworldGenerator" type="Node2D"]
 script = ExtResource("1_trkcv")
 noise_scale = 21.071
+npc_scene = ExtResource("2_ot0f3")
 
 [node name="TileMap" type="TileMap" parent="."]
 tile_set = ExtResource("2_nnekg")

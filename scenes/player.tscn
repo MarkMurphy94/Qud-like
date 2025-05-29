@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://0srrhjex6g0c" path="res://assets/EverRogueTileset FULL Packed Alpha.png" id="2_totn4"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kuy4p"]
+size = Vector2(15, 15)
 
 [node name="Player" type="CharacterBody2D"]
 script = ExtResource("1_fcrbl")
@@ -17,5 +18,5 @@ region_enabled = true
 region_rect = Rect2(0, 224, 16, 16)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(10, 10)
+position = Vector2(7.5, 7.5)
 shape = SubResource("RectangleShape2D_kuy4p")

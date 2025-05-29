@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3 uid="uid://di36j8ada143j"]
+
+[ext_resource type="Script" path="res://scripts/OverworldNPC.gd" id="1_bf1ns"]
+[ext_resource type="Texture2D" uid="uid://br0x1tgc8tpf0" path="res://assets/32rogues-0.5.0/32rogues/rogues.png" id="2_8k8i5"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1vbwm"]
+size = Vector2(16, 16)
+
+[node name="NPC" type="CharacterBody2D"]
+script = ExtResource("1_bf1ns")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(8, 8)
+shape = SubResource("RectangleShape2D_1vbwm")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(6, 7)
+scale = Vector2(0.609375, 0.5625)
+texture = ExtResource("2_8k8i5")
+region_enabled = true
+region_rect = Rect2(128, 192, 32, 32)

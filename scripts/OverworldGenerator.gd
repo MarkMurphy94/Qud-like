@@ -22,12 +22,16 @@ const HEIGHT = 60
 var rng = RandomNumberGenerator.new()
 var noise: FastNoiseLite
 
+@export var npc_scene: PackedScene
+@export var npc_count: int = 10
+
 func _ready():
 	if not tilemap:
 		push_error("TileMap node not found!")
 		return
 	
 	generate_map()
+	spawn_npcs()
 
 func generate_map(custom_seed: int = -1) -> void:
 	rng.seed = custom_seed if custom_seed != -1 else randi()
@@ -124,3 +128,20 @@ func is_walkable(pos: Vector2i) -> bool:
 
 func get_current_seed() -> int:
 	return noise.seed
+
+func spawn_npcs() -> void:
+	if not npc_scene:
+		push_error("NPC scene is not set!")
+		return
+	
+	# Remove any existing NPCs first
+	for child in get_children():
+		if child.is_in_group("npcs"):
+			child.queue_free()
+	
+	# Spawn new NPCs
+	for _i in range(npc_count):
+		var npc = npc_scene.instantiate()
+		add_child(npc)
+		npc.add_to_group("npcs")
+		npc.initialize(self)
