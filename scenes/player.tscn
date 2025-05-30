@@ -11,6 +11,7 @@ visibility_layer = 7
 script = ExtResource("1_fcrbl")
 
 [node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(2, 2)
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 position = Vector2(8, 8)

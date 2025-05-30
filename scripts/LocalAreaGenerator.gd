@@ -4,19 +4,75 @@ extends Node2D
 enum OverworldTile {DEEP_WATER, SHALLOW_WATER, SAND, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, SAND, WATER}
 enum FoliageTile {TREE, BUSH, ROCK}
+enum StructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
 
-# Atlas coordinates for the Roguelike_Ground_merged tileset
-const GROUND_COORDS = {
-	GroundTile.GRASS: Vector2i(1, 1), # Green grass tile
-	GroundTile.STONE: Vector2i(0, 13), # Gray stone tile
-	GroundTile.SAND: Vector2i(10, 1), # Sand/dirt tile
-	GroundTile.WATER: Vector2i(74, 2) # Blue water tile
+# Terrain sets for ground tiles
+const TERRAIN_SETS = {
+	"grass": 0,
+	"dirt": 1,
+	"water": 2
+}
+
+# Map our enum types to terrain sets
+const GROUND_TERRAIN_MAP = {
+	GroundTile.GRASS: "grass",
+	GroundTile.STONE: "dirt",
+	GroundTile.SAND: "dirt",
+	GroundTile.WATER: "water"
 }
 
 const FOLIAGE_COORDS = {
 	FoliageTile.TREE: Vector2i(4, 28), # Tree tile
 	FoliageTile.BUSH: Vector2i(4, 31), # Bush/shrub tile
 	FoliageTile.ROCK: Vector2i(4, 32) # Boulder/rock tile
+}
+
+const STRUCTURE_TILES = {
+	# Wall tiles
+	"WALL_H": Vector2i(6, 43), # Horizontal wall
+	"WALL_V": Vector2i(4, 43), # Vertical wall
+	"CORNER_NW": Vector2i(5, 43),
+	"CORNER_NE": Vector2i(7, 43),
+	"CORNER_SW": Vector2i(5, 44),
+	"CORNER_SE": Vector2i(7, 44),
+	# Door tiles
+	"DOOR": Vector2i(5, 45),
+	# Floor tiles
+	"FLOOR_WOOD": Vector2i(33, 14),
+	"FLOOR_STONE": Vector2i(33, 9),
+}
+
+const STRUCTURE_TEMPLATES = {
+	StructureType.HOUSE: {
+		"min_size": Vector2i(5, 5),
+		"max_size": Vector2i(8, 8),
+		"floor": "FLOOR_WOOD",
+		"required_space": 2 # Space needed around building
+	},
+	StructureType.SHOP: {
+		"min_size": Vector2i(6, 6),
+		"max_size": Vector2i(9, 9),
+		"floor": "FLOOR_STONE",
+		"required_space": 3
+	},
+	StructureType.TEMPLE: {
+		"min_size": Vector2i(6, 6),
+		"max_size": Vector2i(9, 9),
+		"floor": "FLOOR_WOOD",
+		"required_space": 3
+	},
+	StructureType.TOWER: {
+		"min_size": Vector2i(6, 6),
+		"max_size": Vector2i(9, 9),
+		"floor": "FLOOR_WOOD",
+		"required_space": 3
+	},
+	StructureType.WALL: {
+		"min_size": Vector2i(6, 6),
+		"max_size": Vector2i(9, 9),
+		"floor": "FLOOR_STONE",
+		"required_space": 3
+	}
 }
 
 const WIDTH = 40 # Local area is more detailed, so larger
@@ -57,6 +113,11 @@ func generate_map() -> void:
 	print("Generating map with base terrain: ", base_terrain)
 	tilemap.clear()
 	
+	# Generate terrain data first
+	var grass_cells = []
+	var dirt_cells = []
+	var water_cells = []
+	
 	# Generate base terrain on ground layer (layer 0)
 	for y in HEIGHT:
 		for x in WIDTH:
@@ -64,7 +125,22 @@ func generate_map() -> void:
 			height = (height + 1) / 2 # Normalize to 0-1
 			
 			var ground_tile = get_ground_tile(x, y, height)
-			tilemap.set_cell(0, Vector2i(x, y), TILE_SOURCE_ID, GROUND_COORDS[ground_tile])
+			var terrain_type = GROUND_TERRAIN_MAP[ground_tile]
+			var pos = Vector2i(x, y)
+			
+			# Sort cells by terrain type
+			match terrain_type:
+				"grass": grass_cells.append(pos)
+				"dirt": dirt_cells.append(pos)
+				"water": water_cells.append(pos)
+	
+	# Apply terrain for each type separately
+	if grass_cells:
+		tilemap.set_cells_terrain_connect(0, grass_cells, 0, TERRAIN_SETS["grass"])
+	if dirt_cells:
+		tilemap.set_cells_terrain_connect(0, dirt_cells, 0, TERRAIN_SETS["dirt"])
+	if water_cells:
+		tilemap.set_cells_terrain_connect(0, water_cells, 0, TERRAIN_SETS["water"])
 	
 	# Add water features to appropriate terrains first
 	if base_terrain in [OverworldTile.GRASS, OverworldTile.SAND]:
@@ -72,6 +148,16 @@ func generate_map() -> void:
 	
 	# Add foliage and details on foliage layer (layer 1)
 	add_foliage()
+	
+	# Generate settlement if on appropriate terrain
+	if base_terrain == OverworldTile.GRASS:
+		if randf() < 0.3: # 30% chance for settlement
+			var settlement_type = "village"
+			if randf() < 0.3:
+				settlement_type = "town"
+			elif randf() < 0.1:
+				settlement_type = "city"
+			generate_settlement(settlement_type)
 
 func get_ground_tile(_x: int, _y: int, height: float) -> int:
 	match base_terrain:
@@ -153,6 +239,8 @@ func generate_lake() -> void:
 	)
 	var size = rng.randi_range(3, 8)
 	
+	var water_cells = []
+	
 	for y in range(-size, size + 1):
 		for x in range(-size, size + 1):
 			var pos = center + Vector2i(x, y)
@@ -161,7 +249,11 @@ func generate_lake() -> void:
 			
 			var dist = sqrt(x * x + y * y)
 			if dist <= size + randf() * 2 - 1: # Irregular edges
-				tilemap.set_cell(0, pos, TILE_SOURCE_ID, GROUND_COORDS[GroundTile.WATER])
+				water_cells.append(pos)
+	
+	# Apply water terrain to all cells at once
+	if water_cells.size() > 0:
+		tilemap.set_cells_terrain_connect(0, water_cells, 0, TERRAIN_SETS["water"])
 
 func generate_river() -> void:
 	var start = Vector2i(
@@ -173,9 +265,10 @@ func generate_river() -> void:
 		HEIGHT - 1 if start.y == 0 else 0
 	)
 	
+	var river_cells = []
 	var current = start
 	while current != end:
-		tilemap.set_cell(0, current, TILE_SOURCE_ID, GROUND_COORDS[GroundTile.WATER])
+		river_cells.append(current)
 		
 		# Move towards end with some randomness
 		var dir = Vector2(end - current).normalized()
@@ -185,11 +278,19 @@ func generate_river() -> void:
 		)
 		current.x = clamp(current.x, 0, WIDTH - 1)
 		current.y = clamp(current.y, 0, HEIGHT - 1)
+	
+	# Apply water terrain to all river cells at once
+	if river_cells.size() > 0:
+		tilemap.set_cells_terrain_connect(0, river_cells, 0, TERRAIN_SETS["water"])
 
 func get_cell_ground_type(coords: Vector2i) -> int:
-	var atlas_coords = tilemap.get_cell_atlas_coords(0, coords) # Check ground layer
-	for tile in GROUND_COORDS:
-		if GROUND_COORDS[tile] == atlas_coords:
+	var tile_data = tilemap.get_cell_tile_data(0, coords)
+	if not tile_data:
+		return -1
+	var terrain = tile_data.terrain
+	# Map terrain back to ground tile type
+	for tile in GROUND_TERRAIN_MAP:
+		if TERRAIN_SETS[GROUND_TERRAIN_MAP[tile]] == terrain:
 			return tile
 	return -1
 
@@ -215,3 +316,112 @@ func is_walkable(pos: Vector2i) -> bool:
 		return false
 		
 	return true
+
+func generate_settlement(settlement_type: String) -> void:
+	var building_count = 0
+	match settlement_type:
+		"village":
+			building_count = rng.randi_range(3, 6)
+		"town":
+			building_count = rng.randi_range(6, 12)
+		"city":
+			building_count = rng.randi_range(12, 20)
+	
+	# Create a grid to track building placement
+	var occupation_grid = []
+	for y in HEIGHT:
+		occupation_grid.append([])
+		for x in WIDTH:
+			occupation_grid[y].append(false)
+	
+	# Place buildings
+	var buildings_placed = 0
+	var attempts = 0
+	while buildings_placed < building_count and attempts < 100:
+		var building_type = StructureType.values()[rng.randi() % StructureType.size()]
+		if try_place_building(building_type, occupation_grid):
+			buildings_placed += 1
+		attempts += 1
+
+func try_place_building(type: int, occupation_grid: Array) -> bool:
+	var template = STRUCTURE_TEMPLATES[type]
+	var size = Vector2i(
+		rng.randi_range(template.min_size.x, template.max_size.x),
+		rng.randi_range(template.min_size.y, template.max_size.y)
+	)
+	
+	# Find valid position
+	var valid_positions = []
+	for y in range(template.required_space, HEIGHT - size.y - template.required_space):
+		for x in range(template.required_space, WIDTH - size.x - template.required_space):
+			if is_valid_building_position(Vector2i(x, y), size, template.required_space, occupation_grid):
+				valid_positions.append(Vector2i(x, y))
+	
+	if valid_positions == []:
+		return false
+	
+	# Choose random valid position and place building
+	var pos = valid_positions[rng.randi() % valid_positions.size()]
+	place_building(pos, size, type)
+	
+	# Mark area as occupied
+	for y in range(pos.y - template.required_space, pos.y + size.y + template.required_space):
+		for x in range(pos.x - template.required_space, pos.x + size.x + template.required_space):
+			occupation_grid[y][x] = true
+	
+	return true
+
+func place_building(pos: Vector2i, size: Vector2i, type: int) -> void:
+	var template = STRUCTURE_TEMPLATES[type]
+	print('placing building: ', type, ' at ', pos, ' with size ', size)
+	
+	# Place floors
+	for y in range(pos.y, pos.y + size.y):
+		for x in range(pos.x, pos.x + size.x):
+			tilemap.set_cell(0, Vector2i(x, y), TILE_SOURCE_ID,
+						   STRUCTURE_TILES[template.floor])
+	
+	# Place walls
+	for x in range(pos.x, pos.x + size.x):
+		tilemap.set_cell(1, Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_H) # Top wall
+		tilemap.set_cell(1, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_H) # Bottom wall
+	
+	for y in range(pos.y, pos.y + size.y):
+		tilemap.set_cell(1, Vector2i(pos.x, y), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_V) # Left wall
+		tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_V) # Right wall
+	
+	# Place corners
+	tilemap.set_cell(1, pos, TILE_SOURCE_ID, STRUCTURE_TILES.CORNER_NW)
+	tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID,
+					 STRUCTURE_TILES.CORNER_NE)
+	tilemap.set_cell(1, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID,
+					 STRUCTURE_TILES.CORNER_SW)
+	tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1),
+					 TILE_SOURCE_ID, STRUCTURE_TILES.CORNER_SE)
+	
+	# Add door on south wall
+	add_door(pos, size)
+
+func is_valid_building_position(pos: Vector2i, size: Vector2i, required_space: int, occupation_grid: Array) -> bool:
+	# Check if the area (including required space) is within bounds
+	if pos.x - required_space < 0 or pos.x + size.x + required_space >= WIDTH:
+		return false
+	if pos.y - required_space < 0 or pos.y + size.y + required_space >= HEIGHT:
+		return false
+	
+	# Check if any tile in the area (including required space) is occupied or unwalkable
+	for y in range(pos.y - required_space, pos.y + size.y + required_space):
+		for x in range(pos.x - required_space, pos.x + size.x + required_space):
+			if occupation_grid[y][x]:
+				return false
+			if not is_walkable(Vector2i(x, y)):
+				return false
+	
+	return true
+
+func add_door(pos: Vector2i, size: Vector2i) -> void:
+	var door_pos = Vector2i(
+			pos.x + rng.randi_range(1, size.x - 2),
+			pos.y + size.y - 1
+		)
+	tilemap.set_cell(2, door_pos, TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
