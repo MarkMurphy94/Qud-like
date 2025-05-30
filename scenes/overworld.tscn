@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://2yt1rem30pxh" path="res://scenes/player.tscn" id="3_vvrth"]
 
 [node name="Overworld" type="Node2D"]
+visibility_layer = 7
 
 [node name="OverworldGenerator" parent="." instance=ExtResource("1_istqx")]
 

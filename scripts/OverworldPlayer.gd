@@ -4,6 +4,9 @@ extends CharacterBody2D
 @export var grid_size: int = 16 # Size of each tile in pixels
 
 @onready var overworld = $"../OverworldGenerator"
+var local_area_scene = preload("res://scenes/local_area_generator.tscn")
+var current_local_area: Node2D = null
+var in_local_area: bool = false
 
 var target_position: Vector2
 var is_moving: bool = false
@@ -26,6 +29,13 @@ func find_valid_starting_position() -> void:
 func _process(_delta: float) -> void:
 	if not is_moving:
 		check_movement_input()
+	
+	# Check for descend/ascend input
+	if Input.is_action_just_pressed("ui_accept"): # Space bar
+		if not in_local_area:
+			descend_to_local_area()
+		else:
+			return_to_overworld()
 
 func check_movement_input() -> void:
 	var direction = Vector2.ZERO
@@ -61,3 +71,31 @@ func _physics_process(delta: float) -> void:
 			is_moving = false
 		else:
 			position += movement
+
+func descend_to_local_area() -> void:
+	var grid_pos = (position / grid_size).floor()
+	var tile_type = overworld.get_tile_type(Vector2i(grid_pos.x, grid_pos.y))
+	
+	# Create new local area
+	current_local_area = local_area_scene.instantiate()
+	get_tree().current_scene.add_child(current_local_area)
+	current_local_area.initialize(tile_type, Vector2i(grid_pos.x, grid_pos.y))
+	
+	# Position player in local area
+	position = Vector2(current_local_area.WIDTH / 2, current_local_area.HEIGHT / 2) * grid_size
+	
+	# Hide overworld and show local area
+	overworld.hide()
+	in_local_area = true
+
+func return_to_overworld() -> void:
+	if current_local_area:
+		current_local_area.queue_free()
+		current_local_area = null
+	
+	overworld.show()
+	in_local_area = false
+	
+	# Ensure player is on grid
+	var grid_pos = (position / grid_size).floor()
+	position = grid_pos * grid_size
