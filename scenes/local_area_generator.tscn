@@ -6,6 +6,7 @@
 [node name="LocalAreaGenerator" type="Node2D"]
 visibility_layer = 7
 script = ExtResource("1_b3814")
+noise_scale = 10.0
 
 [node name="TileMap" type="TileMap" parent="."]
 visibility_layer = 7

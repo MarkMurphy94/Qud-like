@@ -11,6 +11,9 @@ var in_local_area: bool = false
 var target_position: Vector2
 var is_moving: bool = false
 
+# Add this variable to store the overworld position
+var overworld_position: Vector2
+
 func _ready() -> void:
 	# Initialize starting position to first walkable tile
 	position = Vector2.ZERO
@@ -75,14 +78,21 @@ func _physics_process(delta: float) -> void:
 func descend_to_local_area() -> void:
 	var grid_pos = (position / grid_size).floor()
 	var tile_type = overworld.get_tile_type(Vector2i(grid_pos.x, grid_pos.y))
+	if tile_type in [0, 1]:
+		print("Can't descend on water")
+		return
+	
+	# Store current overworld position before descending
+	overworld_position = position
 	
 	# Create new local area
 	current_local_area = local_area_scene.instantiate()
 	get_tree().current_scene.add_child(current_local_area)
 	current_local_area.initialize(tile_type, Vector2i(grid_pos.x, grid_pos.y))
 	
-	# Position player in local area
+	# Position player in center of local area
 	position = Vector2(current_local_area.WIDTH / 2, current_local_area.HEIGHT / 2) * grid_size
+	print('position in local area: ', position)
 	
 	# Hide overworld and show local area
 	overworld.hide()
@@ -96,6 +106,6 @@ func return_to_overworld() -> void:
 	overworld.show()
 	in_local_area = false
 	
-	# Ensure player is on grid
-	var grid_pos = (position / grid_size).floor()
-	position = grid_pos * grid_size
+	# Return to stored overworld position
+	position = overworld_position
+	print('position in overworld: ', position)

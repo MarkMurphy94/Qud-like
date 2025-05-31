@@ -95,6 +95,15 @@ var base_terrain: int # The overworld terrain type this area is based on
 func initialize(overworld_tile_type: int, world_position: Vector2i) -> void:
 	base_terrain = overworld_tile_type
 	position = Vector2(world_position) * TILE_SIZE
+	
+	# Set up noise and RNG with deterministic seed
+	# var map_seed = generate_seed(world_position, overworld_tile_type)
+	var map_seed = 16778390 # fixed seed for testing
+	rng.seed = map_seed
+	noise.seed = map_seed
+	noise.frequency = 1.0 / noise_scale
+	print("local area seed: ", map_seed, " for terrain: ", base_terrain)
+	
 	generate_map()
 	
 func _ready() -> void:
@@ -102,9 +111,6 @@ func _ready() -> void:
 		push_error("TileMap node not found!")
 		return
 	noise = FastNoiseLite.new()
-	rng.randomize()
-	noise.seed = rng.randi()
-	noise.frequency = 1.0 / noise_scale
 
 func generate_map() -> void:
 	if not tilemap:
@@ -425,3 +431,8 @@ func add_door(pos: Vector2i, size: Vector2i) -> void:
 			pos.y + size.y - 1
 		)
 	tilemap.set_cell(2, door_pos, TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
+
+func generate_seed(world_position: Vector2i, terrain_type: int) -> int:
+	# Combine position and terrain type into a deterministic seed
+	# Using large prime numbers to minimize collisions
+	return abs(world_position.x * 16777619 + world_position.y * 65537 + terrain_type * 257)
