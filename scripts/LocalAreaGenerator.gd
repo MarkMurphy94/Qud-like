@@ -155,15 +155,13 @@ func generate_map() -> void:
 	# Add foliage and details on foliage layer (layer 1)
 	add_foliage()
 	
-	# Generate settlement if on appropriate terrain
+	# Generate small settlement if on appropriate terrain
 	if base_terrain == OverworldTile.GRASS:
 		if randf() < 0.3: # 30% chance for settlement
-			var settlement_type = "village"
+			var hamlet_type = "village"
 			if randf() < 0.3:
-				settlement_type = "town"
-			elif randf() < 0.1:
-				settlement_type = "city"
-			generate_settlement(settlement_type)
+				hamlet_type = "farm"
+			generate_hamlet(hamlet_type)
 
 func get_ground_tile(_x: int, _y: int, height: float) -> int:
 	match base_terrain:
@@ -323,15 +321,13 @@ func is_walkable(pos: Vector2i) -> bool:
 		
 	return true
 
-func generate_settlement(settlement_type: String) -> void:
+func generate_hamlet(hamlet_type: String) -> void:
 	var building_count = 0
-	match settlement_type:
+	match hamlet_type:
 		"village":
 			building_count = rng.randi_range(3, 6)
-		"town":
-			building_count = rng.randi_range(6, 12)
-		"city":
-			building_count = rng.randi_range(12, 20)
+		"farm":
+			building_count = rng.randi_range(2, 4)
 	
 	# Create a grid to track building placement
 	var occupation_grid = []

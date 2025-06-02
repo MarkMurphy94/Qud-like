@@ -5,6 +5,7 @@ extends CharacterBody2D
 
 @onready var overworld = $"../OverworldGenerator"
 var local_area_scene = preload("res://scenes/local_area_generator.tscn")
+var settlement_scene = preload("res://scenes/settlement_generator.tscn")
 var current_local_area: Node2D = null
 var in_local_area: bool = false
 
@@ -81,14 +82,20 @@ func descend_to_local_area() -> void:
 	if tile_type in [0, 1]:
 		print("Can't descend on water")
 		return
-	
-	# Store current overworld position before descending
 	overworld_position = position
 	
-	# Create new local area
-	current_local_area = local_area_scene.instantiate()
-	get_tree().current_scene.add_child(current_local_area)
-	current_local_area.initialize(tile_type, Vector2i(grid_pos.x, grid_pos.y))
+	# Map overworld tile types to appropriate local areas
+	if tile_type in [5, 6, 7]:
+		current_local_area = settlement_scene.instantiate()
+		get_tree().current_scene.add_child(current_local_area)
+		# Initialize settlement with TileMap and RNG
+		# var rng = RandomNumberGenerator.new()
+		# rng.seed = hash(str(grid_pos) + str(overworld.get_current_seed())) # Deterministic seed based on position
+		# current_local_area.generate_settlement(0, current_local_area.get_node("TileMap"), rng) # 0 = TOWN type
+	else:
+		current_local_area = local_area_scene.instantiate()
+		get_tree().current_scene.add_child(current_local_area)
+		current_local_area.initialize(tile_type, Vector2i(grid_pos.x, grid_pos.y))
 	
 	# Position player in center of local area
 	position = Vector2(current_local_area.WIDTH / 2, current_local_area.HEIGHT / 2) * grid_size

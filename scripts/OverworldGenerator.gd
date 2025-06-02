@@ -1,13 +1,16 @@
 extends Node2D
 
-enum Tile {DEEP_WATER, SHALLOW_WATER, SAND, GRASS, MOUNTAIN}
+enum Tile {DEEP_WATER, SHALLOW_WATER, SAND, GRASS, MOUNTAIN, TOWN, CITY, CASTLE}
 
 const TILE_COORDS = {
 	Tile.DEEP_WATER: Vector2i(4, 13),
 	Tile.SHALLOW_WATER: Vector2i(8, 13),
 	Tile.SAND: Vector2i(10, 9),
 	Tile.GRASS: Vector2i(4, 5),
-	Tile.MOUNTAIN: Vector2i(9, 14)
+	Tile.MOUNTAIN: Vector2i(9, 14),
+	Tile.TOWN: Vector2i(4, 17),
+	Tile.CITY: Vector2i(6, 18),
+	Tile.CASTLE: Vector2i(5, 18)
 }
 
 const WIDTH = 80
@@ -39,6 +42,7 @@ func generate_map(custom_seed: int = -1) -> void:
 	generate_terrain()
 	add_landmasses()
 	smooth_map()
+	generate_settlements() # Only call once
 
 func initialize_noise() -> void:
 	noise = FastNoiseLite.new()
@@ -145,3 +149,81 @@ func spawn_npcs() -> void:
 		add_child(npc)
 		npc.add_to_group("npcs")
 		npc.initialize(self)
+
+func generate_settlements() -> void:
+	# Parameters for settlement generation
+	var min_settlement_distance = {
+		Tile.TOWN: 8, # Towns can be closer together
+		Tile.CITY: 15, # Cities need more space
+		Tile.CASTLE: 20 # Castles need the most space
+	}
+	
+	var settlements_to_generate = {
+		Tile.TOWN: rng.randi_range(4, 6), # 4-6 towns for local commerce
+		Tile.CITY: rng.randi_range(2, 3), # 2-3 major cities
+		Tile.CASTLE: rng.randi_range(1, 2) # 1-2 castles as power centers
+	}
+	
+	var existing_settlements = [] # Track placed settlements
+	
+	# Generate settlements in order of importance (castles first, then cities, then towns)
+	var settlement_order = [Tile.CASTLE, Tile.CITY, Tile.TOWN]
+	
+	for settlement_type in settlement_order:
+		var count = settlements_to_generate[settlement_type]
+		var attempts = 0
+		var max_attempts = 200 # Increased attempts for better placement
+		
+		while count > 0 and attempts < max_attempts:
+			var pos = Vector2i(
+				rng.randi_range(5, WIDTH - 5),
+				rng.randi_range(5, HEIGHT - 5)
+			)
+			
+			# Check if position is suitable with type-specific distance
+			if is_valid_settlement_position(pos, existing_settlements, min_settlement_distance[settlement_type], settlement_type):
+				tilemap.set_cell(0, pos, 0, TILE_COORDS[settlement_type])
+				existing_settlements.append([pos, settlement_type])
+				count -= 1
+				print("Placed ", settlement_type, " at ", pos)
+			
+			attempts += 1
+
+func is_valid_settlement_position(pos: Vector2i, existing_settlements: Array, min_distance: int, settlement_type: int) -> bool:
+	# Check if the tile is suitable for a settlement
+	var current_tile = get_tile_type(pos)
+	if current_tile != Tile.GRASS: # Settlements can only be placed on grass
+		return false
+	
+	# Check distance from other settlements
+	for settlement in existing_settlements:
+		var settlement_pos = settlement[0] # Each settlement is [pos, type]
+		var dx = abs(pos.x - settlement_pos.x)
+		var dy = abs(pos.y - settlement_pos.y)
+		var distance = sqrt(dx * dx + dy * dy)
+		if distance < min_distance:
+			return false
+	
+	# Different requirements based on settlement type
+	var required_grass_tiles = 6 # Base requirement
+	match settlement_type:
+		Tile.CASTLE:
+			required_grass_tiles = 12 # Castles need more flat land
+		Tile.CITY:
+			required_grass_tiles = 9 # Cities need medium amount
+		Tile.TOWN:
+			required_grass_tiles = 6 # Towns need least amount
+	
+	# Check surrounding area for suitability
+	var grass_count = 0
+	var check_radius = 3 if settlement_type == Tile.CASTLE else 2
+	
+	for y in range(-check_radius, check_radius + 1):
+		for x in range(-check_radius, check_radius + 1):
+			var check_pos = Vector2i(pos.x + x, pos.y + y)
+			if check_pos.x >= 0 and check_pos.x < WIDTH and check_pos.y >= 0 and check_pos.y < HEIGHT:
+				var tile = get_tile_type(check_pos)
+				if tile == Tile.GRASS:
+					grass_count += 1
+	
+	return grass_count >= required_grass_tiles
