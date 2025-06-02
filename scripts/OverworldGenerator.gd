@@ -1,63 +1,109 @@
+@tool
 extends Node2D
 
-enum Tile {DEEP_WATER, SHALLOW_WATER, SAND, GRASS, MOUNTAIN, TOWN, CITY, CASTLE}
+enum Tile {
+	NONE = -1,
+	DEEP_WATER,
+	SHALLOW_WATER,
+	SAND,
+	GRASS,
+	MOUNTAIN,
+	TOWN,
+	CITY,
+	CASTLE
+}
 
-const TILE_COORDS = {
-	Tile.DEEP_WATER: Vector2i(4, 13),
-	Tile.SHALLOW_WATER: Vector2i(8, 13),
-	Tile.SAND: Vector2i(10, 9),
-	Tile.GRASS: Vector2i(4, 5),
-	Tile.MOUNTAIN: Vector2i(9, 14),
+# Terrain sets for better tile transitions
+const TERRAIN_SETS = {
+	"grass": 0, # Plains and grass
+	"water": 1, # Deep and shallow water
+	"beach": 0, # Sand and coastal areas
+	"mountain": 0 # Hills and peaks
+}
+
+# Map tile types to terrain sets
+const TILE_TO_TERRAIN = {
+	Tile.DEEP_WATER: "water",
+	Tile.SHALLOW_WATER: "water",
+	Tile.SAND: "grass",
+	Tile.GRASS: "grass",
+	Tile.MOUNTAIN: "grass"
+}
+
+# Special tiles that don't use terrain sets
+const SETTLEMENT_COORDS = {
 	Tile.TOWN: Vector2i(4, 17),
 	Tile.CITY: Vector2i(6, 18),
 	Tile.CASTLE: Vector2i(5, 18)
 }
 
+const TILESET_ATLAS_ID = 3
 const WIDTH = 80
 const HEIGHT = 60
+const MAX_PLACEMENT_ATTEMPTS = 100
+
+# Water level is normalized between -1 and 1
+const water_level = -0.2
+const mountain_level = 0.3
 
 @export var num_landmasses: int = 3
-@export var water_level: float = 0.4
-@export var mountain_level: float = 0.7
 @export_range(1, 100) var noise_scale: float = 50.0
-
-@onready var tilemap = $TileMap
-var rng = RandomNumberGenerator.new()
-var noise: FastNoiseLite
-
 @export var npc_scene: PackedScene
 @export var npc_count: int = 10
+@onready var tilemap = $TileMap
 
-func _ready():
-	if not tilemap:
-		push_error("TileMap node not found!")
-		return
-	
-	generate_map()
+var rng = RandomNumberGenerator.new()
+var noise: FastNoiseLite
+var settle_noise: FastNoiseLite
+
+const TILE_COORDS = {
+	Tile.DEEP_WATER: Vector2i(0, 0),
+	Tile.SHALLOW_WATER: Vector2i(1, 0),
+	Tile.SAND: Vector2i(2, 0),
+	Tile.GRASS: Vector2i(3, 0),
+	Tile.MOUNTAIN: Vector2i(4, 0)
+}
+
+const max_settlements = {
+	Tile.CASTLE: 2,
+	Tile.CITY: 4,
+	Tile.TOWN: 8
+}
+
+const min_settlement_distance = {
+	Tile.CASTLE: 20,
+	Tile.CITY: 15,
+	Tile.TOWN: 10
+}
+
+func _ready() -> void:
+	var seed_val = randi()
+	initialize_noise(seed_val)
+	generate_terrain()
+	generate_settlements()
 	spawn_npcs()
 
 func generate_map(custom_seed: int = -1) -> void:
-	rng.seed = custom_seed if custom_seed != -1 else randi()
-	initialize_noise()
+	var seed_val = custom_seed if custom_seed != -1 else randi()
+	rng.seed = seed_val
+	initialize_noise(seed_val)
 	generate_terrain()
 	add_landmasses()
 	smooth_map()
-	generate_settlements() # Only call once
+	generate_settlements()
 
-func initialize_noise() -> void:
+func initialize_noise(seed_val: int) -> void:
 	noise = FastNoiseLite.new()
-	noise.seed = rng.randi()
-	noise.frequency = 1.0 / noise_scale
-	noise.fractal_octaves = 4
-
-func generate_terrain() -> void:
-	tilemap.clear()
-	for y in HEIGHT:
-		for x in WIDTH:
-			var height = noise.get_noise_2d(x, y)
-			height = (height + 1) / 2 # Normalize to 0-1
-			var tile = get_tile_from_height(height)
-			tilemap.set_cell(0, Vector2i(x, y), 0, TILE_COORDS[tile])
+	noise.seed = seed_val
+	noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.frequency = 0.02
+	
+	settle_noise = FastNoiseLite.new()
+	settle_noise.seed = seed_val + 1
+	settle_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	settle_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	settle_noise.frequency = 0.01
 
 func get_tile_from_height(height: float) -> int:
 	if height < water_level - 0.1:
@@ -71,18 +117,57 @@ func get_tile_from_height(height: float) -> int:
 	else:
 		return Tile.MOUNTAIN
 
+func generate_terrain() -> void:
+	# Initialize empty arrays for each terrain type
+	var terrain_cells = {}
+	for terrain in TERRAIN_SETS:
+		terrain_cells[terrain] = []
+	
+	# Generate terrain based on height
+	for x in range(WIDTH):
+		for y in range(HEIGHT):
+			var coords = Vector2i(x, y)
+			var height = noise.get_noise_2d(x, y)
+			var tile_type = get_tile_from_height(height)
+			var terrain = TILE_TO_TERRAIN[tile_type]
+			terrain_cells[terrain].append(coords)
+	
+	# Apply all terrains using terrain sets for proper transitions
+	for terrain in terrain_cells:
+		if not terrain_cells[terrain].is_empty():
+			tilemap.set_cells_terrain_connect(0, terrain_cells[terrain], 0, TERRAIN_SETS[terrain])
+
 func get_tile_type(coords: Vector2i) -> int:
-	var atlas_coords = tilemap.get_cell_atlas_coords(0, coords)
-	for tile in TILE_COORDS:
-		if TILE_COORDS[tile] == atlas_coords:
+	if coords.x < 0 or coords.x >= WIDTH or coords.y < 0 or coords.y >= HEIGHT:
+		return Tile.NONE
+		
+	var tile_data = tilemap.get_cell_tile_data(TILESET_ATLAS_ID, coords)
+	if tile_data == null:
+		return Tile.NONE
+	
+	var terrain_id = tile_data.terrain
+	# Convert terrain ID back to tile type
+	for tile in TILE_TO_TERRAIN:
+		if TERRAIN_SETS[TILE_TO_TERRAIN[tile]] == terrain_id:
 			return tile
-	return -1
+	
+	# Special case for settlements which don't use terrain
+	var atlas_coords = tilemap.get_cell_atlas_coords(0, coords)
+	for settlement_type in SETTLEMENT_COORDS:
+		if SETTLEMENT_COORDS[settlement_type] == atlas_coords:
+			return settlement_type
+			
+	return Tile.NONE
+
 
 func add_landmasses() -> void:
 	for i in num_landmasses:
 		var center_x = rng.randi_range(10, WIDTH - 10)
 		var center_y = rng.randi_range(10, HEIGHT - 10)
 		var size = rng.randi_range(5, 10)
+		
+		var land_cells = []
+		var beach_cells = []
 		
 		for y in range(-size, size + 1):
 			for x in range(-size, size + 1):
@@ -93,36 +178,47 @@ func add_landmasses() -> void:
 					if map_y >= 0 and map_y < HEIGHT and map_x >= 0 and map_x < WIDTH:
 						var pos = Vector2i(map_x, map_y)
 						if get_tile_type(pos) == Tile.DEEP_WATER:
-							tilemap.set_cell(0, pos, 0, TILE_COORDS[Tile.GRASS])
+							if dist >= size - 1:
+								beach_cells.append(pos)
+							else:
+								land_cells.append(pos)
+		
+		# Apply terrains for smooth transitions
+		if beach_cells.size() > 0:
+			tilemap.set_cells_terrain_connect(0, beach_cells, 0, TERRAIN_SETS["beach"])
+		if land_cells.size() > 0:
+			tilemap.set_cells_terrain_connect(0, land_cells, 0, TERRAIN_SETS["grass"])
 
 func smooth_map() -> void:
-	var changes = []
+	var terrain_changes = {
+		"water": [],
+		"beach": [],
+		"grass": [],
+		"mountain": []
+	}
+	
 	for y in range(1, HEIGHT - 1):
 		for x in range(1, WIDTH - 1):
 			var pos = Vector2i(x, y)
 			var current_tile = get_tile_type(pos)
-			var grass_neighbors = 0
-			var deep_water_neighbors = 0
+			var neighbors = count_neighbors(pos)
 			
-			for dy in [-1, 0, 1]:
-				for dx in [-1, 0, 1]:
-					if dx == 0 and dy == 0:
-						continue
-					var neighbor_pos = Vector2i(x + dx, y + dy)
-					var neighbor_type = get_tile_type(neighbor_pos)
-					if neighbor_type == Tile.GRASS:
-						grass_neighbors += 1
-					elif neighbor_type == Tile.DEEP_WATER:
-						deep_water_neighbors += 1
+			# Create beach transitions between water and land
+			if current_tile in [Tile.DEEP_WATER, Tile.SHALLOW_WATER] and neighbors["grass"] >= 3:
+				terrain_changes["beach"].append(pos)
+			elif current_tile == Tile.GRASS and neighbors["water"] >= 4:
+				terrain_changes["beach"].append(pos)
 			
-			if current_tile == Tile.DEEP_WATER and grass_neighbors >= 5:
-				changes.append([pos, Tile.SHALLOW_WATER])
-			elif current_tile == Tile.SHALLOW_WATER and deep_water_neighbors >= 5:
-				changes.append([pos, Tile.DEEP_WATER])
+			# Create mountain transitions
+			elif current_tile == Tile.GRASS and neighbors["mountain"] >= 5:
+				terrain_changes["mountain"].append(pos)
+			elif current_tile == Tile.MOUNTAIN and neighbors["grass"] >= 6:
+				terrain_changes["grass"].append(pos)
 	
-	# Apply changes after analyzing the whole map
-	for change in changes:
-		tilemap.set_cell(0, change[0], 0, TILE_COORDS[change[1]])
+	# Apply terrain changes using terrain sets
+	for terrain_type in terrain_changes:
+		if not terrain_changes[terrain_type].is_empty():
+			tilemap.set_cells_terrain_connect(0, terrain_changes[terrain_type], 0, TERRAIN_SETS[terrain_type])
 
 func is_walkable(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= WIDTH or pos.y < 0 or pos.y >= HEIGHT:
@@ -151,79 +247,78 @@ func spawn_npcs() -> void:
 		npc.initialize(self)
 
 func generate_settlements() -> void:
-	# Parameters for settlement generation
-	var min_settlement_distance = {
-		Tile.TOWN: 8, # Towns can be closer together
-		Tile.CITY: 15, # Cities need more space
-		Tile.CASTLE: 20 # Castles need the most space
-	}
+	var existing_settlements = []
 	
-	var settlements_to_generate = {
-		Tile.TOWN: rng.randi_range(4, 6), # 4-6 towns for local commerce
-		Tile.CITY: rng.randi_range(2, 3), # 2-3 major cities
-		Tile.CASTLE: rng.randi_range(1, 2) # 1-2 castles as power centers
-	}
-	
-	var existing_settlements = [] # Track placed settlements
-	
-	# Generate settlements in order of importance (castles first, then cities, then towns)
-	var settlement_order = [Tile.CASTLE, Tile.CITY, Tile.TOWN]
-	
-	for settlement_type in settlement_order:
-		var count = settlements_to_generate[settlement_type]
+	# Generate settlements in priority order: castles, cities, towns
+	for settlement_type in [Tile.CASTLE, Tile.CITY, Tile.TOWN]:
+		var settlement_count = max_settlements[settlement_type]
 		var attempts = 0
-		var max_attempts = 200 # Increased attempts for better placement
+		var placed = 0
 		
-		while count > 0 and attempts < max_attempts:
+		while placed < settlement_count and attempts < MAX_PLACEMENT_ATTEMPTS:
+			attempts += 1
 			var pos = Vector2i(
-				rng.randi_range(5, WIDTH - 5),
-				rng.randi_range(5, HEIGHT - 5)
+				randi() % (WIDTH - 4) + 2,
+				randi() % (HEIGHT - 4) + 2
 			)
 			
-			# Check if position is suitable with type-specific distance
 			if is_valid_settlement_position(pos, existing_settlements, min_settlement_distance[settlement_type], settlement_type):
-				tilemap.set_cell(0, pos, 0, TILE_COORDS[settlement_type])
+				tilemap.set_cell(0, pos, 0, SETTLEMENT_COORDS[settlement_type])
 				existing_settlements.append([pos, settlement_type])
-				count -= 1
-				print("Placed ", settlement_type, " at ", pos)
-			
-			attempts += 1
+				placed += 1
 
 func is_valid_settlement_position(pos: Vector2i, existing_settlements: Array, min_distance: int, settlement_type: int) -> bool:
-	# Check if the tile is suitable for a settlement
-	var current_tile = get_tile_type(pos)
-	if current_tile != Tile.GRASS: # Settlements can only be placed on grass
+	# Check if tile is walkable (not water or mountain)
+	if not is_walkable(pos):
 		return false
-	
+		
 	# Check distance from other settlements
 	for settlement in existing_settlements:
-		var settlement_pos = settlement[0] # Each settlement is [pos, type]
-		var dx = abs(pos.x - settlement_pos.x)
-		var dy = abs(pos.y - settlement_pos.y)
-		var distance = sqrt(dx * dx + dy * dy)
-		if distance < min_distance:
+		var settlement_pos: Vector2i = settlement[0]
+		var dist = sqrt(pow(pos.x - settlement_pos.x, 2) + pow(pos.y - settlement_pos.y, 2))
+		if dist < min_distance:
 			return false
 	
-	# Different requirements based on settlement type
-	var required_grass_tiles = 6 # Base requirement
-	match settlement_type:
-		Tile.CASTLE:
-			required_grass_tiles = 12 # Castles need more flat land
-		Tile.CITY:
-			required_grass_tiles = 9 # Cities need medium amount
-		Tile.TOWN:
-			required_grass_tiles = 6 # Towns need least amount
-	
-	# Check surrounding area for suitability
-	var grass_count = 0
-	var check_radius = 3 if settlement_type == Tile.CASTLE else 2
-	
-	for y in range(-check_radius, check_radius + 1):
-		for x in range(-check_radius, check_radius + 1):
-			var check_pos = Vector2i(pos.x + x, pos.y + y)
+	# Additional terrain checks based on settlement type
+	var surrounding_tiles = []
+	for x in range(-1, 2):
+		for y in range(-1, 2):
+			var check_pos = pos + Vector2i(x, y)
 			if check_pos.x >= 0 and check_pos.x < WIDTH and check_pos.y >= 0 and check_pos.y < HEIGHT:
 				var tile = get_tile_type(check_pos)
-				if tile == Tile.GRASS:
-					grass_count += 1
+				surrounding_tiles.append(tile)
 	
-	return grass_count >= required_grass_tiles
+	match settlement_type:
+		Tile.CASTLE:
+			# Castles prefer elevated terrain
+			var mountain_count = surrounding_tiles.count(Tile.MOUNTAIN)
+			return mountain_count >= 2
+		Tile.CITY:
+			# Cities need mostly flat terrain
+			var grass_count = surrounding_tiles.count(Tile.GRASS)
+			return grass_count >= 6
+		Tile.TOWN:
+			# Towns can be anywhere walkable (already checked)
+			return true
+	
+	return false
+
+func count_neighbors(pos: Vector2i) -> Dictionary:
+	var counts = {
+		"water": 0,
+		"grass": 0,
+		"beach": 0,
+		"mountain": 0
+	}
+	
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			if dx == 0 and dy == 0:
+				continue
+			var neighbor_pos = Vector2i(pos.x + dx, pos.y + dy)
+			var neighbor_type = get_tile_type(neighbor_pos)
+			var terrain = TILE_TO_TERRAIN.get(neighbor_type)
+			if terrain:
+				counts[terrain] += 1
+	
+	return counts
