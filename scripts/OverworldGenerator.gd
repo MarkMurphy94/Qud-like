@@ -56,14 +56,6 @@ var rng = RandomNumberGenerator.new()
 var noise: FastNoiseLite
 var settle_noise: FastNoiseLite
 
-const TILE_COORDS = {
-	Tile.DEEP_WATER: Vector2i(0, 0),
-	Tile.SHALLOW_WATER: Vector2i(1, 0),
-	Tile.SAND: Vector2i(2, 0),
-	Tile.GRASS: Vector2i(3, 0),
-	Tile.MOUNTAIN: Vector2i(4, 0)
-}
-
 const max_settlements = {
 	Tile.CASTLE: 2,
 	Tile.CITY: 4,
