@@ -1,4 +1,3 @@
-@tool
 extends Node2D
 
 enum Tile {
@@ -69,20 +68,11 @@ const min_settlement_distance = {
 }
 
 func _ready() -> void:
-	var seed_val = randi()
-	initialize_noise(seed_val)
-	generate_terrain()
-	generate_settlements()
+	# var seed_val = randi()
+	# initialize_noise(seed_val)
+	# generate_terrain()
+	# generate_settlements()
 	spawn_npcs()
-
-func generate_map(custom_seed: int = -1) -> void:
-	var seed_val = custom_seed if custom_seed != -1 else randi()
-	rng.seed = seed_val
-	initialize_noise(seed_val)
-	generate_terrain()
-	add_landmasses()
-	smooth_map()
-	generate_settlements()
 
 func initialize_noise(seed_val: int) -> void:
 	noise = FastNoiseLite.new()
@@ -150,7 +140,6 @@ func get_tile_type(coords: Vector2i) -> int:
 			return settlement_type
 			
 	return Tile.NONE
-
 
 func add_landmasses() -> void:
 	for i in num_landmasses:
@@ -314,3 +303,12 @@ func count_neighbors(pos: Vector2i) -> Dictionary:
 				counts[terrain] += 1
 	
 	return counts
+
+# func generate_map(custom_seed: int = -1) -> void:
+# 	var seed_val = custom_seed if custom_seed != -1 else randi()
+# 	rng.seed = seed_val
+# 	initialize_noise(seed_val)
+# 	generate_terrain()
+# 	add_landmasses()
+# 	smooth_map()
+# 	generate_settlements()

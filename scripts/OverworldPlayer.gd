@@ -3,7 +3,7 @@ extends CharacterBody2D
 @export var move_speed: float = 100.0
 @export var grid_size: int = 16 # Size of each tile in pixels
 
-@onready var overworld = $"../OverworldGenerator"
+@onready var overworld = $"../OverworldMap"
 var local_area_scene = preload("res://scenes/local_area_generator.tscn")
 var settlement_scene = preload("res://scenes/settlement_generator.tscn")
 var current_local_area: Node2D = null
@@ -11,14 +11,10 @@ var in_local_area: bool = false
 
 var target_position: Vector2
 var is_moving: bool = false
-
-# Add this variable to store the overworld position
 var overworld_position: Vector2
 
 func _ready() -> void:
-	# Initialize starting position to first walkable tile
-	position = Vector2.ZERO
-	find_valid_starting_position()
+	# find_valid_starting_position()
 	target_position = position
 
 func find_valid_starting_position() -> void:
@@ -27,14 +23,13 @@ func find_valid_starting_position() -> void:
 		for x in overworld.WIDTH:
 			if overworld.is_walkable(Vector2i(x, y)):
 				grid_pos = Vector2i(x, y)
-				position = Vector2(grid_pos) * grid_size
+				position = overworld.map_to_world(grid_pos)
 				return
 
 func _process(_delta: float) -> void:
 	if not is_moving:
 		check_movement_input()
 	
-	# Check for descend/ascend input
 	if Input.is_action_just_pressed("ui_accept"): # Space bar
 		if not in_local_area:
 			descend_to_local_area()
@@ -44,7 +39,6 @@ func _process(_delta: float) -> void:
 func check_movement_input() -> void:
 	var direction = Vector2.ZERO
 	
-	# Check for held input
 	if Input.is_action_pressed("ui_right"):
 		direction = Vector2.RIGHT
 	elif Input.is_action_pressed("ui_left"):
@@ -58,12 +52,12 @@ func check_movement_input() -> void:
 		try_move(direction)
 
 func try_move(direction: Vector2) -> void:
-	var grid_pos = (position / grid_size).floor()
-	var new_grid_pos = grid_pos + direction
+	var current_grid_pos = overworld.world_to_map(position)
+	var new_grid_pos = current_grid_pos + Vector2i(direction)
 	
-	# if overworld.is_walkable(Vector2i(new_grid_pos.x, new_grid_pos.y)):
-	target_position = new_grid_pos * grid_size
-	is_moving = true
+	if overworld.is_walkable(new_grid_pos):
+		target_position = overworld.map_to_world(new_grid_pos)
+		is_moving = true
 
 func _physics_process(delta: float) -> void:
 	if is_moving:
@@ -77,31 +71,24 @@ func _physics_process(delta: float) -> void:
 			position += movement
 
 func descend_to_local_area() -> void:
-	var grid_pos = (position / grid_size).floor()
-	var tile_type = overworld.get_tile_type(Vector2i(grid_pos.x, grid_pos.y))
-	if tile_type in [0, 1]:
+	var grid_pos = overworld.world_to_map(position)
+	var tile_type = overworld.get_tile_data(grid_pos).terrain
+	
+	if tile_type == overworld.Terrain.WATER:
 		print("Can't descend on water")
 		return
+		
 	overworld_position = position
 	
-	# Map overworld tile types to appropriate local areas
-	if tile_type in [5, 6, 7]:
+	if overworld.has_settlement(grid_pos):
 		current_local_area = settlement_scene.instantiate()
 		get_tree().current_scene.add_child(current_local_area)
-		# Initialize settlement with TileMap and RNG
-		# var rng = RandomNumberGenerator.new()
-		# rng.seed = hash(str(grid_pos) + str(overworld.get_current_seed())) # Deterministic seed based on position
-		# current_local_area.generate_settlement(0, current_local_area.get_node("TileMap"), rng) # 0 = TOWN type
 	else:
 		current_local_area = local_area_scene.instantiate()
 		get_tree().current_scene.add_child(current_local_area)
-		current_local_area.initialize(tile_type, Vector2i(grid_pos.x, grid_pos.y))
+		current_local_area.initialize(tile_type, grid_pos)
 	
-	# Position player in center of local area
 	position = Vector2(current_local_area.WIDTH / 2, current_local_area.HEIGHT / 2) * grid_size
-	print('position in local area: ', position)
-	
-	# Hide overworld and show local area
 	overworld.hide()
 	in_local_area = true
 
@@ -112,7 +99,4 @@ func return_to_overworld() -> void:
 	
 	overworld.show()
 	in_local_area = false
-	
-	# Return to stored overworld position
 	position = overworld_position
-	print('position in overworld: ', position)
