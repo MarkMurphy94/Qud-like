@@ -49,26 +49,35 @@ func initialize_map_data() -> void:
 			row.append(null)
 		map_data.append(row)
 	
-	# Read data from tilemap
+	# Read data from tilemap layers
 	for y in HEIGHT:
 		for x in WIDTH:
 			var pos = Vector2i(x, y)
-			var tile_data = tilemap.get_cell_tile_data(0, pos)
-			if tile_data == null:
-				map_data[y][x] = CustomTileData.new(Terrain.NONE)
-				continue
+			var terrain = Terrain.NONE
+			var settlement = Settlement.NONE
 			
-			# Get terrain from tile's terrain set
-			var terrain_id = tile_data.terrain
-			var terrain = get_terrain_from_id(terrain_id)
+			# Check ground layer (0) for base terrain
+			var ground_data = tilemap.get_cell_tile_data(0, pos)
+			if ground_data != null:
+				terrain = get_terrain_from_id(ground_data.terrain)
 			
-			# Check for settlements (these are in atlas coordinates)
-			var atlas_coords = tilemap.get_cell_atlas_coords(0, pos)
-			var settlement = get_settlement_from_coords(atlas_coords)
+			# Check geography layer (3) for mountains
+			var geo_data = tilemap.get_cell_tile_data(3, pos)
+			if geo_data != null:
+				# If there's a mountain tile, override the terrain
+				var atlas_coords = tilemap.get_cell_atlas_coords(3, pos)
+				if atlas_coords == Vector2i(4, 0): # Mountain tile coordinates
+					terrain = Terrain.MOUNTAIN
+			
+			# Check settlements layer (2)
+			var settlement_data = tilemap.get_cell_tile_data(2, pos)
+			if settlement_data != null:
+				var atlas_coords = tilemap.get_cell_atlas_coords(2, pos)
+				settlement = get_settlement_from_coords(atlas_coords)
 			
 			map_data[y][x] = CustomTileData.new(terrain, settlement)
 
-func get_terrain_from_id(terrain_id: int) -> int:
+func get_terrain_from_id(terrain_id: int) -> Terrain:
 	match terrain_id:
 		0: return Terrain.GRASS
 		1: return Terrain.WATER
@@ -106,6 +115,7 @@ func is_walkable(pos: Vector2i) -> bool:
 	return map_data[pos.y][pos.x].is_walkable
 
 func has_settlement(pos: Vector2i) -> bool:
+	debug_print_tile(pos)
 	if not is_valid_position(pos):
 		return false
 	return map_data[pos.y][pos.x].settlement != Settlement.NONE
@@ -119,3 +129,14 @@ func get_settlement(pos: Vector2i) -> int:
 	if not is_valid_position(pos):
 		return Settlement.NONE
 	return map_data[pos.y][pos.x].settlement
+
+func debug_print_tile(pos: Vector2i) -> void:
+	if not is_valid_position(pos):
+		print("Invalid position: ", pos)
+		return
+	
+	var tile = map_data[pos.y][pos.x]
+	print("Position: ", pos)
+	print("Terrain: ", Terrain.keys()[tile.terrain])
+	print("Settlement: ", Settlement.keys()[tile.settlement])
+	print("Walkable: ", tile.is_walkable)

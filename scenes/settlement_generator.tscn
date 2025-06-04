@@ -15,3 +15,5 @@ layer_1/name = "walls"
 layer_1/tile_data = PackedInt32Array()
 layer_2/name = "items"
 layer_2/tile_data = PackedInt32Array()
+layer_3/name = "Roofs"
+layer_3/tile_data = PackedInt32Array()
