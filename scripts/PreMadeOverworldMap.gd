@@ -85,7 +85,7 @@ func get_terrain_from_id(terrain_id: int) -> Terrain:
 		3: return Terrain.MOUNTAIN
 		_: return Terrain.NONE
 
-func get_settlement_from_coords(coords: Vector2i) -> int:
+func get_settlement_from_coords(coords: Vector2i) -> Settlement: # return type changed to Settlement from int
 	# These coords should match your tileset
 	match coords:
 		Vector2i(4, 17): return Settlement.TOWN

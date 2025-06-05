@@ -6,18 +6,29 @@ enum SettlementType {TOWN, CITY, CASTLE}
 enum BuildingType {HOUSE, TAVERN, SHOP, MANOR}
 @onready var tilemap = $TileMap
 
+# Layer definitions
+const LAYERS = {
+	"BASE": 0, # Bottom layer for base ground
+	"GROUND": 1, # Floor tiles and interior features
+	"WALLS": 2, # Walls, and other vertical elements
+	"DOORS": 3 # Doors and entrances
+}
+
 # Tile definitions for building elements
 const TILES = {
-	"FLOOR_WOOD": Vector2i(33, 14),
-	"FLOOR_STONE": Vector2i(33, 9),
-	"WALL_H": Vector2i(6, 43), # Horizontal wall
-	"WALL_V": Vector2i(4, 43), # Vertical wall
-	"CORNER_NW": Vector2i(5, 43),
-	"CORNER_NE": Vector2i(7, 43),
-	"CORNER_SW": Vector2i(5, 44),
-	"CORNER_SE": Vector2i(7, 44),
-	"DOOR": Vector2i(5, 45),
-	"GROUND": Vector2i(4, 5) # Default ground tile
+	"FLOOR_WOOD": Vector2i(67, 10),
+	"FLOOR_STONE": Vector2i(7, 10),
+	"WALL_H": Vector2i(6, 19), # Horizontal wall
+	"WALL_H_INT": Vector2i(6, 20), # Interior horizontal wall
+	"WALL_V_LEFT": Vector2i(9, 20), # Left-facing vertical wall
+	"WALL_V_RIGHT": Vector2i(4, 19), # Right-facing vertical wall
+	"CORNER_NW": Vector2i(5, 19),
+	"CORNER_NE": Vector2i(7, 19),
+	"CORNER_SW": Vector2i(5, 20),
+	"CORNER_SE": Vector2i(7, 20),
+	"DOOR": Vector2i(5, 21),
+	"GROUND": Vector2i(34, 56), # Default ground tile
+	"GRASS": Vector2i(9, 51) # Base layer grass
 }
 
 # Building templates
@@ -37,13 +48,13 @@ const BUILDING_TEMPLATES = {
 	BuildingType.SHOP: {
 		"min_size": Vector2i(5, 5),
 		"max_size": Vector2i(7, 7),
-		"floor": "FLOOR_STONE",
+		"floor": "FLOOR_WOOD",
 		"spacing": 2
 	},
 	BuildingType.MANOR: {
 		"min_size": Vector2i(8, 8),
 		"max_size": Vector2i(12, 12),
-		"floor": "FLOOR_STONE",
+		"floor": "FLOOR_WOOD",
 		"spacing": 3 # Manors need more space
 	}
 }
@@ -51,7 +62,7 @@ const BUILDING_TEMPLATES = {
 const WIDTH = 40 # Local area is more detailed, so larger
 const HEIGHT = 40
 const TILE_SIZE = 16 # Size of each tile in pixels
-const TILE_SOURCE_ID = 3 # The ID of the TileSetAtlasSource in the tileset
+const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 
 func _ready() -> void:
 	if not tilemap:
@@ -85,12 +96,20 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 			BuildingType.MANOR: 1
 		}
 	}
+	print("Generating settlement of type ", settlement_type, " with counts: ", building_counts[settlement_type])
 
-	# Clear and initialize with ground tiles
+	# Clear and initialize all layers
 	tilemap.clear()
+	
+	# Initialize base layer with grass
 	for y in area_size.y:
 		for x in area_size.x:
-			tilemap.set_cell(0, Vector2i(x, y), TILE_SOURCE_ID, TILES["GROUND"])
+			tilemap.set_cell(LAYERS.BASE, Vector2i(x, y), TILE_SOURCE_ID, TILES["GRASS"])
+	
+	# Initialize ground layer with basic ground tiles
+	for y in area_size.y:
+		for x in area_size.x:
+			tilemap.set_cell(LAYERS.GROUND, Vector2i(x, y), TILE_SOURCE_ID, TILES["GROUND"])
 
 	# Create occupation grid
 	var occupation_grid = []
@@ -161,30 +180,40 @@ func mark_occupied(occupation_grid: Array, pos: Vector2i, size: Vector2i) -> voi
 
 func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	var template = BUILDING_TEMPLATES[building_type]
+	print("Placing building of type ", building_type, " at ", pos, " with size ", size)
+	# Place base layer (grass or ground)
+	for y in range(pos.y - 1, pos.y + size.y + 1):
+		for x in range(pos.x - 1, pos.x + size.x + 1):
+			tilemap.set_cell(LAYERS.BASE, Vector2i(x, y), TILE_SOURCE_ID, TILES["GROUND"])
 	
-	# Place floor
+	# Place floor on ground layer
 	for y in range(pos.y, pos.y + size.y):
 		for x in range(pos.x, pos.x + size.x):
-			tilemap.set_cell(0, Vector2i(x, y), TILE_SOURCE_ID, TILES[template["floor"]])
+			tilemap.set_cell(LAYERS.GROUND, Vector2i(x, y), TILE_SOURCE_ID, TILES[template["floor"]])
 	
-	# Place walls
+	# Place walls on walls layer
 	for x in range(pos.x, pos.x + size.x):
 		# Top and bottom walls
-		tilemap.set_cell(1, Vector2i(x, pos.y), TILE_SOURCE_ID, TILES["WALL_H"])
-		tilemap.set_cell(1, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["WALL_H"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID, TILES["WALL_H"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["WALL_H"])
+		
+		# Add an interior horizontal wall if building is large enough
+		if size.y > 6 and x > pos.x + 1 and x < pos.x + size.x - 2:
+			var mid_y = pos.y + size.y / 2
+			tilemap.set_cell(LAYERS.WALLS, Vector2i(x, mid_y), TILE_SOURCE_ID, TILES["WALL_H_INT"])
 	
 	for y in range(pos.y, pos.y + size.y):
-		# Left and right walls
-		tilemap.set_cell(1, Vector2i(pos.x, y), TILE_SOURCE_ID, TILES["WALL_V"])
-		tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, TILES["WALL_V"])
+		# Left and right walls with proper facing
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, y), TILE_SOURCE_ID, TILES["WALL_V_RIGHT"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, TILES["WALL_V_LEFT"])
 	
 	# Place corners
-	tilemap.set_cell(1, pos, TILE_SOURCE_ID, TILES["CORNER_NW"])
-	tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, TILES["CORNER_NE"])
-	tilemap.set_cell(1, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["CORNER_SW"])
-	tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["CORNER_SE"])
+	tilemap.set_cell(LAYERS.WALLS, pos, TILE_SOURCE_ID, TILES["CORNER_NW"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, TILES["CORNER_NE"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["CORNER_SW"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["CORNER_SE"])
 	
 	# Place door on the south wall
 	var door_x = pos.x + size.x / 2
 	var door_y = pos.y + size.y - 1
-	tilemap.set_cell(1, Vector2i(door_x, door_y), TILE_SOURCE_ID, TILES["DOOR"])
+	tilemap.set_cell(LAYERS.DOORS, Vector2i(door_x, door_y), TILE_SOURCE_ID, TILES["DOOR"])
