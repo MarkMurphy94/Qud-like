@@ -4,15 +4,15 @@
 [ext_resource type="TileSet" uid="uid://bjibwwb63qoxr" path="res://resources/Roguelike_extended_walls.tres" id="2_ncqld"]
 
 [node name="settlement_generator" type="Node2D"]
-visibility_layer = 15
+visibility_layer = 31
 script = ExtResource("1_3k6v8")
 
 [node name="TileMap" type="TileMap" parent="."]
-visibility_layer = 15
+visibility_layer = 31
 tile_set = ExtResource("2_ncqld")
 format = 2
 layer_0/name = "base"
-layer_1/name = "ground"
+layer_1/name = "interior_floor"
 layer_1/tile_data = PackedInt32Array()
 layer_2/name = "walls"
 layer_2/tile_data = PackedInt32Array()
