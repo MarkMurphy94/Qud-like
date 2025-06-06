@@ -3,7 +3,6 @@ extends Node2D
 enum Terrain {
 	NONE = -1,
 	WATER, # Deep and shallow water combined
-	BEACH, # Coastal and sand areas
 	GRASS, # Plains and grasslands
 	MOUNTAIN # Hills and peaks
 }
@@ -13,6 +12,16 @@ enum Settlement {
 	TOWN,
 	CITY,
 	CASTLE
+}
+
+enum Layer {
+	GROUND = 0, # Base terrain layer
+	SETTLEMENTS = 1, # Settlements layer
+	MOUNTAINS = 2, # Geography layer for mountains
+}
+
+const GEOGRAPHY_TILES = {
+	"MOUNTAIN": Vector2i(9, 14), # Mountain tile coordinates
 }
 
 class CustomTileData:
@@ -27,8 +36,8 @@ class CustomTileData:
 
 @onready var tilemap: TileMap = $TileMap
 var map_data: Array[Array] = []
-const WIDTH = 80
-const HEIGHT = 60
+const WIDTH = 137
+const HEIGHT = 61
 const TILE_SIZE = 16 # Size of each tile in pixels
 
 func _ready() -> void:
@@ -57,32 +66,47 @@ func initialize_map_data() -> void:
 			var settlement = Settlement.NONE
 			
 			# Check ground layer (0) for base terrain
-			var ground_data = tilemap.get_cell_tile_data(0, pos)
+			var ground_data = tilemap.get_cell_tile_data(Layer.GROUND, pos)
 			if ground_data != null:
-				terrain = get_terrain_from_id(ground_data.terrain)
+				# Get terrain from terrain set first
+				if ground_data.terrain_set >= 0:
+					terrain = get_terrain_from_terrain_set(ground_data.terrain)
+				else:
+					# Fallback to checking tile ID if no terrain set
+					terrain = get_terrain_from_id(ground_data.terrain)
 			
 			# Check geography layer (3) for mountains
-			var geo_data = tilemap.get_cell_tile_data(3, pos)
+			var geo_data = tilemap.get_cell_tile_data(Layer.MOUNTAINS, pos)
 			if geo_data != null:
-				# If there's a mountain tile, override the terrain
-				var atlas_coords = tilemap.get_cell_atlas_coords(3, pos)
-				if atlas_coords == Vector2i(4, 0): # Mountain tile coordinates
+				var atlas_coords = tilemap.get_cell_atlas_coords(Layer.MOUNTAINS, pos)
+				if atlas_coords == GEOGRAPHY_TILES.MOUNTAIN: # Mountain tile coordinates
 					terrain = Terrain.MOUNTAIN
 			
 			# Check settlements layer (2)
-			var settlement_data = tilemap.get_cell_tile_data(2, pos)
+			var settlement_data = tilemap.get_cell_tile_data(Layer.SETTLEMENTS, pos)
 			if settlement_data != null:
-				var atlas_coords = tilemap.get_cell_atlas_coords(2, pos)
+				var atlas_coords = tilemap.get_cell_atlas_coords(Layer.SETTLEMENTS, pos)
 				settlement = get_settlement_from_coords(atlas_coords)
 			
 			map_data[y][x] = CustomTileData.new(terrain, settlement)
 
+# New function to handle terrain sets
+func get_terrain_from_terrain_set(terrain_id: int) -> Terrain:
+	match terrain_id:
+		0: return Terrain.GRASS # Grass terrain set
+		1: return Terrain.WATER # Water terrain set
+		_: return Terrain.NONE
+
 func get_terrain_from_id(terrain_id: int) -> Terrain:
+	# This is for non-terrain-set tiles
+	if terrain_id < 0:
+		return Terrain.NONE
+		
+	# These are tile-based terrain IDs, only used if terrain sets are not available
 	match terrain_id:
 		0: return Terrain.GRASS
 		1: return Terrain.WATER
-		2: return Terrain.BEACH
-		3: return Terrain.MOUNTAIN
+		2: return Terrain.MOUNTAIN
 		_: return Terrain.NONE
 
 func get_settlement_from_coords(coords: Vector2i) -> Settlement: # return type changed to Settlement from int
@@ -137,6 +161,18 @@ func debug_print_tile(pos: Vector2i) -> void:
 	
 	var tile = map_data[pos.y][pos.x]
 	print("Position: ", pos)
-	print("Terrain: ", Terrain.keys()[tile.terrain])
+	
+	# Print terrain info with layer source
+	var terrain_str = Terrain.keys()[tile.terrain]
+	var terrain_source = ""
+	
+	# Check which layer the terrain comes from
+	if tilemap.get_cell_tile_data(Layer.MOUNTAINS, pos) != null:
+		terrain_source = " (from mountains layer)"
+	elif tilemap.get_cell_tile_data(Layer.GROUND, pos) != null:
+		var ground_data = tilemap.get_cell_tile_data(Layer.GROUND, pos)
+		terrain_source = " (from ground layer, terrain set: " + str(ground_data.terrain_set) + ")"
+	
+	print("Terrain: ", terrain_str, terrain_source)
 	print("Settlement: ", Settlement.keys()[tile.settlement])
-	print("Walkable: ", tile.is_walkable)
+	print("Walkable: ", tile.is_walkable, " (blocked by: ", "water" if tile.terrain == Terrain.WATER else "mountain" if tile.terrain == Terrain.MOUNTAIN else "none", ")")

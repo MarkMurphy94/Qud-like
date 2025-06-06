@@ -15,7 +15,7 @@ var overworld_position: Vector2
 
 func _ready() -> void:
 	# find_valid_starting_position()
-	target_position = position
+	target_position = global_position
 
 func find_valid_starting_position() -> void:
 	var grid_pos = Vector2i.ZERO
@@ -52,9 +52,9 @@ func check_movement_input() -> void:
 		try_move(direction)
 
 func try_move(direction: Vector2) -> void:
-	var current_grid_pos = overworld.world_to_map(position)
+	var current_grid_pos = overworld.world_to_map(global_position)
 	var new_grid_pos = current_grid_pos + Vector2i(direction)
-	
+	print("Previous Grid Position: ", current_grid_pos, " New Grid Position: ", new_grid_pos)
 	if overworld.is_walkable(new_grid_pos):
 		target_position = overworld.map_to_world(new_grid_pos)
 		is_moving = true
@@ -71,7 +71,7 @@ func _physics_process(delta: float) -> void:
 			position += movement
 
 func descend_to_local_area() -> void:
-	var grid_pos = overworld.world_to_map(position)
+	var grid_pos = overworld.world_to_map(global_position)
 	var tile_type = overworld.get_tile_data(grid_pos).terrain
 	
 	if tile_type == overworld.Terrain.WATER:
@@ -82,6 +82,7 @@ func descend_to_local_area() -> void:
 	
 	if overworld.has_settlement(grid_pos):
 		current_local_area = settlement_scene.instantiate()
+		current_local_area.SETTLEMENT_TYPE = overworld.get_settlement(grid_pos)
 		get_tree().current_scene.add_child(current_local_area)
 	else:
 		current_local_area = local_area_scene.instantiate()

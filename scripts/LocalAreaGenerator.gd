@@ -1,7 +1,7 @@
 extends Node2D
 
 # Mirror of OverworldGenerator.Tile for local reference
-enum OverworldTile {DEEP_WATER, SHALLOW_WATER, SAND, GRASS, MOUNTAIN}
+enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, SAND, WATER}
 enum FoliageTile {TREE, BUSH, ROCK}
 enum StructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
@@ -97,8 +97,8 @@ func initialize(overworld_tile_type: int, world_position: Vector2i) -> void:
 	position = Vector2(world_position) * TILE_SIZE
 	
 	# Set up noise and RNG with deterministic seed
-	# var map_seed = generate_seed(world_position, overworld_tile_type)
-	var map_seed = 16778390 # fixed seed for testing
+	var map_seed = generate_seed(world_position, overworld_tile_type)
+	# var map_seed = 16778390 # fixed seed for testing
 	rng.seed = map_seed
 	noise.seed = map_seed
 	noise.frequency = 1.0 / noise_scale
@@ -149,7 +149,7 @@ func generate_map() -> void:
 		tilemap.set_cells_terrain_connect(0, water_cells, 0, TERRAIN_SETS["water"])
 	
 	# Add water features to appropriate terrains first
-	if base_terrain in [OverworldTile.GRASS, OverworldTile.SAND]:
+	if base_terrain == OverworldTile.GRASS:
 		maybe_add_water_features()
 	
 	# Add foliage and details on foliage layer (layer 1)
@@ -169,19 +169,13 @@ func get_ground_tile(_x: int, _y: int, height: float) -> int:
 			if height > 0.8: # Small chance for stone patches
 				return GroundTile.STONE
 			return GroundTile.GRASS
-		OverworldTile.SAND:
-			if height > 0.9: # Rare stone outcroppings
-				return GroundTile.STONE
-			return GroundTile.SAND
 		OverworldTile.MOUNTAIN:
 			if height < 0.4:
 				return GroundTile.GRASS
 			elif height < 0.7:
 				return GroundTile.SAND
 			return GroundTile.STONE
-		OverworldTile.DEEP_WATER, OverworldTile.SHALLOW_WATER:
-			if height > 0.8: # Islands
-				return GroundTile.SAND
+		OverworldTile.WATER:
 			return GroundTile.WATER
 		_:
 			return GroundTile.GRASS
@@ -344,6 +338,12 @@ func generate_hamlet(hamlet_type: String) -> void:
 		if try_place_building(building_type, occupation_grid):
 			buildings_placed += 1
 		attempts += 1
+
+func spawn_dungeon_entrance():
+	pass # TODO: Dungeon generation logic would go here
+
+func generate_ruin():
+	pass # TODO: Ruin generation logic would go here
 
 func try_place_building(type: int, occupation_grid: Array) -> bool:
 	var template = STRUCTURE_TEMPLATES[type]

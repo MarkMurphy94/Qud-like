@@ -15,7 +15,7 @@ const LAYERS = {
 }
 
 # Terrain sets for better tile transitions
-const TERRAIN_SETS = {
+const TERRAINS = {
 	"stone": 0, # Stone paths and plazas
 	"grass": 1, # Natural grass areas
 	"dirt": 2 # Dirt paths and yards
@@ -25,12 +25,12 @@ const TERRAIN_SETS = {
 const SETTLEMENT_TERRAIN = {
 	SettlementType.TOWN: {
 		"primary": "grass",
-		"secondary": "dirt",
+		"secondary": "grass",
 		"paths": "dirt"
 	},
 	SettlementType.CITY: {
 		"primary": "stone",
-		"secondary": "dirt",
+		"secondary": "grass",
 		"paths": "stone"
 	},
 	SettlementType.CASTLE: {
@@ -106,6 +106,7 @@ const HEIGHT = 40
 const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
+var SETTLEMENT_TYPE: int = SettlementType.TOWN # Default settlement type
 
 # TODO: dirt trails/stone roads
 # TODO: instead of 1 ground tile, use 2x2 tiles for more variety? Need terrain set??
@@ -121,7 +122,7 @@ func _ready() -> void:
 	# Generate a settlement of type TOWN for demonstration
 	var rng = RandomNumberGenerator.new()
 	rng.seed = randi() # Random seed for this example
-	generate_settlement(SettlementType.TOWN, rng)
+	generate_settlement(SETTLEMENT_TYPE, rng)
 
 func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> void:
 	var area_size = Vector2i(40, 40)
@@ -178,7 +179,7 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 				LAYERS.BASE,
 				terrain_cells[terrain],
 				TERRAIN_SET_ID,
-				TERRAIN_SETS[terrain]
+				TERRAINS[terrain]
 			)
 
 	# Create occupation grid
@@ -266,7 +267,7 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 		LAYERS.BASE,
 		building_cells,
 		TERRAIN_SET_ID,
-		TERRAIN_SETS[ground_terrain]
+		TERRAINS[ground_terrain]
 	)
 	
 	# Place floor tiles on the interior floor layer
@@ -349,7 +350,7 @@ func generate_road_between(building_a: Dictionary, building_b: Dictionary, settl
 		LAYERS.BASE,
 		road_cells,
 		TERRAIN_SET_ID,
-		TERRAIN_SETS[road_terrain]
+		TERRAINS[road_terrain]
 	)
 
 func generate_plaza_between(building_a: Dictionary, building_b: Dictionary, rng: RandomNumberGenerator, settlement_type: int) -> void:
@@ -382,7 +383,7 @@ func generate_plaza_between(building_a: Dictionary, building_b: Dictionary, rng:
 		LAYERS.BASE,
 		plaza_cells,
 		TERRAIN_SET_ID,
-		TERRAIN_SETS[plaza_terrain]
+		TERRAINS[plaza_terrain]
 	)
 
 # When connecting terrain, use the terrain set index (not the tile alternative id)
