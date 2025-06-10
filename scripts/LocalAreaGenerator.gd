@@ -85,8 +85,8 @@ const STRUCTURE_TEMPLATES = {
 	}
 }
 
-const WIDTH = 40 # Local area is more detailed, so larger
-const HEIGHT = 40
+const WIDTH = 80 # Local area is more detailed, so larger
+const HEIGHT = 80
 const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 

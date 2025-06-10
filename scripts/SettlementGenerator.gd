@@ -103,8 +103,8 @@ const BUILDING_TEMPLATES = {
 	}
 }
 
-const WIDTH = 40 # Local area is more detailed, so larger
-const HEIGHT = 40
+const WIDTH = 80 # Local area is more detailed, so larger
+const HEIGHT = 80
 const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
@@ -127,7 +127,7 @@ func _ready() -> void:
 	generate_settlement(SETTLEMENT_TYPE, rng)
 
 func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> void:
-	var area_size = Vector2i(40, 40)
+	var area_size = Vector2i(WIDTH, HEIGHT)
 	var building_counts = {
 		SettlementType.TOWN: {
 			BuildingType.HOUSE: rng.randi_range(6, 10),

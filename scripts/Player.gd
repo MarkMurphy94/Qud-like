@@ -4,6 +4,7 @@ extends CharacterBody2D
 @export var tile_size: int = 16 # Size of each tile in pixels
 
 @onready var overworld = $"../OverworldMap"
+@onready var camera = $Camera2D
 var local_area_scene = preload("res://scenes/local_area_generator.tscn")
 var settlement_scene = preload("res://scenes/settlement_generator.tscn")
 var current_local_area: Node2D = null
@@ -17,6 +18,7 @@ var overworld_grid_pos: Vector2
 func _ready() -> void:
 	# find_valid_starting_position()
 	target_position = global_position
+	update_camera_limits()
 
 func find_valid_starting_position() -> void:
 	var grid_pos = Vector2i.ZERO
@@ -118,10 +120,11 @@ func descend_to_local_area() -> void:
 		await get_tree().process_frame
 		map_rect = current_local_area.tilemap.get_used_rect()
 		find_valid_local_position()
-	
-	print('overworld_grid_pos: ', overworld_grid_pos)
+		print('overworld_grid_pos: ', overworld_grid_pos)
 	overworld.hide()
 	in_local_area = true
+	update_camera_limits()
+	update_camera_limits()
 
 func find_valid_local_position() -> void:
 	if not current_local_area or not current_local_area.tilemap:
@@ -152,8 +155,31 @@ func return_to_overworld() -> void:
 	if current_local_area:
 		current_local_area.queue_free()
 		current_local_area = null
+		map_rect = null
 	
 	overworld.show()
 	in_local_area = false
 	position = overworld.map_to_world(overworld_grid_pos)
+	update_camera_limits()
 	print('position in overworld: ', position)
+	update_camera_limits()
+
+func update_camera_limits() -> void:
+	if not camera:
+		return
+		
+	if in_local_area and current_local_area and map_rect:
+		# Set camera limits for local area
+		var margin = 0 # Pixels of margin around the map edges
+		camera.limit_left = map_rect.position.x * tile_size - margin
+		camera.limit_right = (map_rect.end.x) * tile_size + margin
+		camera.limit_top = map_rect.position.y * tile_size - margin
+		camera.limit_bottom = (map_rect.end.y) * tile_size + margin
+		print("Camera limits set for local area: ", map_rect)
+	else:
+		# Set camera limits for overworld
+		camera.limit_left = 0
+		camera.limit_right = overworld.WIDTH * tile_size
+		camera.limit_top = 0
+		camera.limit_bottom = overworld.HEIGHT * tile_size
+		print("Camera limits set for overworld")
