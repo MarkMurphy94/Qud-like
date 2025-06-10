@@ -2,44 +2,54 @@ extends Node2D
 
 # Mirror of OverworldGenerator.Tile for local reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
-enum GroundTile {GRASS, STONE, SAND, WATER}
+enum GroundTile {GRASS, STONE, DIRT, WATER}
 enum FoliageTile {TREE, BUSH, ROCK}
 enum StructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
 
 # Terrain sets for ground tiles
-const TERRAIN_SETS = {
-	"grass": 0,
-	"dirt": 1,
-	"water": 2
+const TERRAINS = {
+	"stone": 0, # Stone paths and plazas
+	"grass": 1, # Natural grass areas
+	"dirt": 2, # Dirt paths and yards
+	"water": 3
+}
+
+const LAYERS = {
+	"GROUND": 0, # Ground terrain (grass, dirt, stone)
+	"WALLS": 1, # Building floors
+	"DOORS": 2, # Building walls
+	"ITEMS": 3 # Building doors
 }
 
 # Map our enum types to terrain sets
 const GROUND_TERRAIN_MAP = {
+	GroundTile.STONE: "stone",
 	GroundTile.GRASS: "grass",
-	GroundTile.STONE: "dirt",
-	GroundTile.SAND: "dirt",
+	GroundTile.DIRT: "dirt",
 	GroundTile.WATER: "water"
 }
 
 const FOLIAGE_COORDS = {
-	FoliageTile.TREE: Vector2i(4, 28), # Tree tile
-	FoliageTile.BUSH: Vector2i(4, 31), # Bush/shrub tile
-	FoliageTile.ROCK: Vector2i(4, 32) # Boulder/rock tile
+	FoliageTile.TREE: Vector2i(7, 4), # Tree tile
+	FoliageTile.BUSH: Vector2i(8, 6), # Bush/shrub tile
+	FoliageTile.ROCK: Vector2i(4, 8) # Boulder/rock tile
 }
 
+# Update the STRUCTURE_TILES constant to include directional walls
 const STRUCTURE_TILES = {
 	# Wall tiles
-	"WALL_H": Vector2i(6, 43), # Horizontal wall
-	"WALL_V": Vector2i(4, 43), # Vertical wall
-	"CORNER_NW": Vector2i(5, 43),
-	"CORNER_NE": Vector2i(7, 43),
-	"CORNER_SW": Vector2i(5, 44),
-	"CORNER_SE": Vector2i(7, 44),
+	"WALL_H": Vector2i(6, 19), # Horizontal wall
+	"WALL_V_LEFT": Vector2i(9, 20), # Left-facing vertical wall
+	"WALL_V_RIGHT": Vector2i(4, 19), # Right-facing vertical wall
+	"CORNER_NW": Vector2i(5, 19),
+	"CORNER_NE": Vector2i(7, 19),
+	"CORNER_SW": Vector2i(5, 20),
+	"CORNER_SE": Vector2i(7, 20),
 	# Door tiles
-	"DOOR": Vector2i(5, 45),
+	"DOOR": Vector2i(5, 21),
 	# Floor tiles
-	"FLOOR_WOOD": Vector2i(33, 14),
-	"FLOOR_STONE": Vector2i(33, 9),
+	"FLOOR_WOOD": Vector2i(67, 10),
+	"FLOOR_STONE": Vector2i(53, 10),
 }
 
 const STRUCTURE_TEMPLATES = {
@@ -78,7 +88,7 @@ const STRUCTURE_TEMPLATES = {
 const WIDTH = 40 # Local area is more detailed, so larger
 const HEIGHT = 40
 const TILE_SIZE = 16 # Size of each tile in pixels
-const TILE_SOURCE_ID = 3 # The ID of the TileSetAtlasSource in the tileset
+const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 
 @export var noise_scale: float = 20.0
 @export var tree_density: float = 0.1
@@ -113,13 +123,8 @@ func _ready() -> void:
 	noise = FastNoiseLite.new()
 
 func generate_map() -> void:
-	if not tilemap:
-		push_error("TileMap is null!")
-		return
-	print("Generating map with base terrain: ", base_terrain)
-	tilemap.clear()
-	
-	# Generate terrain data first
+	# The cells arrays might not include all positions
+	var stone_cells = []
 	var grass_cells = []
 	var dirt_cells = []
 	var water_cells = []
@@ -136,18 +141,23 @@ func generate_map() -> void:
 			
 			# Sort cells by terrain type
 			match terrain_type:
+				"stone": stone_cells.append(pos)
 				"grass": grass_cells.append(pos)
 				"dirt": dirt_cells.append(pos)
 				"water": water_cells.append(pos)
 	
 	# Apply terrain for each type separately
+	if stone_cells:
+		tilemap.set_cells_terrain_connect(LAYERS.GROUND, stone_cells, 0, TERRAINS["stone"], false)
 	if grass_cells:
-		tilemap.set_cells_terrain_connect(0, grass_cells, 0, TERRAIN_SETS["grass"])
+		tilemap.set_cells_terrain_connect(LAYERS.GROUND, grass_cells, 0, TERRAINS["grass"], false)
 	if dirt_cells:
-		tilemap.set_cells_terrain_connect(0, dirt_cells, 0, TERRAIN_SETS["dirt"])
-	if water_cells:
-		tilemap.set_cells_terrain_connect(0, water_cells, 0, TERRAIN_SETS["water"])
-	
+		tilemap.set_cells_terrain_connect(LAYERS.GROUND, dirt_cells, 0, TERRAINS["dirt"], false)
+	# if water_cells:
+	# 	tilemap.set_cells_terrain_connect(LAYERS.GROUND, water_cells, 0, TERRAINS["water"])
+
+	# debug_cells(grass_cells, dirt_cells, water_cells)
+
 	# Add water features to appropriate terrains first
 	if base_terrain == OverworldTile.GRASS:
 		maybe_add_water_features()
@@ -162,23 +172,25 @@ func generate_map() -> void:
 			if randf() < 0.3:
 				hamlet_type = "farm"
 			generate_hamlet(hamlet_type)
+	
+	# Print debug visualization of the final map
+	# debug_print_terrain_matrix()
 
 func get_ground_tile(_x: int, _y: int, height: float) -> int:
-	match base_terrain:
-		OverworldTile.GRASS:
-			if height > 0.8: # Small chance for stone patches
-				return GroundTile.STONE
-			return GroundTile.GRASS
-		OverworldTile.MOUNTAIN:
-			if height < 0.4:
-				return GroundTile.GRASS
-			elif height < 0.7:
-				return GroundTile.SAND
+	if base_terrain == OverworldTile.GRASS:
+		if height > 0.8: # Small chance for stone patches
 			return GroundTile.STONE
-		OverworldTile.WATER:
-			return GroundTile.WATER
-		_:
+		return GroundTile.GRASS
+	if base_terrain == OverworldTile.MOUNTAIN:
+		if height < 0.4:
 			return GroundTile.GRASS
+		elif height < 0.7:
+			return GroundTile.DIRT
+		return GroundTile.STONE
+	if base_terrain == OverworldTile.WATER:
+		return GroundTile.WATER
+	else:
+		return GroundTile.GRASS
 			
 func add_foliage() -> void:
 	var detail_noise = FastNoiseLite.new()
@@ -195,14 +207,14 @@ func add_foliage() -> void:
 			var pos = Vector2i(x, y)
 			
 			# Only add foliage on walkable ground tiles
-			if ground_type in [GroundTile.GRASS, GroundTile.SAND, GroundTile.STONE]:
+			if ground_type in [GroundTile.GRASS, GroundTile.DIRT, GroundTile.STONE]:
 				# Scale densities based on terrain type
 				var local_tree_density = tree_density
 				var local_bush_density = bush_density
 				var local_rock_density = rock_density
 				
 				match ground_type:
-					GroundTile.SAND:
+					GroundTile.DIRT:
 						local_tree_density *= 0.3 # Fewer trees in sand
 						local_bush_density *= 0.5 # Fewer bushes in sand
 						local_rock_density *= 1.5 # More rocks in sand
@@ -213,11 +225,11 @@ func add_foliage() -> void:
 				
 				# Add foliage based on adjusted densities
 				if detail_value < local_tree_density:
-					tilemap.set_cell(1, pos, TILE_SOURCE_ID, FOLIAGE_COORDS[FoliageTile.TREE])
+					tilemap.set_cell(LAYERS.ITEMS, pos, TILE_SOURCE_ID, FOLIAGE_COORDS[FoliageTile.TREE])
 				elif detail_value < local_tree_density + local_bush_density:
-					tilemap.set_cell(1, pos, TILE_SOURCE_ID, FOLIAGE_COORDS[FoliageTile.BUSH])
+					tilemap.set_cell(LAYERS.ITEMS, pos, TILE_SOURCE_ID, FOLIAGE_COORDS[FoliageTile.BUSH])
 				elif detail_value < local_tree_density + local_bush_density + local_rock_density:
-					tilemap.set_cell(1, pos, TILE_SOURCE_ID, FOLIAGE_COORDS[FoliageTile.ROCK])
+					tilemap.set_cell(LAYERS.ITEMS, pos, TILE_SOURCE_ID, FOLIAGE_COORDS[FoliageTile.ROCK])
 
 func maybe_add_water_features() -> void:
 	# 30% chance to add a water feature
@@ -251,7 +263,7 @@ func generate_lake() -> void:
 	
 	# Apply water terrain to all cells at once
 	if water_cells.size() > 0:
-		tilemap.set_cells_terrain_connect(0, water_cells, 0, TERRAIN_SETS["water"])
+		tilemap.set_cells_terrain_connect(0, water_cells, 0, TERRAINS["water"])
 
 func generate_river() -> void:
 	var start = Vector2i(
@@ -279,16 +291,16 @@ func generate_river() -> void:
 	
 	# Apply water terrain to all river cells at once
 	if river_cells.size() > 0:
-		tilemap.set_cells_terrain_connect(0, river_cells, 0, TERRAIN_SETS["water"])
+		tilemap.set_cells_terrain_connect(0, river_cells, 0, TERRAINS["water"])
 
 func get_cell_ground_type(coords: Vector2i) -> int:
-	var tile_data = tilemap.get_cell_tile_data(0, coords)
+	var tile_data = tilemap.get_cell_tile_data(LAYERS.GROUND, coords)
 	if not tile_data:
 		return -1
 	var terrain = tile_data.terrain
 	# Map terrain back to ground tile type
 	for tile in GROUND_TERRAIN_MAP:
-		if TERRAIN_SETS[GROUND_TERRAIN_MAP[tile]] == terrain:
+		if TERRAINS[GROUND_TERRAIN_MAP[tile]] == terrain:
 			return tile
 	return -1
 
@@ -373,6 +385,7 @@ func try_place_building(type: int, occupation_grid: Array) -> bool:
 	
 	return true
 
+# Update the place_building function to use directional walls
 func place_building(pos: Vector2i, size: Vector2i, type: int) -> void:
 	var template = STRUCTURE_TEMPLATES[type]
 	print('placing building: ', type, ' at ', pos, ' with size ', size)
@@ -380,26 +393,33 @@ func place_building(pos: Vector2i, size: Vector2i, type: int) -> void:
 	# Place floors
 	for y in range(pos.y, pos.y + size.y):
 		for x in range(pos.x, pos.x + size.x):
-			tilemap.set_cell(0, Vector2i(x, y), TILE_SOURCE_ID,
+			tilemap.set_cell(LAYERS.GROUND, Vector2i(x, y), TILE_SOURCE_ID,
 						   STRUCTURE_TILES[template.floor])
 	
 	# Place walls
 	for x in range(pos.x, pos.x + size.x):
-		tilemap.set_cell(1, Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_H) # Top wall
-		tilemap.set_cell(1, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_H) # Bottom wall
+		# Top and bottom horizontal walls
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID,
+						STRUCTURE_TILES["WALL_H"]) # Top wall
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1),
+						TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H"]) # Bottom wall
 	
 	for y in range(pos.y, pos.y + size.y):
-		tilemap.set_cell(1, Vector2i(pos.x, y), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_V) # Left wall
-		tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, STRUCTURE_TILES.WALL_V) # Right wall
+		# Left and right walls with proper facing
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, y), TILE_SOURCE_ID,
+						STRUCTURE_TILES["WALL_V_RIGHT"]) # Right-facing wall on left side
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, y),
+						TILE_SOURCE_ID, STRUCTURE_TILES["WALL_V_LEFT"]) # Left-facing wall on right side
 	
 	# Place corners
-	tilemap.set_cell(1, pos, TILE_SOURCE_ID, STRUCTURE_TILES.CORNER_NW)
-	tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID,
-					 STRUCTURE_TILES.CORNER_NE)
-	tilemap.set_cell(1, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID,
-					 STRUCTURE_TILES.CORNER_SW)
-	tilemap.set_cell(1, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1),
-					 TILE_SOURCE_ID, STRUCTURE_TILES.CORNER_SE)
+	tilemap.set_cell(LAYERS.WALLS, pos, TILE_SOURCE_ID,
+					 STRUCTURE_TILES["CORNER_NW"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID,
+					 STRUCTURE_TILES["CORNER_NE"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID,
+					 STRUCTURE_TILES["CORNER_SW"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1),
+					 TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_SE"])
 	
 	# Add door on south wall
 	add_door(pos, size)
@@ -426,9 +446,72 @@ func add_door(pos: Vector2i, size: Vector2i) -> void:
 			pos.x + rng.randi_range(1, size.x - 2),
 			pos.y + size.y - 1
 		)
-	tilemap.set_cell(2, door_pos, TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
+	tilemap.set_cell(LAYERS.DOORS, door_pos, TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
 
 func generate_seed(world_position: Vector2i, terrain_type: int) -> int:
 	# Combine position and terrain type into a deterministic seed
 	# Using large prime numbers to minimize collisions
 	return abs(world_position.x * 16777619 + world_position.y * 65537 + terrain_type * 257)
+
+# Constants for terrain visualization
+const TERRAIN_CHARS = {
+	GroundTile.GRASS: ",", # Grass as dots
+	GroundTile.DIRT: ".", # Dirt as commas
+	GroundTile.STONE: "#", # Stone as hash
+	GroundTile.WATER: "~", # Water as waves
+	-1: " " # Unknown/invalid as space
+}
+
+func debug_print_terrain_matrix() -> void:
+	print("\nTerrain Matrix:")
+	print("Legend: . = Grass, , = Dirt, # = Stone, ~ = Water, T = Tree, R = Rock, B = Bush")
+	var border = ""
+	for i in WIDTH + 2:
+		border += "-"
+	print(border) # Top border
+	
+	for y in HEIGHT:
+		var line = "|" # Left border
+		for x in WIDTH:
+			var pos = Vector2i(x, y)
+			var ground_type = get_cell_ground_type(pos)
+			var foliage_type = get_cell_foliage_type(pos)
+
+			if ground_type == -1:
+				line += " " # Invalid tile
+				continue
+			
+			# Prioritize foliage display over ground
+			if foliage_type == FoliageTile.TREE:
+				line += "T"
+			elif foliage_type == FoliageTile.ROCK:
+				line += "R"
+			elif foliage_type == FoliageTile.BUSH:
+				line += "B"
+			else:
+				line += TERRAIN_CHARS[ground_type]
+		
+		line += "|" # Right border
+		print(line)
+	
+	print(border) # Bottom border
+
+func debug_cells(grass_cells, dirt_cells, water_cells):
+	# Debug: Count total cells
+	var total_cells = grass_cells.size() + dirt_cells.size() + water_cells.size()
+	print("Total cells: ", total_cells, " out of ", WIDTH * HEIGHT)
+	print("Grass cells: ", grass_cells.size())
+	print("Dirt cells: ", dirt_cells.size())
+	print("Water cells: ", water_cells.size())
+	
+	# Add this check before terrain application
+	if total_cells < WIDTH * HEIGHT:
+		print("WARNING: Some tiles were not assigned terrain!")
+		# Find missing positions
+		for y in HEIGHT:
+			for x in WIDTH:
+				var pos = Vector2i(x, y)
+				if not (pos in grass_cells or pos in dirt_cells or pos in water_cells):
+					print("Missing terrain at: ", pos)
+					# Default to grass for missing tiles
+					grass_cells.append(pos)

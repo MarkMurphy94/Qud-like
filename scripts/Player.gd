@@ -50,14 +50,39 @@ func check_movement_input() -> void:
 	
 	if direction != Vector2.ZERO:
 		try_move(direction)
+		print('current position: ', position)
 
 func try_move(direction: Vector2) -> void:
-	var current_grid_pos = overworld.world_to_map(global_position)
-	var new_grid_pos = current_grid_pos + Vector2i(direction)
-	print("Previous Grid Position: ", current_grid_pos, " New Grid Position: ", new_grid_pos)
-	if overworld.is_walkable(new_grid_pos):
-		target_position = overworld.map_to_world(new_grid_pos)
-		is_moving = true
+	var current_grid_pos: Vector2i
+	var new_grid_pos: Vector2i
+	
+	if in_local_area:
+		current_grid_pos = Vector2i(position / grid_size)
+		new_grid_pos = current_grid_pos + Vector2i(direction)
+		if is_local_tile_walkable(new_grid_pos):
+			target_position = Vector2(new_grid_pos) * grid_size
+			is_moving = true
+	else:
+		current_grid_pos = overworld.world_to_map(global_position)
+		new_grid_pos = current_grid_pos + Vector2i(direction)
+		if overworld.is_walkable(new_grid_pos):
+			target_position = overworld.map_to_world(new_grid_pos)
+			is_moving = true
+
+func is_local_tile_walkable(pos: Vector2i) -> bool:
+	if not current_local_area or not current_local_area.tilemap:
+		return false
+		
+	# Get bounds from the tilemap
+	var map_rect = current_local_area.tilemap.get_used_rect()
+	
+	# Check bounds
+	if pos.x < map_rect.position.x or pos.x >= map_rect.end.x or \
+	   pos.y < map_rect.position.y or pos.y >= map_rect.end.y:
+		print("Position out of bounds: ", pos)
+		return false
+	
+	return current_local_area.is_walkable(pos)
 
 func _physics_process(delta: float) -> void:
 	if is_moving:
@@ -84,14 +109,53 @@ func descend_to_local_area() -> void:
 		current_local_area = settlement_scene.instantiate()
 		current_local_area.SETTLEMENT_TYPE = overworld.get_settlement(grid_pos)
 		get_tree().current_scene.add_child(current_local_area)
+		# Wait one frame for tilemap to initialize
+		await get_tree().process_frame
+		# Place player in a walkable position near the center
+		find_valid_local_position()
 	else:
 		current_local_area = local_area_scene.instantiate()
 		get_tree().current_scene.add_child(current_local_area)
 		current_local_area.initialize(tile_type, grid_pos)
+		# Wait one frame for map generation to complete
+		await get_tree().process_frame
+		# Find valid starting position
+		find_valid_local_position()
 	
-	position = Vector2(current_local_area.WIDTH / 2, current_local_area.HEIGHT / 2) * grid_size
 	overworld.hide()
 	in_local_area = true
+	print('position in local area: ', position)
+
+func find_valid_local_position() -> void:
+	if not current_local_area or not current_local_area.tilemap:
+		return
+		
+	# Get map bounds
+	var map_rect = current_local_area.tilemap.get_used_rect()
+	var center = Vector2i(
+		map_rect.position.x + map_rect.size.x / 2,
+		map_rect.position.y + map_rect.size.y / 2
+	)
+	
+	var radius = 0
+	var found = false
+	
+	while radius < 10 and not found: # Limit search radius to avoid infinite loop
+		# Check tiles in a square pattern around the center
+		for y in range(-radius, radius + 1):
+			for x in range(-radius, radius + 1):
+				var test_pos = center + Vector2i(x, y)
+				if is_local_tile_walkable(test_pos):
+					position = Vector2(test_pos) * grid_size
+					found = true
+					break
+			if found:
+				break
+		radius += 1
+	
+	if not found:
+		# Fallback to center if no walkable tile found
+		position = Vector2(center) * grid_size
 
 func return_to_overworld() -> void:
 	if current_local_area:
@@ -101,3 +165,4 @@ func return_to_overworld() -> void:
 	overworld.show()
 	in_local_area = false
 	position = overworld_position
+	print('position in overworld: ', position)

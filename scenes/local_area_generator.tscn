@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://d0n2oc0epj0fm"]
 
 [ext_resource type="Script" path="res://scripts/LocalAreaGenerator.gd" id="1_b3814"]
-[ext_resource type="TileSet" uid="uid://cdgnu168dgxdu" path="res://resources/the_ground_by_backterria.tres" id="1_f4ux8"]
+[ext_resource type="TileSet" uid="uid://bjibwwb63qoxr" path="res://resources/Roguelike_extended_walls.tres" id="2_do61f"]
 
 [node name="LocalAreaGenerator" type="Node2D"]
 visibility_layer = 7
@@ -9,11 +9,13 @@ script = ExtResource("1_b3814")
 noise_scale = 10.0
 
 [node name="TileMap" type="TileMap" parent="."]
-visibility_layer = 7
-tile_set = ExtResource("1_f4ux8")
+visibility_layer = 15
+tile_set = ExtResource("2_do61f")
 format = 2
 layer_0/name = "ground"
 layer_1/name = "walls"
 layer_1/tile_data = PackedInt32Array()
-layer_2/name = "items"
+layer_2/name = "doors"
 layer_2/tile_data = PackedInt32Array()
+layer_3/name = "items"
+layer_3/tile_data = PackedInt32Array()

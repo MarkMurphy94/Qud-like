@@ -18,15 +18,16 @@ const LAYERS = {
 const TERRAINS = {
 	"stone": 0, # Stone paths and plazas
 	"grass": 1, # Natural grass areas
-	"dirt": 2 # Dirt paths and yards
+	"dirt": 2, # Dirt paths and yards
+	"water": 3
 }
 
 # Default terrain type for each settlement type
 const SETTLEMENT_TERRAIN = {
 	SettlementType.TOWN: {
 		"primary": "grass",
-		"secondary": "grass",
-		"paths": "dirt"
+		"secondary": "dirt",
+		"paths": "stone"
 	},
 	SettlementType.CITY: {
 		"primary": "stone",
@@ -35,7 +36,7 @@ const SETTLEMENT_TERRAIN = {
 	},
 	SettlementType.CASTLE: {
 		"primary": "stone",
-		"secondary": "grass",
+		"secondary": "dirt",
 		"paths": "stone"
 	}
 }
@@ -179,8 +180,11 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 				LAYERS.BASE,
 				terrain_cells[terrain],
 				TERRAIN_SET_ID,
-				TERRAINS[terrain]
+				TERRAINS[terrain],
+				false
 			)
+		else:
+			print("No cells for terrain type: ", terrain)
 
 	# Create occupation grid
 	var occupation_grid = []
