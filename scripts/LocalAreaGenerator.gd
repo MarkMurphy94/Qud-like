@@ -16,9 +16,9 @@ const TERRAINS = {
 
 const LAYERS = {
 	"GROUND": 0, # Ground terrain (grass, dirt, stone)
-	"WALLS": 1, # Building floors
-	"DOORS": 2, # Building walls
-	"ITEMS": 3 # Building doors
+	"WALLS": 1, # Building walls
+	"DOORS": 2, # Building doors
+	"ITEMS": 3 # Foliage and details (trees, bushes, rocks)
 }
 
 # Map our enum types to terrain sets
@@ -104,7 +104,8 @@ var base_terrain: int # The overworld terrain type this area is based on
 # Called when descending from overworld to local area
 func initialize(overworld_tile_type: int, world_position: Vector2i) -> void:
 	base_terrain = overworld_tile_type
-	position = Vector2(world_position) * TILE_SIZE
+	position = Vector2(world_position)
+	print("Initializing local area at position: ", position, " with terrain type: ", base_terrain)
 	
 	# Set up noise and RNG with deterministic seed
 	var map_seed = generate_seed(world_position, overworld_tile_type)

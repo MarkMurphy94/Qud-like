@@ -8,10 +8,11 @@ enum BuildingType {HOUSE, TAVERN, SHOP, MANOR}
 
 # Layer definitions for proper organization
 const LAYERS = {
-	"BASE": 0, # Ground terrain (grass, dirt, stone)
+	"GROUND": 0, # Ground terrain (grass, dirt, stone)
 	"INTERIOR_FLOOR": 1, # Building floors
 	"WALLS": 2, # Building walls
-	"DOORS": 3 # Building doors
+	"DOORS": 3, # Building doors
+	"ITEMS": 4 # Items and decorations
 }
 
 # Terrain sets for better tile transitions
@@ -177,7 +178,7 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 	for terrain in terrain_cells:
 		if not terrain_cells[terrain].is_empty():
 			tilemap.set_cells_terrain_connect(
-				LAYERS.BASE,
+				LAYERS.GROUND,
 				terrain_cells[terrain],
 				TERRAIN_SET_ID,
 				TERRAINS[terrain],
@@ -268,7 +269,7 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	# Apply terrain using set_cells_terrain_connect for proper transitions
 	var ground_terrain = template["ground"].to_lower()
 	tilemap.set_cells_terrain_connect(
-		LAYERS.BASE,
+		LAYERS.GROUND,
 		building_cells,
 		TERRAIN_SET_ID,
 		TERRAINS[ground_terrain]
@@ -351,7 +352,7 @@ func generate_road_between(building_a: Dictionary, building_b: Dictionary, settl
 	
 	# Apply terrain change using terrain sets for proper transitions
 	tilemap.set_cells_terrain_connect(
-		LAYERS.BASE,
+		LAYERS.GROUND,
 		road_cells,
 		TERRAIN_SET_ID,
 		TERRAINS[road_terrain]
@@ -384,7 +385,7 @@ func generate_plaza_between(building_a: Dictionary, building_b: Dictionary, rng:
 	
 	# Apply plaza terrain using terrain sets for proper transitions
 	tilemap.set_cells_terrain_connect(
-		LAYERS.BASE,
+		LAYERS.GROUND,
 		plaza_cells,
 		TERRAIN_SET_ID,
 		TERRAINS[plaza_terrain]
@@ -392,12 +393,12 @@ func generate_plaza_between(building_a: Dictionary, building_b: Dictionary, rng:
 
 # When connecting terrain, use the terrain set index (not the tile alternative id)
 func connect_terrain() -> void:
-	var tiles = tilemap.get_used_cells(LAYERS.BASE)
+	var tiles = tilemap.get_used_cells(LAYERS.GROUND)
 	var cells_by_terrain = {}
 	
 	# Group cells by their current terrain type
 	for tile_pos in tiles:
-		var cell_data = tilemap.get_cell_tile_data(LAYERS.BASE, tile_pos)
+		var cell_data = tilemap.get_cell_tile_data(LAYERS.GROUND, tile_pos)
 		if not cell_data:
 			continue
 			
@@ -409,7 +410,7 @@ func connect_terrain() -> void:
 	# Apply terrain connections for each group
 	for terrain in cells_by_terrain:
 		tilemap.set_cells_terrain_connect(
-			LAYERS.BASE,
+			LAYERS.GROUND,
 			cells_by_terrain[terrain],
 			TERRAIN_SET_ID,
 			terrain
@@ -437,3 +438,30 @@ func get_path_between(start: Vector2i, end: Vector2i) -> Array:
 			
 	path.append(end)
 	return path
+
+func get_cell_ground_type(coords: Vector2i) -> int:
+	var tile_data = tilemap.get_cell_tile_data(LAYERS.GROUND, coords)
+	if not tile_data:
+		return -1
+	var tile_terrain = tile_data.terrain
+	# Map terrain back to ground tile type
+	for terrain in TERRAINS:
+		if tile_terrain == TERRAINS[terrain]:
+			return TERRAINS[terrain]
+	return -1
+
+func is_walkable(pos: Vector2i) -> bool:
+	if pos.x < 0 or pos.x >= WIDTH or pos.y < 0 or pos.y >= HEIGHT:
+		return false
+		
+	# Check ground layer first
+	var ground_type = get_cell_ground_type(pos)
+	var has_wall = tilemap.get_cell_tile_data(LAYERS.WALLS, pos)
+	if ground_type == TERRAINS["water"] or has_wall:
+		return false
+	# # Check if there's blocking foliage
+	# var foliage_type = get_cell_foliage_type(pos)
+	# if foliage_type == FoliageTile.TREE or foliage_type == FoliageTile.ROCK:
+	# 	return false
+		
+	return true
