@@ -16,8 +16,8 @@ enum Settlement {
 
 enum Layer {
 	GROUND = 0, # Base terrain layer
-	SETTLEMENTS = 1, # Settlements layer
-	MOUNTAINS = 2, # Geography layer for mountains
+	MOUNTAINS = 1, # Mountains layer
+	SETTLEMENTS = 2, # Geography layer for settlements
 }
 
 const GEOGRAPHY_TILES = {
@@ -36,9 +36,9 @@ class CustomTileData:
 
 @onready var tilemap: TileMap = $TileMap
 var map_data: Array[Array] = []
-const WIDTH = 137
-const HEIGHT = 61
 const TILE_SIZE = 16 # Size of each tile in pixels
+const WIDTH = 2096 / TILE_SIZE
+const HEIGHT = 1296 / TILE_SIZE
 
 func _ready() -> void:
 	if not tilemap:

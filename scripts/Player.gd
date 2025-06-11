@@ -53,7 +53,6 @@ func check_movement_input() -> void:
 	
 	if direction != Vector2.ZERO:
 		try_move(direction)
-		print('current position variable: ', position)
 
 func try_move(direction: Vector2) -> void:
 	var current_grid_pos: Vector2i

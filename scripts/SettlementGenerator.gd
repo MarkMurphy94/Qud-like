@@ -1,3 +1,4 @@
+@tool
 extends Node2D
 
 # Types of settlements
@@ -12,7 +13,8 @@ const LAYERS = {
 	"INTERIOR_FLOOR": 1, # Building floors
 	"WALLS": 2, # Building walls
 	"DOORS": 3, # Building doors
-	"ITEMS": 4 # Items and decorations
+	"FURNITURE": 4, # Building doors
+	"ITEMS": 5 # Items and decorations
 }
 
 # Terrain sets for better tile transitions
@@ -56,11 +58,12 @@ const PLAZA_MAX_SIZE = 8
 const PLAZA_DISTANCE_THRESHOLD = 10 # Maximum distance between buildings to consider a plaza
 
 # Tile definitions for building elements
-const TILES = {
+const STRUCTURE_TILES = {
 	"FLOOR_WOOD": Vector2i(67, 10),
 	"FLOOR_STONE": Vector2i(7, 10),
 	"GROUND": Vector2i(0, 0), # Base ground tile
 	"WALL_H": Vector2i(6, 19), # Horizontal wall
+	"WALL_H_INT_FIREPLACE": Vector2i(6, 19), # Horizontal wall
 	"WALL_H_INT": Vector2i(6, 20), # Interior horizontal wall
 	"WALL_V_LEFT": Vector2i(9, 20), # Left-facing vertical wall
 	"WALL_V_RIGHT": Vector2i(4, 19), # Right-facing vertical wall
@@ -69,6 +72,47 @@ const TILES = {
 	"CORNER_SW": Vector2i(5, 20),
 	"CORNER_SE": Vector2i(7, 20),
 	"DOOR": Vector2i(5, 21)
+}
+
+const FURNITURE_TILES = {
+	"CHAIR": Vector2i(6, 24), # Placeholder for chair tile
+	"TABLE": Vector2i(7, 24), # Placeholder for table tile
+	"BARREL_OPEN": Vector2i(66, 22), # Placeholder for shelf tile
+	"BARREL_CLOSED": Vector2i(65, 22), # Placeholder for shelf tile
+	"BED": Vector2i(10, 22), # Placeholder for bed tile
+	"SHELF": Vector2i(4, 24), # Placeholder for shelf tile
+	"CABINET": Vector2i(5, 24), # Placeholder for shelf tile
+	"CHEST_YELLOW": Vector2i(8, 24), # Placeholder for shelf tile
+	"CHEST_YELLOW_OPEN": Vector2i(9, 24), # Placeholder for shelf tile
+	"CHEST_BLUE": Vector2i(10, 24), # Placeholder for shelf tile
+	"CHEST_BLUE_OPEN": Vector2i(11, 24), # Placeholder for shelf tile
+	"CHEST_GOLD_TRIM_CLOSED": Vector2i(65, 24), # Placeholder for shelf tile
+	# "CHEST_GOLD_TRIM_OPEN_TREASURE": Vector2i(10, 21), # Placeholder for shelf tile
+	"POTTED_PLANT_GREY": Vector2i(12, 24), # Placeholder for shelf tile
+	"POTTED_PLANT_DARK_RED": Vector2i(16, 24), # Placeholder for shelf tile
+	"POT_GREY": Vector2i(13, 24), # Placeholder for shelf tile
+	# "POT_DARK_RED": Vector2i(10, 21), # Placeholder for shelf tile
+	"VASE_GREY_TOP": Vector2i(18, 24), # Placeholder for shelf tile
+	"VASE_HANDLES": Vector2i(19, 24), # Placeholder for shelf tile
+
+}
+
+const ITEM_TILES = {
+	"STEW_ORANGE": Vector2i(72, 39), # Placeholder for shelf tile
+	"STEW_ORANGE_CHICKEN": Vector2i(75, 39), # Placeholder for shelf tile
+	"STEW_GREEN": Vector2i(10, 21), # Placeholder for shelf tile
+	"STEW_BLUE_CHICKEN": Vector2i(74, 39), # Placeholder for shelf tile
+	"BANANA_BUNCH": Vector2i(69, 39), # Placeholder for shelf tile
+	"POTATOES": Vector2i(68, 39), # Placeholder for shelf tile
+	"BEER_STEIN": Vector2i(67, 39), # Placeholder for shelf tile
+	"POTION_RED": Vector2i(65, 39), # Placeholder for shelf tile
+	"POTION_GREEN": Vector2i(66, 39), # Placeholder for shelf tile
+	"POTION_BLACK": Vector2i(59, 36), # Placeholder for shelf tile
+	"POTION_PINK": Vector2i(58, 36), # Placeholder for shelf tile
+	"POTION_YELLOW": Vector2i(57, 36), # Placeholder for shelf tile
+	"SCROLL_BLANK": Vector2i(79, 36), # Placeholder for shelf tile
+	"SCROLL_WRITTEN": Vector2i(80, 36), # Placeholder for shelf tile
+	"SMALL_STATUE": Vector2i(16, 26), # Placeholder for shelf tile
 }
 
 # Building templates with ground type preferences
@@ -103,6 +147,71 @@ const BUILDING_TEMPLATES = {
 	}
 }
 
+# Add these new constants after the existing ITEM_TILES definition
+const ROOM_ZONES = {
+	"SLEEPING": 0,
+	"DINING": 1,
+	"STORAGE": 2,
+	"WORKSHOP": 3
+}
+
+const BUILDING_LAYOUTS = {
+	BuildingType.HOUSE: {
+		"zones": ["SLEEPING", "DINING", "STORAGE"],
+		"furniture": {
+			"SLEEPING": ["BED", "SHELF"],
+			"DINING": ["TABLE", "CHAIR"],
+			"STORAGE": ["SHELF", "CHEST_YELLOW", "BARREL_CLOSED"]
+		},
+		"items": {
+			"SLEEPING": [],
+			"DINING": ["STEW_ORANGE", "BEER_STEIN", "POTATOES"],
+			"STORAGE": []
+		}
+	},
+	BuildingType.TAVERN: {
+		"zones": ["DINING", "STORAGE", "SLEEPING"],
+		"furniture": {
+			"DINING": ["TABLE", "CHAIR", "SHELF"],
+			"STORAGE": ["BARREL_CLOSED", "SHELF"],
+			"SLEEPING": ["BED"]
+		},
+		"items": {
+			"DINING": ["BEER_STEIN", "STEW_ORANGE", "STEW_BLUE"],
+			"STORAGE": ["POTATOES"],
+			"SLEEPING": []
+		}
+	},
+	BuildingType.SHOP: {
+		"zones": ["WORKSHOP", "STORAGE", "DINING"],
+		"furniture": {
+			"WORKSHOP": ["TABLE", "CHAIR", "SHELF"],
+			"STORAGE": ["SHELF", "CHEST_YELLOW", "CHEST_YELLOW_OPEN", "BARREL_CLOSED"],
+			"DINING": ["TABLE", "CHAIR"]
+		},
+		"items": {
+			"WORKSHOP": ["POTION_RED", "POTION_GREEN", "SCROLL_WRITTEN"],
+			"STORAGE": [],
+			"DINING": ["STEW_ORANGE"]
+		}
+	},
+	BuildingType.MANOR: {
+		"zones": ["SLEEPING", "DINING", "STORAGE", "WORKSHOP"],
+		"furniture": {
+			"SLEEPING": ["BED", "SHELF", "CHEST_GOLD_TRIM_CLOSED", "POTTED_PLANT_GREY"],
+			"DINING": ["TABLE", "CHAIR", "SHELF", "POTTED_PLANT_DARK_RED"],
+			"STORAGE": ["SHELF", "CHEST_BLUE", "BARREL_CLOSED", "CHEST_BLUE_OPEN"],
+			"WORKSHOP": ["TABLE", "CHAIR", "SHELF"]
+		},
+		"items": {
+			"SLEEPING": [],
+			"DINING": ["STEW_ORANGE_CHICKEN", "BEER_STEIN"],
+			"STORAGE": [],
+			"WORKSHOP": ["SCROLL_WRITTEN", "POTION_BLACK"]
+		}
+	}
+}
+
 const WIDTH = 80 # Local area is more detailed, so larger
 const HEIGHT = 80
 const TILE_SIZE = 16 # Size of each tile in pixels
@@ -110,10 +219,8 @@ const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
 var SETTLEMENT_TYPE: int = SettlementType.TOWN # Default settlement type
 
-# TODO: dirt trails/stone roads
-# TODO: instead of 1 ground tile, use 2x2 tiles for more variety? Need terrain set??
-# TODO: patches of grass/dirt
 # TODO: buildings with multiple floors
+# TODO: floors with multiple rooms
 # TODO: interior features like furniture, decorations, etc.
 
 func _ready() -> void:
@@ -278,34 +385,36 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	# Place floor tiles on the interior floor layer
 	for y in range(pos.y, pos.y + size.y):
 		for x in range(pos.x, pos.x + size.x):
-			tilemap.set_cell(LAYERS.INTERIOR_FLOOR, Vector2i(x, y), TILE_SOURCE_ID, TILES[template["floor"]])
+			tilemap.set_cell(LAYERS.INTERIOR_FLOOR, Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["floor"]])
 	
 	# Place walls on walls layer
 	for x in range(pos.x, pos.x + size.x):
 		# Top and bottom walls
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID, TILES["WALL_H"])
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["WALL_H"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H"])
 		
 		# Add an interior horizontal wall if building is large enough
 		if size.y > 6 and x > pos.x + 1 and x < pos.x + size.x - 2:
 			var mid_y = pos.y + size.y >> 1 # Use bit shift for integer division
-			tilemap.set_cell(LAYERS.WALLS, Vector2i(x, mid_y), TILE_SOURCE_ID, TILES["WALL_H_INT"])
+			tilemap.set_cell(LAYERS.WALLS, Vector2i(x, mid_y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H_INT"])
 	
 	for y in range(pos.y, pos.y + size.y):
 		# Left and right walls with proper facing
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, y), TILE_SOURCE_ID, TILES["WALL_V_RIGHT"])
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, TILES["WALL_V_LEFT"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_V_RIGHT"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_V_LEFT"])
 	
 	# Place corners
-	tilemap.set_cell(LAYERS.WALLS, pos, TILE_SOURCE_ID, TILES["CORNER_NW"])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, TILES["CORNER_NE"])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["CORNER_SW"])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, TILES["CORNER_SE"])
+	tilemap.set_cell(LAYERS.WALLS, pos, TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_NW"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_NE"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_SW"])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_SE"])
 	
 	# Place door on the south wall
 	var door_x = pos.x + (size.x >> 1) # Use bit shift for integer division
 	var door_y = pos.y + size.y - 1
-	tilemap.set_cell(LAYERS.DOORS, Vector2i(door_x, door_y), TILE_SOURCE_ID, TILES["DOOR"])
+	tilemap.set_cell(LAYERS.DOORS, Vector2i(door_x, door_y), TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
+
+	place_furniture_and_items_inside_building(pos, size, building_type)
 
 func generate_roads(placed_buildings: Array, rng: RandomNumberGenerator, settlement_type: int) -> void:
 	# Sort buildings by importance (Manor -> Tavern -> Shop -> House)
@@ -465,3 +574,111 @@ func is_walkable(pos: Vector2i) -> bool:
 	# 	return false
 		
 	return true
+
+func place_furniture_and_items_inside_building(pos, size, type) -> void:
+	var layout = BUILDING_LAYOUTS[type]
+	
+	# Divide building into zones
+	var zones = divide_building_into_zones(pos, size, layout["zones"])
+	
+	# Place furniture and items in each zone
+	for zone_name in zones:
+		var zone_rect = zones[zone_name]
+		var furniture_list = layout["furniture"][zone_name]
+		var items_list = layout["items"][zone_name]
+		
+		place_zone_furniture(zone_rect, furniture_list)
+		place_zone_items(zone_rect, items_list)
+
+func divide_building_into_zones(pos: Vector2i, size: Vector2i, zone_types: Array) -> Dictionary:
+	var zones = {}
+	var zone_count = zone_types.size()
+	
+	if zone_count == 1:
+		# Single zone takes up whole building
+		zones[zone_types[0]] = Rect2i(pos.x + 1, pos.y + 1, size.x - 2, size.y - 2)
+	elif zone_count == 2:
+		# Split vertically
+		var half_width = (size.x - 2) >> 1
+		zones[zone_types[0]] = Rect2i(pos.x + 1, pos.y + 1, half_width, size.y - 2)
+		zones[zone_types[1]] = Rect2i(pos.x + 1 + half_width, pos.y + 1, size.x - 2 - half_width, size.y - 2)
+	else:
+		# Split into quadrants
+		var half_width = (size.x - 2) >> 1
+		var half_height = (size.y - 2) >> 1
+		
+		for i in range(min(zone_count, 4)):
+			var zone_x = pos.x + 1 + (i % 2) * half_width
+			var zone_y = pos.y + 1 + (i / 2) * half_height
+			zones[zone_types[i]] = Rect2i(zone_x, zone_y, half_width, half_height)
+	
+	return zones
+
+func place_zone_furniture(zone: Rect2i, furniture_list: Array) -> void:
+	var placed_positions = []
+	var rng = RandomNumberGenerator.new()
+	rng.seed = hash(zone.position)
+	
+	# Place furniture along walls first
+	for x in range(zone.position.x, zone.end.x):
+		for y in range(zone.position.y, zone.end.y):
+			# Skip if too close to other furniture
+			if is_near_furniture(Vector2i(x, y), placed_positions):
+				continue
+			
+			# Higher chance to place furniture against walls
+			if is_against_wall(Vector2i(x, y)):
+				if rng.randf() < 0.4: # 40% chance for wall furniture
+					var furniture = furniture_list[rng.randi() % furniture_list.size()]
+					tilemap.set_cell(LAYERS.FURNITURE, Vector2i(x, y),
+								   TILE_SOURCE_ID, FURNITURE_TILES[furniture])
+					placed_positions.append(Vector2i(x, y))
+	
+	# Then place remaining furniture in open spaces
+	for x in range(zone.position.x, zone.end.x):
+		for y in range(zone.position.y, zone.end.y):
+			if is_near_furniture(Vector2i(x, y), placed_positions):
+				continue
+				
+			if rng.randf() < 0.2: # 20% chance for open space furniture
+				var furniture = furniture_list[rng.randi() % furniture_list.size()]
+				tilemap.set_cell(LAYERS.FURNITURE, Vector2i(x, y),
+							   TILE_SOURCE_ID, FURNITURE_TILES[furniture])
+				placed_positions.append(Vector2i(x, y))
+
+func place_zone_items(zone: Rect2i, items_list: Array) -> void:
+	if items_list.is_empty():
+		return
+		
+	var rng = RandomNumberGenerator.new()
+	rng.seed = hash(zone.position) + 1
+	
+	# Place items near related furniture
+	for x in range(zone.position.x, zone.end.x):
+		for y in range(zone.position.y, zone.end.y):
+			var pos = Vector2i(x, y)
+			if has_nearby_furniture(pos) and rng.randf() < 0.3: # 30% chance near furniture
+				var item = items_list[rng.randi() % items_list.size()]
+				tilemap.set_cell(LAYERS.ITEMS, pos, TILE_SOURCE_ID, ITEM_TILES[item])
+
+func is_near_furniture(pos: Vector2i, placed_positions: Array) -> bool:
+	for placed in placed_positions:
+		if (pos - placed).length() < 2:
+			return true
+	return false
+
+func has_nearby_furniture(pos: Vector2i) -> bool:
+	for dx in range(-1, 2):
+		for dy in range(-1, 2):
+			var check_pos = pos + Vector2i(dx, dy)
+			if tilemap.get_cell_source_id(LAYERS.FURNITURE, check_pos) == TILE_SOURCE_ID:
+				return true
+	return false
+
+func is_against_wall(pos: Vector2i) -> bool:
+	for dx in range(-1, 2):
+		for dy in range(-1, 2):
+			var check_pos = pos + Vector2i(dx, dy)
+			if tilemap.get_cell_source_id(LAYERS.WALLS, check_pos) == TILE_SOURCE_ID:
+				return true
+	return false
