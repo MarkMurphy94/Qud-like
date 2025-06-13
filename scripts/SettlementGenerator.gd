@@ -23,7 +23,8 @@ const TERRAINS = {
 	"stone": 0, # Stone paths and plazas
 	"grass": 1, # Natural grass areas
 	"dirt": 2, # Dirt paths and yards
-	"water": 3
+	"water": 3,
+	"wheat_field": 4,
 }
 
 # Default terrain type for each settlement type
@@ -293,7 +294,7 @@ const HEIGHT = 80
 const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
-var SETTLEMENT_TYPE: int = SettlementType.CITY # Default settlement type
+var SETTLEMENT_TYPE: int = SettlementType.TOWN # Default settlement type
 
 # TODO: buildings with multiple floors
 # TODO: floors with multiple rooms
@@ -396,6 +397,13 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 
 	# Generate roads between buildings and connect terrain
 	generate_roads(placed_buildings, rng, settlement_type)
+	
+	# Generate wheat fields based on settlement type
+	var num_wheat_fields = 0
+	if settlement_type == SettlementType.TOWN:
+		num_wheat_fields = rng.randi_range(2, 4)
+		for _i in range(num_wheat_fields):
+			generate_wheat_field(area_size, occupied_space_grid, rng)
 	connect_terrain()
 
 func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int) -> Vector2i:
@@ -760,3 +768,43 @@ func is_against_wall(pos: Vector2i) -> bool:
 			if tilemap.get_cell_source_id(LAYERS.WALLS, check_pos) == TILE_SOURCE_ID:
 				return true
 	return false
+
+func generate_wheat_field(area_size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator) -> void:
+	const MIN_FIELD_SIZE = Vector2i(4, 4) # Minimum size for a wheat field
+	const MAX_FIELD_SIZE = Vector2i(8, 12) # Maximum size for a wheat field
+	
+	# First, try to find a valid position for the field
+	var field_size = Vector2i(
+		rng.randi_range(MIN_FIELD_SIZE.x, MAX_FIELD_SIZE.x),
+		rng.randi_range(MIN_FIELD_SIZE.y, MAX_FIELD_SIZE.y)
+	)
+	
+	var pos = find_valid_building_position(area_size, field_size, occupied_space_grid, rng, BuildingType.HOUSE) # Using HOUSE spacing rules
+	if pos.x == -1: # No valid position found
+		return
+	
+	# Check if the area is grass
+	var is_grass_area = true
+	for y in range(pos.y, pos.y + field_size.y):
+		for x in range(pos.x, pos.x + field_size.x):
+			var cell = tilemap.get_cell_tile_data(LAYERS.GROUND, Vector2i(x, y)).terrain
+			if cell == TERRAINS.stone:
+				is_grass_area = false
+				break
+		if not is_grass_area:
+			break
+	
+	if not is_grass_area:
+		return
+	
+	# Place the wheat field
+	for y in range(pos.y, pos.y + field_size.y):
+		for x in range(pos.x, pos.x + field_size.x):
+			tilemap.set_cells_terrain_connect(LAYERS.GROUND, [Vector2i(x, y)], TERRAIN_SET_ID, TERRAINS.wheat_field)
+	
+	# Mark the area as occupied
+	mark_occupied(occupied_space_grid, pos, field_size)
+	terrain_cells["wheat_field"] = terrain_cells.get("wheat_field", [])
+	for y in range(pos.y, pos.y + field_size.y):
+		for x in range(pos.x, pos.x + field_size.x):
+			terrain_cells["wheat_field"].append(Vector2i(x, y))
