@@ -88,6 +88,7 @@ const STRUCTURE_TILES = {
 	"ROOF_BLACK": Vector2i(65, 10),
 	"ROOF_DARK_GREEN": Vector2i(92, 10),
 	"ROOF_DARK_BLUE": Vector2i(91, 10),
+	"WELL_RED_ROOF": Vector2i(6, 22),
 	# "WALL_H_INT_FIREPLACE": Vector2i(6, 19), # Horizontal wall
 }
 
@@ -309,6 +310,7 @@ func _ready() -> void:
 	var rng = RandomNumberGenerator.new()
 	rng.seed = randi() # Random seed for this example
 	generate_settlement(SETTLEMENT_TYPE, rng)
+	print("settlement seed is: ", rng.seed)
 
 func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> void:
 	var area_size = Vector2i(WIDTH, HEIGHT)
@@ -585,6 +587,7 @@ func generate_plaza_between(building_a: Dictionary, building_b: Dictionary, rng:
 		TERRAIN_SET_ID,
 		TERRAINS[plaza_terrain]
 	)
+	tilemap.set_cell(LAYERS.WALLS, center, TILE_SOURCE_ID, STRUCTURE_TILES["WELL_RED_ROOF"])
 
 # When connecting terrain, use the terrain set index (not the tile alternative id)
 func connect_terrain() -> void:
