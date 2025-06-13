@@ -4,17 +4,18 @@ extends Node2D
 # Types of settlements
 enum SettlementType {TOWN, CITY, CASTLE}
 # Types of buildings
-enum BuildingType {HOUSE, TAVERN, SHOP, MANOR}
+enum BuildingType {HOUSE, TAVERN, SHOP, MANOR, BARRACKS, CHURCH}
 @onready var tilemap = $TileMap
 
 # Layer definitions for proper organization
 const LAYERS = {
-	"GROUND": 0, # Ground terrain (grass, dirt, stone)
-	"INTERIOR_FLOOR": 1, # Building floors
-	"WALLS": 2, # Building walls
-	"DOORS": 3, # Building doors
-	"FURNITURE": 4, # Building doors
-	"ITEMS": 5 # Items and decorations
+	"GROUND": 0,
+	"INTERIOR_FLOOR": 1,
+	"WALLS": 2,
+	"FURNITURE": 3,
+	"ITEMS": 4,
+	"DOORS": 5,
+	"ROOF": 6
 }
 
 # Terrain sets for better tile transitions
@@ -64,14 +65,19 @@ const STRUCTURE_TILES = {
 	"GROUND": Vector2i(0, 0), # Base ground tile
 	"WALL_H": Vector2i(6, 19), # Horizontal wall
 	"WALL_H_INT_FIREPLACE": Vector2i(6, 19), # Horizontal wall
-	"WALL_H_INT": Vector2i(6, 20), # Interior horizontal wall
+	"WALL_H_INT": Vector2i(6, 19), # Interior horizontal wall
 	"WALL_V_LEFT": Vector2i(9, 20), # Left-facing vertical wall
 	"WALL_V_RIGHT": Vector2i(4, 19), # Right-facing vertical wall
 	"CORNER_NW": Vector2i(5, 19),
 	"CORNER_NE": Vector2i(7, 19),
 	"CORNER_SW": Vector2i(5, 20),
 	"CORNER_SE": Vector2i(7, 20),
-	"DOOR": Vector2i(5, 21)
+	"DOOR": Vector2i(5, 21),
+	"ROOF_RED": Vector2i(69, 10),
+	"ROOF_DARK_RED_TRIM": Vector2i(32, 18),
+	"ROOF_BLACK": Vector2i(65, 10),
+	"ROOF_DARK_GREEN": Vector2i(92, 10),
+	"ROOF_DARK_BLUE": Vector2i(91, 10),
 }
 
 const FURNITURE_TILES = {
@@ -79,7 +85,7 @@ const FURNITURE_TILES = {
 	"TABLE": Vector2i(7, 24), # Placeholder for table tile
 	"BARREL_OPEN": Vector2i(66, 22), # Placeholder for shelf tile
 	"BARREL_CLOSED": Vector2i(65, 22), # Placeholder for shelf tile
-	"BED": Vector2i(10, 22), # Placeholder for bed tile
+	"BED": Vector2i(88, 24), # Placeholder for bed tile
 	"SHELF": Vector2i(4, 24), # Placeholder for shelf tile
 	"CABINET": Vector2i(5, 24), # Placeholder for shelf tile
 	"CHEST_YELLOW": Vector2i(8, 24), # Placeholder for shelf tile
@@ -115,12 +121,13 @@ const ITEM_TILES = {
 	"SMALL_STATUE": Vector2i(16, 26), # Placeholder for shelf tile
 }
 
-# Building templates with ground type preferences
 const BUILDING_TEMPLATES = {
+	# TODO: add different wall type entries for different structures
 	BuildingType.HOUSE: {
 		"min_size": Vector2i(4, 4),
 		"max_size": Vector2i(6, 6),
 		"floor": "FLOOR_WOOD",
+		"roof": "ROOF_RED",
 		"ground": "DIRT", # Houses tend to have dirt yards
 		"spacing": 1 # Minimum space between houses
 	},
@@ -128,6 +135,7 @@ const BUILDING_TEMPLATES = {
 		"min_size": Vector2i(6, 6),
 		"max_size": Vector2i(8, 8),
 		"floor": "FLOOR_WOOD",
+		"roof": "ROOF_DARK_BLUE",
 		"ground": "STONE", # Stone paths around taverns
 		"spacing": 2 # More space for taverns
 	},
@@ -135,6 +143,7 @@ const BUILDING_TEMPLATES = {
 		"min_size": Vector2i(5, 5),
 		"max_size": Vector2i(7, 7),
 		"floor": "FLOOR_WOOD",
+		"roof": "ROOF_DARK_GREEN",
 		"ground": "STONE", # Stone paths around shops
 		"spacing": 2
 	},
@@ -142,8 +151,25 @@ const BUILDING_TEMPLATES = {
 		"min_size": Vector2i(8, 8),
 		"max_size": Vector2i(12, 12),
 		"floor": "FLOOR_WOOD",
+		"roof": "ROOF_RED",
 		"ground": "STONE", # Stone surroundings for manors
 		"spacing": 3 # Manors need more space
+	},
+	BuildingType.BARRACKS: {
+		"min_size": Vector2i(8, 8),
+		"max_size": Vector2i(12, 12),
+		"floor": "FLOOR_WOOD",
+		"roof": "ROOF_RED",
+		"ground": "STONE",
+		"spacing": 3
+	},
+	BuildingType.CHURCH: {
+		"min_size": Vector2i(8, 8),
+		"max_size": Vector2i(12, 12),
+		"floor": "FLOOR_WOOD",
+		"roof": "ROOF_RED",
+		"ground": "GRASS",
+		"spacing": 3
 	}
 }
 
@@ -237,9 +263,9 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var building_counts = {
 		SettlementType.TOWN: {
-			BuildingType.HOUSE: rng.randi_range(6, 10),
+			BuildingType.HOUSE: 10,
 			BuildingType.TAVERN: 1,
-			BuildingType.SHOP: rng.randi_range(1, 2),
+			BuildingType.SHOP: 1, # rng.randi_range(1, 2),
 			BuildingType.MANOR: 0
 		},
 		SettlementType.CITY: {
@@ -295,11 +321,11 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 			print("No cells for terrain type: ", terrain)
 
 	# Create occupation grid
-	var occupation_grid = []
+	var occupied_space_grid = []
 	for y in area_size.y:
-		occupation_grid.append([])
+		occupied_space_grid.append([])
 		for x in area_size.x:
-			occupation_grid[y].append(false)
+			occupied_space_grid[y].append(false)
 
 	# Place buildings in order: Manor first, then Taverns, Shops, and finally Houses
 	var placed_buildings = []
@@ -312,17 +338,17 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 				rng.randi_range(BUILDING_TEMPLATES[building_type]["min_size"].x, BUILDING_TEMPLATES[building_type]["max_size"].x),
 				rng.randi_range(BUILDING_TEMPLATES[building_type]["min_size"].y, BUILDING_TEMPLATES[building_type]["max_size"].y)
 			)
-			var pos = find_valid_building_position(area_size, size, occupation_grid, rng, building_type)
+			var pos = find_valid_building_position(area_size, size, occupied_space_grid, rng, building_type)
 			if pos.x != -1: # Valid position found
 				place_building(pos, size, building_type)
-				mark_occupied(occupation_grid, pos, size)
+				mark_occupied(occupied_space_grid, pos, size)
 				placed_buildings.append({"type": building_type, "pos": pos, "size": size})
 
 	# Generate roads between buildings and connect terrain
 	generate_roads(placed_buildings, rng, settlement_type)
 	connect_terrain()
 
-func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupation_grid: Array, rng: RandomNumberGenerator, building_type: int) -> Vector2i:
+func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int) -> Vector2i:
 	var template = BUILDING_TEMPLATES[building_type]
 	var spacing = template["spacing"]
 	var attempts = 0
@@ -344,7 +370,7 @@ func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupatio
 					break
 					
 				# Check if space is already occupied
-				if occupation_grid[check_y][check_x]:
+				if occupied_space_grid[check_y][check_x]:
 					valid = false
 					break
 					
@@ -358,10 +384,10 @@ func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupatio
 		
 	return Vector2i(-1, -1) # Return invalid position if no space found
 
-func mark_occupied(occupation_grid: Array, pos: Vector2i, size: Vector2i) -> void:
+func mark_occupied(occupied_space_grid: Array, pos: Vector2i, size: Vector2i) -> void:
 	for y in range(pos.y, pos.y + size.y):
 		for x in range(pos.x, pos.x + size.x):
-			occupation_grid[y][x] = true
+			occupied_space_grid[y][x] = true
 
 func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	var template = BUILDING_TEMPLATES[building_type]
@@ -386,17 +412,24 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	for y in range(pos.y, pos.y + size.y):
 		for x in range(pos.x, pos.x + size.x):
 			tilemap.set_cell(LAYERS.INTERIOR_FLOOR, Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["floor"]])
-	
+
 	# Place walls on walls layer
 	for x in range(pos.x, pos.x + size.x):
 		# Top and bottom walls
 		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H"])
 		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H"])
-		
+		# place roof trim on roof layer above H walls
+		tilemap.set_cell(LAYERS.ROOF, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["ROOF_DARK_RED_TRIM"])
+
 		# Add an interior horizontal wall if building is large enough
 		if size.y > 6 and x > pos.x + 1 and x < pos.x + size.x - 2:
 			var mid_y = pos.y + size.y >> 1 # Use bit shift for integer division
 			tilemap.set_cell(LAYERS.WALLS, Vector2i(x, mid_y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H_INT"])
+
+	# place roof tiles on roof layer
+	for y in range(pos.y, pos.y + size.y - 1):
+		for x in range(pos.x, pos.x + size.x):
+			tilemap.set_cell(LAYERS.ROOF, Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["roof"]])
 	
 	for y in range(pos.y, pos.y + size.y):
 		# Left and right walls with proper facing
@@ -585,10 +618,10 @@ func place_furniture_and_items_inside_building(pos, size, type) -> void:
 	for zone_name in zones:
 		var zone_rect = zones[zone_name]
 		var furniture_list = layout["furniture"][zone_name]
-		var items_list = layout["items"][zone_name]
+		# var items_list = layout["items"][zone_name]
 		
 		place_zone_furniture(zone_rect, furniture_list)
-		place_zone_items(zone_rect, items_list)
+		# place_zone_items(zone_rect, items_list)
 
 func divide_building_into_zones(pos: Vector2i, size: Vector2i, zone_types: Array) -> Dictionary:
 	var zones = {}

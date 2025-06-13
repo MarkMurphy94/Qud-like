@@ -6084,6 +6084,7 @@ texture = ExtResource("1_iq2gm")
 87:24/0 = 0
 28:19/0 = 0
 28:20/0 = 0
+32:18/0 = 0
 
 [resource]
 terrain_set_0/mode = 0
