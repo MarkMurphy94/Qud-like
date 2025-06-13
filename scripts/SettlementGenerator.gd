@@ -4,7 +4,7 @@ extends Node2D
 # Types of settlements
 enum SettlementType {TOWN, CITY, CASTLE}
 # Types of buildings
-enum BuildingType {HOUSE, TAVERN, SHOP, MANOR, BARRACKS, CHURCH}
+enum BuildingType {HOUSE, TAVERN, SHOP, MANOR, BARRACKS, CHURCH, KEEP}
 @onready var tilemap = $TileMap
 
 # Layer definitions for proper organization
@@ -34,8 +34,8 @@ const SETTLEMENT_TERRAIN = {
 		"paths": "stone"
 	},
 	SettlementType.CITY: {
-		"primary": "stone",
-		"secondary": "grass",
+		"primary": "grass",
+		"secondary": "dirt",
 		"paths": "stone"
 	},
 	SettlementType.CASTLE: {
@@ -62,22 +62,32 @@ const PLAZA_DISTANCE_THRESHOLD = 10 # Maximum distance between buildings to cons
 const STRUCTURE_TILES = {
 	"FLOOR_WOOD": Vector2i(67, 10),
 	"FLOOR_STONE": Vector2i(7, 10),
+	"FLOOR_TILE": Vector2i(93, 10),
 	"GROUND": Vector2i(0, 0), # Base ground tile
-	"WALL_H": Vector2i(6, 19), # Horizontal wall
-	"WALL_H_INT_FIREPLACE": Vector2i(6, 19), # Horizontal wall
-	"WALL_H_INT": Vector2i(6, 19), # Interior horizontal wall
-	"WALL_V_LEFT": Vector2i(9, 20), # Left-facing vertical wall
-	"WALL_V_RIGHT": Vector2i(4, 19), # Right-facing vertical wall
-	"CORNER_NW": Vector2i(5, 19),
-	"CORNER_NE": Vector2i(7, 19),
-	"CORNER_SW": Vector2i(5, 20),
-	"CORNER_SE": Vector2i(7, 20),
+	"STONE_WALL_H": Vector2i(6, 19), # Horizontal wall
+	"STONE_WALL_H_INT": Vector2i(6, 19), # Interior horizontal wall
+	"STONE_WALL_V_LEFT": Vector2i(9, 20), # Left-facing vertical wall
+	"STONE_WALL_V_RIGHT": Vector2i(4, 19), # Right-facing vertical wall
+	"STONE_WALL_CORNER_NW": Vector2i(5, 19),
+	"STONE_WALL_CORNER_NE": Vector2i(7, 19),
+	"STONE_WALL_CORNER_SW": Vector2i(5, 20),
+	"STONE_WALL_CORNER_SE": Vector2i(7, 20),
+	"RED_BRICK_WALL_H": Vector2i(31, 20), # Horizontal wall
+	"RED_BRICK_WALL_H_INT": Vector2i(31, 20), # Interior horizontal wall
+	"RED_BRICK_WALL_V_LEFT": Vector2i(28, 20), # Left-facing vertical wall
+	"RED_BRICK_WALL_V_RIGHT": Vector2i(28, 19), # Right-facing vertical wall
+	"RED_BRICK_WALL_CORNER_NW": Vector2i(30, 19),
+	"RED_BRICK_WALL_CORNER_NE": Vector2i(32, 19),
+	"RED_BRICK_WALL_CORNER_SW": Vector2i(30, 20),
+	"RED_BRICK_WALL_CORNER_SE": Vector2i(32, 20),
 	"DOOR": Vector2i(5, 21),
+	"FANCY_DOOR": Vector2i(5, 21),
 	"ROOF_RED": Vector2i(69, 10),
 	"ROOF_DARK_RED_TRIM": Vector2i(32, 18),
 	"ROOF_BLACK": Vector2i(65, 10),
 	"ROOF_DARK_GREEN": Vector2i(92, 10),
 	"ROOF_DARK_BLUE": Vector2i(91, 10),
+	# "WALL_H_INT_FIREPLACE": Vector2i(6, 19), # Horizontal wall
 }
 
 const FURNITURE_TILES = {
@@ -127,7 +137,17 @@ const BUILDING_TEMPLATES = {
 		"min_size": Vector2i(4, 4),
 		"max_size": Vector2i(6, 6),
 		"floor": "FLOOR_WOOD",
-		"roof": "ROOF_RED",
+		"roof": "ROOF_BLACK",
+		"walls": {
+			"left": "STONE_WALL_V_LEFT",
+			"right": "STONE_WALL_V_RIGHT",
+			"top": "STONE_WALL_H",
+			"bottom": "STONE_WALL_H",
+			"corner_nw": "STONE_WALL_CORNER_NW",
+			"corner_ne": "STONE_WALL_CORNER_NE",
+			"corner_sw": "STONE_WALL_CORNER_SW",
+			"corner_se": "STONE_WALL_CORNER_SE",
+		},
 		"ground": "DIRT", # Houses tend to have dirt yards
 		"spacing": 1 # Minimum space between houses
 	},
@@ -136,6 +156,16 @@ const BUILDING_TEMPLATES = {
 		"max_size": Vector2i(8, 8),
 		"floor": "FLOOR_WOOD",
 		"roof": "ROOF_DARK_BLUE",
+		"walls": {
+			"left": "STONE_WALL_V_LEFT",
+			"right": "STONE_WALL_V_RIGHT",
+			"top": "STONE_WALL_H",
+			"bottom": "STONE_WALL_H",
+			"corner_nw": "STONE_WALL_CORNER_NW",
+			"corner_ne": "STONE_WALL_CORNER_NE",
+			"corner_sw": "STONE_WALL_CORNER_SW",
+			"corner_se": "STONE_WALL_CORNER_SE",
+		},
 		"ground": "STONE", # Stone paths around taverns
 		"spacing": 2 # More space for taverns
 	},
@@ -144,14 +174,34 @@ const BUILDING_TEMPLATES = {
 		"max_size": Vector2i(7, 7),
 		"floor": "FLOOR_WOOD",
 		"roof": "ROOF_DARK_GREEN",
+		"walls": {
+			"left": "STONE_WALL_V_LEFT",
+			"right": "STONE_WALL_V_RIGHT",
+			"top": "STONE_WALL_H",
+			"bottom": "STONE_WALL_H",
+			"corner_nw": "STONE_WALL_CORNER_NW",
+			"corner_ne": "STONE_WALL_CORNER_NE",
+			"corner_sw": "STONE_WALL_CORNER_SW",
+			"corner_se": "STONE_WALL_CORNER_SE",
+		},
 		"ground": "STONE", # Stone paths around shops
 		"spacing": 2
 	},
 	BuildingType.MANOR: {
 		"min_size": Vector2i(8, 8),
 		"max_size": Vector2i(12, 12),
-		"floor": "FLOOR_WOOD",
+		"floor": "FLOOR_TILE",
 		"roof": "ROOF_RED",
+		"walls": {
+			"left": "RED_BRICK_WALL_V_LEFT",
+			"right": "RED_BRICK_WALL_V_RIGHT",
+			"top": "RED_BRICK_WALL_H",
+			"bottom": "RED_BRICK_WALL_H",
+			"corner_nw": "RED_BRICK_WALL_CORNER_NW",
+			"corner_ne": "RED_BRICK_WALL_CORNER_NE",
+			"corner_sw": "RED_BRICK_WALL_CORNER_SW",
+			"corner_se": "RED_BRICK_WALL_CORNER_SE",
+		},
 		"ground": "STONE", # Stone surroundings for manors
 		"spacing": 3 # Manors need more space
 	},
@@ -243,7 +293,7 @@ const HEIGHT = 80
 const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
-var SETTLEMENT_TYPE: int = SettlementType.TOWN # Default settlement type
+var SETTLEMENT_TYPE: int = SettlementType.CITY # Default settlement type
 
 # TODO: buildings with multiple floors
 # TODO: floors with multiple rooms
@@ -269,10 +319,10 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 			BuildingType.MANOR: 0
 		},
 		SettlementType.CITY: {
-			BuildingType.HOUSE: rng.randi_range(12, 20),
-			BuildingType.TAVERN: rng.randi_range(2, 3),
-			BuildingType.SHOP: rng.randi_range(3, 5),
-			BuildingType.MANOR: rng.randi_range(1, 2)
+			BuildingType.HOUSE: 20, # rng.randi_range(12, 20),
+			BuildingType.TAVERN: 3, # rng.randi_range(2, 3),
+			BuildingType.SHOP: 3, # rng.randi_range(3, 5),
+			BuildingType.MANOR: 4 # rng.randi_range(1, 2)
 		},
 		SettlementType.CASTLE: {
 			BuildingType.HOUSE: rng.randi_range(2, 4),
@@ -416,15 +466,10 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	# Place walls on walls layer
 	for x in range(pos.x, pos.x + size.x):
 		# Top and bottom walls
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H"])
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H"])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["top"]])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["bottom"]])
 		# place roof trim on roof layer above H walls
 		tilemap.set_cell(LAYERS.ROOF, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["ROOF_DARK_RED_TRIM"])
-
-		# Add an interior horizontal wall if building is large enough
-		if size.y > 6 and x > pos.x + 1 and x < pos.x + size.x - 2:
-			var mid_y = pos.y + size.y >> 1 # Use bit shift for integer division
-			tilemap.set_cell(LAYERS.WALLS, Vector2i(x, mid_y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_H_INT"])
 
 	# place roof tiles on roof layer
 	for y in range(pos.y, pos.y + size.y - 1):
@@ -433,15 +478,15 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	
 	for y in range(pos.y, pos.y + size.y):
 		# Left and right walls with proper facing
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_V_RIGHT"])
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, STRUCTURE_TILES["WALL_V_LEFT"])
-	
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["right"]])
+		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["left"]])
+
 	# Place corners
-	tilemap.set_cell(LAYERS.WALLS, pos, TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_NW"])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_NE"])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_SW"])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["CORNER_SE"])
-	
+	tilemap.set_cell(LAYERS.WALLS, pos, TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_nw"]])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_ne"]])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_sw"]])
+	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_se"]])
+
 	# Place door on the south wall
 	var door_x = pos.x + (size.x >> 1) # Use bit shift for integer division
 	var door_y = pos.y + size.y - 1
