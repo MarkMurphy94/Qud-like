@@ -9,6 +9,7 @@ visibility_layer = 7
 script = ExtResource("1_xn88g")
 
 [node name="Player" parent="." instance=ExtResource("1_obwjb")]
+z_index = 2
 position = Vector2(176, 336)
 
 [node name="OverworldMap" parent="." instance=ExtResource("2_3ygxx")]

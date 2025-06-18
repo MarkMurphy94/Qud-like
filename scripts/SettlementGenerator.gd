@@ -413,6 +413,9 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 			generate_wheat_field(area_size, occupied_space_grid, rng)
 	connect_terrain()
 
+	var spawner = NPCSpawner.new()
+	spawner.spawn_settlement_npcs(GlobalGameState.settlement_data, self)
+
 func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int, settlement_type: int = SettlementType.TOWN) -> Vector2i:
 	var template = BUILDING_TEMPLATES[building_type]
 	var spacing = template["spacing"]
