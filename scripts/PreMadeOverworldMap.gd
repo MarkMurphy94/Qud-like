@@ -37,8 +37,8 @@ class CustomTileData:
 @onready var tilemap: TileMap = $TileMap
 var map_data: Array[Array] = []
 const TILE_SIZE = 16 # Size of each tile in pixels
-const WIDTH = 2096 / TILE_SIZE
-const HEIGHT = 1296 / TILE_SIZE
+const WIDTH = 2096.0 / TILE_SIZE
+const HEIGHT = 1296.0 / TILE_SIZE
 
 func _ready() -> void:
 	if not tilemap:
@@ -149,10 +149,22 @@ func get_terrain(pos: Vector2i) -> int:
 		return Terrain.NONE
 	return map_data[pos.y][pos.x].terrain
 
-func get_settlement(pos: Vector2i) -> int:
+func get_settlement_type(pos: Vector2i) -> int:
 	if not is_valid_position(pos):
 		return Settlement.NONE
 	return map_data[pos.y][pos.x].settlement
+
+func get_settlement_from_seed(pos: Vector2i):
+	var settlement_seed = null
+	for town in GlobalGameState.settlement_data:
+		if GlobalGameState.settlement_data[town]["pos"] == pos:
+			settlement_seed = GlobalGameState.settlement_data[town]["seed"]
+			break
+	if settlement_seed:
+		print("Identified settlement from settlement_seed: ", settlement_seed)
+		return settlement_seed
+	else:
+		print("No settlement found for settlement_seed: ", settlement_seed)
 
 func debug_print_tile(pos: Vector2i) -> void:
 	if not is_valid_position(pos):

@@ -107,7 +107,7 @@ func descend_to_local_area() -> void:
 			
 	if overworld.has_settlement(overworld_grid_pos):
 		current_local_area = settlement_scene.instantiate()
-		current_local_area.SETTLEMENT_TYPE = overworld.get_settlement(overworld_grid_pos)
+		current_local_area.SEED = overworld.get_settlement_from_seed(overworld_grid_pos)
 		get_tree().current_scene.add_child(current_local_area)
 		await get_tree().process_frame
 		map_rect = current_local_area.tilemap.get_used_rect()

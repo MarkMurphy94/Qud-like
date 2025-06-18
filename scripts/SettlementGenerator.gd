@@ -31,8 +31,8 @@ const TERRAINS = {
 const SETTLEMENT_TERRAIN = {
 	SettlementType.TOWN: {
 		"primary": "grass",
-		"secondary": "dirt",
-		"paths": "stone"
+		"secondary": "grass",
+		"paths": "dirt"
 	},
 	SettlementType.CITY: {
 		"primary": "grass",
@@ -296,6 +296,7 @@ const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
 var SETTLEMENT_TYPE: int = SettlementType.TOWN # Default settlement type
+var SEED = null
 
 # TODO: buildings with multiple floors
 # TODO: floors with multiple rooms
@@ -308,7 +309,11 @@ func _ready() -> void:
 	
 	# Generate a settlement of type TOWN for demonstration
 	var rng = RandomNumberGenerator.new()
-	rng.seed = randi() # Random seed for this example
+	if not SEED:
+		# If no seed is provided, generate a random one
+		rng.seed = randi()
+	else:
+		rng.seed = SEED
 	generate_settlement(SETTLEMENT_TYPE, rng)
 	print("settlement seed is: ", rng.seed)
 
@@ -391,7 +396,7 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 				rng.randi_range(BUILDING_TEMPLATES[building_type]["min_size"].x, BUILDING_TEMPLATES[building_type]["max_size"].x),
 				rng.randi_range(BUILDING_TEMPLATES[building_type]["min_size"].y, BUILDING_TEMPLATES[building_type]["max_size"].y)
 			)
-			var pos = find_valid_building_position(area_size, size, occupied_space_grid, rng, building_type)
+			var pos = find_valid_building_position(area_size, size, occupied_space_grid, rng, building_type, settlement_type)
 			if pos.x != -1: # Valid position found
 				place_building(pos, size, building_type)
 				mark_occupied(occupied_space_grid, pos, size)
@@ -408,10 +413,17 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 			generate_wheat_field(area_size, occupied_space_grid, rng)
 	connect_terrain()
 
-func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int) -> Vector2i:
+func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int, settlement_type: int = SettlementType.TOWN) -> Vector2i:
 	var template = BUILDING_TEMPLATES[building_type]
 	var spacing = template["spacing"]
 	var attempts = 0
+	var best_pos = Vector2i(-1, -1)
+	var best_score = -1.0
+	var center = Vector2(area_size.x / 2.0, area_size.y / 2.0)
+	var max_distance = center.length() # Maximum possible distance from center
+	
+	# For towns, we'll try multiple positions and pick the best one
+	var positions_to_try = 10 if settlement_type == SettlementType.TOWN else 1
 	
 	while attempts < 100:
 		var x = rng.randi_range(spacing, area_size.x - size.x - spacing)
@@ -436,13 +448,31 @@ func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_
 					
 			if not valid:
 				break
-				
-		if valid:
-			return Vector2i(x, y)
-			
-		attempts += 1
 		
-	return Vector2i(-1, -1) # Return invalid position if no space found
+		if valid:
+			if settlement_type != SettlementType.TOWN:
+				return Vector2i(x, y)
+			
+			# For towns, calculate score based on distance from center
+			var pos_center = Vector2(x + size.x / 2.0, y + size.y / 2.0)
+			var distance = pos_center.distance_to(center)
+			var score = 1.0 - (distance / max_distance) # Score from 0 to 1, higher for positions closer to center
+			
+			# Add some randomness to avoid perfect circles
+			score += rng.randf_range(-0.1, 0.1)
+			
+			if score > best_score:
+				best_score = score
+				best_pos = Vector2i(x, y)
+			
+			# If we've found enough positions, return the best one
+			positions_to_try -= 1
+			if positions_to_try <= 0:
+				return best_pos
+		
+		attempts += 1
+	
+	return best_pos if best_pos.x != -1 else Vector2i(-1, -1) # Return best position found or invalid position
 
 func mark_occupied(occupied_space_grid: Array, pos: Vector2i, size: Vector2i) -> void:
 	for y in range(pos.y, pos.y + size.y):
