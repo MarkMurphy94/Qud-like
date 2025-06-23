@@ -1,10 +1,18 @@
 @tool
 extends Node2D
 
-# Types of settlements
-enum SettlementType {TOWN, CITY, CASTLE}
-# Types of buildings
-enum BuildingType {HOUSE, TAVERN, SHOP, MANOR, BARRACKS, CHURCH, KEEP}
+const BUILDINGTYPE = GlobalGameState.BuildingType
+const SETTLEMENTTYPE = GlobalGameState.SettlementType
+
+var BuildingTypeStrings = {
+	BUILDINGTYPE.HOUSE: "house",
+	BUILDINGTYPE.TAVERN: "tavern",
+	BUILDINGTYPE.SHOP: "shop",
+	BUILDINGTYPE.MANOR: "manor",
+	BUILDINGTYPE.BARRACKS: "barracks",
+	BUILDINGTYPE.CHURCH: "church",
+	BUILDINGTYPE.KEEP: "keep"
+}
 @onready var tilemap = $TileMap
 
 # Layer definitions for proper organization
@@ -29,17 +37,17 @@ const TERRAINS = {
 
 # Default terrain type for each settlement type
 const SETTLEMENT_TERRAIN = {
-	SettlementType.TOWN: {
+	SETTLEMENTTYPE.TOWN: {
 		"primary": "grass",
 		"secondary": "grass",
 		"paths": "dirt"
 	},
-	SettlementType.CITY: {
+	SETTLEMENTTYPE.CITY: {
 		"primary": "grass",
 		"secondary": "dirt",
 		"paths": "stone"
 	},
-	SettlementType.CASTLE: {
+	SETTLEMENTTYPE.CASTLE: {
 		"primary": "stone",
 		"secondary": "dirt",
 		"paths": "stone"
@@ -135,7 +143,7 @@ const ITEM_TILES = {
 
 const BUILDING_TEMPLATES = {
 	# TODO: add different wall type entries for different structures
-	BuildingType.HOUSE: {
+	BUILDINGTYPE.HOUSE: {
 		"min_size": Vector2i(4, 4),
 		"max_size": Vector2i(6, 6),
 		"floor": "FLOOR_WOOD",
@@ -153,7 +161,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "DIRT", # Houses tend to have dirt yards
 		"spacing": 1 # Minimum space between houses
 	},
-	BuildingType.TAVERN: {
+	BUILDINGTYPE.TAVERN: {
 		"min_size": Vector2i(6, 6),
 		"max_size": Vector2i(8, 8),
 		"floor": "FLOOR_WOOD",
@@ -171,7 +179,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "STONE", # Stone paths around taverns
 		"spacing": 2 # More space for taverns
 	},
-	BuildingType.SHOP: {
+	BUILDINGTYPE.SHOP: {
 		"min_size": Vector2i(5, 5),
 		"max_size": Vector2i(7, 7),
 		"floor": "FLOOR_WOOD",
@@ -189,7 +197,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "STONE", # Stone paths around shops
 		"spacing": 2
 	},
-	BuildingType.MANOR: {
+	BUILDINGTYPE.MANOR: {
 		"min_size": Vector2i(8, 8),
 		"max_size": Vector2i(12, 12),
 		"floor": "FLOOR_TILE",
@@ -207,7 +215,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "STONE", # Stone surroundings for manors
 		"spacing": 3 # Manors need more space
 	},
-	BuildingType.BARRACKS: {
+	BUILDINGTYPE.BARRACKS: {
 		"min_size": Vector2i(8, 8),
 		"max_size": Vector2i(12, 12),
 		"floor": "FLOOR_WOOD",
@@ -215,7 +223,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "STONE",
 		"spacing": 3
 	},
-	BuildingType.CHURCH: {
+	BUILDINGTYPE.CHURCH: {
 		"min_size": Vector2i(8, 8),
 		"max_size": Vector2i(12, 12),
 		"floor": "FLOOR_WOOD",
@@ -234,7 +242,7 @@ const ROOM_ZONES = {
 }
 
 const BUILDING_LAYOUTS = {
-	BuildingType.HOUSE: {
+	BUILDINGTYPE.HOUSE: {
 		"zones": ["SLEEPING", "DINING", "STORAGE"],
 		"furniture": {
 			"SLEEPING": ["BED", "SHELF"],
@@ -247,7 +255,7 @@ const BUILDING_LAYOUTS = {
 			"STORAGE": []
 		}
 	},
-	BuildingType.TAVERN: {
+	BUILDINGTYPE.TAVERN: {
 		"zones": ["DINING", "STORAGE", "SLEEPING"],
 		"furniture": {
 			"DINING": ["TABLE", "CHAIR", "SHELF"],
@@ -260,7 +268,7 @@ const BUILDING_LAYOUTS = {
 			"SLEEPING": []
 		}
 	},
-	BuildingType.SHOP: {
+	BUILDINGTYPE.SHOP: {
 		"zones": ["WORKSHOP", "STORAGE", "DINING"],
 		"furniture": {
 			"WORKSHOP": ["TABLE", "CHAIR", "SHELF"],
@@ -273,7 +281,7 @@ const BUILDING_LAYOUTS = {
 			"DINING": ["STEW_ORANGE"]
 		}
 	},
-	BuildingType.MANOR: {
+	BUILDINGTYPE.MANOR: {
 		"zones": ["SLEEPING", "DINING", "STORAGE", "WORKSHOP"],
 		"furniture": {
 			"SLEEPING": ["BED", "SHELF", "CHEST_GOLD_TRIM_CLOSED", "POTTED_PLANT_GREY"],
@@ -295,12 +303,15 @@ const HEIGHT = 80
 const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
-var SETTLEMENT_TYPE: int = SettlementType.TOWN # Default settlement type
+var SETTLEMENT_TYPE: int = SETTLEMENTTYPE.TOWN # Default settlement type
 var SEED = null
 
 # TODO: buildings with multiple floors
 # TODO: floors with multiple rooms
 # TODO: interior features like furniture, decorations, etc.
+
+# Registry for all buildings in the settlement
+var building_registry := {}
 
 func _ready() -> void:
 	if not tilemap:
@@ -320,23 +331,23 @@ func _ready() -> void:
 func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> void:
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var building_counts = {
-		SettlementType.TOWN: {
-			BuildingType.HOUSE: 10,
-			BuildingType.TAVERN: 1,
-			BuildingType.SHOP: 1, # rng.randi_range(1, 2),
-			BuildingType.MANOR: 0
+		SETTLEMENTTYPE.TOWN: {
+			BUILDINGTYPE.HOUSE: 10,
+			BUILDINGTYPE.TAVERN: 1,
+			BUILDINGTYPE.SHOP: 1, # rng.randi_range(1, 2),
+			BUILDINGTYPE.MANOR: 0
 		},
-		SettlementType.CITY: {
-			BuildingType.HOUSE: 20, # rng.randi_range(12, 20),
-			BuildingType.TAVERN: 3, # rng.randi_range(2, 3),
-			BuildingType.SHOP: 3, # rng.randi_range(3, 5),
-			BuildingType.MANOR: 4 # rng.randi_range(1, 2)
+		SETTLEMENTTYPE.CITY: {
+			BUILDINGTYPE.HOUSE: 20, # rng.randi_range(12, 20),
+			BUILDINGTYPE.TAVERN: 3, # rng.randi_range(2, 3),
+			BUILDINGTYPE.SHOP: 3, # rng.randi_range(3, 5),
+			BUILDINGTYPE.MANOR: 4 # rng.randi_range(1, 2)
 		},
-		SettlementType.CASTLE: {
-			BuildingType.HOUSE: rng.randi_range(2, 4),
-			BuildingType.TAVERN: 0,
-			BuildingType.SHOP: 0,
-			BuildingType.MANOR: 1
+		SETTLEMENTTYPE.CASTLE: {
+			BUILDINGTYPE.HOUSE: rng.randi_range(2, 4),
+			BUILDINGTYPE.TAVERN: 0,
+			BUILDINGTYPE.SHOP: 0,
+			BUILDINGTYPE.MANOR: 1
 		}
 	}
 	print("Generating settlement of type ", settlement_type, " with counts: ", building_counts[settlement_type])
@@ -387,7 +398,7 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 
 	# Place buildings in order: Manor first, then Taverns, Shops, and finally Houses
 	var placed_buildings = []
-	var building_order = [BuildingType.MANOR, BuildingType.TAVERN, BuildingType.SHOP, BuildingType.HOUSE]
+	var building_order = [BUILDINGTYPE.MANOR, BUILDINGTYPE.TAVERN, BUILDINGTYPE.SHOP, BUILDINGTYPE.HOUSE]
 	
 	for building_type in building_order:
 		var count = building_counts[settlement_type][building_type]
@@ -397,26 +408,40 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 				rng.randi_range(BUILDING_TEMPLATES[building_type]["min_size"].y, BUILDING_TEMPLATES[building_type]["max_size"].y)
 			)
 			var pos = find_valid_building_position(area_size, size, occupied_space_grid, rng, building_type, settlement_type)
-			if pos.x != -1: # Valid position found
+			if pos.x != -1:
 				place_building(pos, size, building_type)
 				mark_occupied(occupied_space_grid, pos, size)
+				var building_interior_size = size - Vector2i(2, 2) # Interior is 1 tile inset on all sides, i.e without walls
+				var building_name = BuildingTypeStrings[building_type]
 				placed_buildings.append({"type": building_type, "pos": pos, "size": size})
-
+				# Register building
+				var building_id = "%s_at_%d_%d" % [building_name, pos.x, pos.y]
+				building_registry[building_id] = {
+					"type": building_type,
+					"pos": pos,
+					"size": size,
+					"interior_size": building_interior_size,
+					"zones": [],
+					"inhabitants": [],
+					"interior_features": {},
+					"scripted_content": null
+				}
 	# Generate roads between buildings and connect terrain
 	generate_roads(placed_buildings, rng, settlement_type)
 	
 	# Generate wheat fields based on settlement type
 	var num_wheat_fields = 0
-	if settlement_type == SettlementType.TOWN:
+	if settlement_type == SETTLEMENTTYPE.TOWN:
 		num_wheat_fields = rng.randi_range(2, 4)
 		for _i in range(num_wheat_fields):
 			generate_wheat_field(area_size, occupied_space_grid, rng)
 	connect_terrain()
 
-	var spawner = NPCSpawner.new()
-	spawner.spawn_settlement_npcs(GlobalGameState.settlement_data, self)
+	# var spawner = NPCSpawner.new()
+	# spawner.spawn_settlement_npcs(GlobalGameState.settlement_data, self)
+	print_rich(get_settlement_details())
 
-func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int, settlement_type: int = SettlementType.TOWN) -> Vector2i:
+func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int, settlement_type: int = SETTLEMENTTYPE.TOWN) -> Vector2i:
 	var template = BUILDING_TEMPLATES[building_type]
 	var spacing = template["spacing"]
 	var attempts = 0
@@ -426,7 +451,7 @@ func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_
 	var max_distance = center.length() # Maximum possible distance from center
 	
 	# For towns, we'll try multiple positions and pick the best one
-	var positions_to_try = 10 if settlement_type == SettlementType.TOWN else 1
+	var positions_to_try = 10 if settlement_type == SETTLEMENTTYPE.TOWN else 1
 	
 	while attempts < 100:
 		var x = rng.randi_range(spacing, area_size.x - size.x - spacing)
@@ -453,7 +478,7 @@ func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_
 				break
 		
 		if valid:
-			if settlement_type != SettlementType.TOWN:
+			if settlement_type != SETTLEMENTTYPE.TOWN:
 				return Vector2i(x, y)
 			
 			# For towns, calculate score based on distance from center
@@ -557,7 +582,7 @@ func generate_roads(placed_buildings: Array, rng: RandomNumberGenerator, settlem
 			generate_road_between(building_a, building_b, settlement_type)
 			
 			# Consider creating a plaza if buildings are close and important
-			if distance < PLAZA_DISTANCE_THRESHOLD and (building_a["type"] <= BuildingType.SHOP or building_b["type"] <= BuildingType.SHOP):
+			if distance < PLAZA_DISTANCE_THRESHOLD and (building_a["type"] <= BUILDINGTYPE.SHOP or building_b["type"] <= BUILDINGTYPE.SHOP):
 				generate_plaza_between(building_a, building_b, rng, settlement_type)
 
 func generate_road_between(building_a: Dictionary, building_b: Dictionary, settlement_type: int) -> void:
@@ -815,7 +840,7 @@ func generate_wheat_field(area_size: Vector2i, occupied_space_grid: Array, rng: 
 		rng.randi_range(MIN_FIELD_SIZE.y, MAX_FIELD_SIZE.y)
 	)
 	
-	var pos = find_valid_building_position(area_size, field_size, occupied_space_grid, rng, BuildingType.HOUSE) # Using HOUSE spacing rules
+	var pos = find_valid_building_position(area_size, field_size, occupied_space_grid, rng, BUILDINGTYPE.HOUSE) # Using HOUSE spacing rules
 	if pos.x == -1: # No valid position found
 		return
 	
@@ -844,3 +869,34 @@ func generate_wheat_field(area_size: Vector2i, occupied_space_grid: Array, rng: 
 	for y in range(pos.y, pos.y + field_size.y):
 		for x in range(pos.x, pos.x + field_size.x):
 			terrain_cells["wheat_field"].append(Vector2i(x, y))
+
+# Returns a dictionary with all relevant settlement data for global_game_state
+func get_settlement_details() -> Dictionary:
+	var details = {
+		"type": SETTLEMENT_TYPE,
+		"seed": SEED,
+		"width": WIDTH,
+		"height": HEIGHT,
+		"buildings": {},
+		"npcs": {},
+	}
+	# Collect building data
+	for building_id in building_registry:
+		details["buildings"][building_id] = get_building_details(building_id)
+	return details
+
+# Returns a dictionary with all relevant building data for a given building_id
+func get_building_details(building_id: String) -> Dictionary:
+	if not building_registry.has(building_id):
+		return {}
+	var b = building_registry[building_id]
+	return {
+		"id": building_id,
+		"type": b["type"],
+		"pos": (b["pos"]),
+		"size": (b["size"]),
+		"zones": b.get("zones", []),
+		"inhabitants": b.get("inhabitants", []),
+		"interior_features": b.get("interior_features", {}),
+		"scripted_content": b.get("scripted_content", null)
+	}
