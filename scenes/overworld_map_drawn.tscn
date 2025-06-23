@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://bus31nsk52q8w"]
 
-[ext_resource type="Script" path="res://scripts/PreMadeOverworldMap.gd" id="1_toehm"]
+[ext_resource type="Script" uid="uid://v4drxm6ofqlc" path="res://scripts/PreMadeOverworldMap.gd" id="1_toehm"]
 [ext_resource type="TileSet" uid="uid://brx8ehphe1wp8" path="res://resources/overworld_roguelike_merged.tres" id="3_kayb8"]
 
 [node name="OverworldMap" type="Node2D"]

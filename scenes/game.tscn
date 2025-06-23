@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://c1othl8sw151g"]
 
 [ext_resource type="PackedScene" uid="uid://2yt1rem30pxh" path="res://scenes/player.tscn" id="1_obwjb"]
-[ext_resource type="Script" path="res://scripts/global_game_state.gd" id="1_xn88g"]
+[ext_resource type="Script" uid="uid://cuf1u06erwqq1" path="res://scripts/global_game_state.gd" id="1_xn88g"]
 [ext_resource type="PackedScene" uid="uid://bus31nsk52q8w" path="res://scenes/overworld_map_drawn.tscn" id="2_3ygxx"]
 
 [node name="Overworld" type="Node2D"]

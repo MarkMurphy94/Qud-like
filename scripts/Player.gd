@@ -14,6 +14,7 @@ var in_local_area: bool = false
 var target_position: Vector2
 var is_moving: bool = false
 var overworld_grid_pos: Vector2
+# var velocity: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	# find_valid_starting_position()
@@ -71,32 +72,6 @@ func try_move(direction: Vector2) -> void:
 			target_position = overworld.map_to_world(new_grid_pos)
 			is_moving = true
 
-func is_local_tile_walkable(pos: Vector2i) -> bool:
-	if not current_local_area or not current_local_area.tilemap:
-		return false
-		
-	# Get bounds from the tilemap
-	# var map_rect = current_local_area.tilemap.get_used_rect()
-	
-	# Check bounds
-	if pos.x < map_rect.position.x or pos.x >= map_rect.end.x or \
-	   pos.y < map_rect.position.y or pos.y >= map_rect.end.y:
-		print("Position out of bounds: ", pos)
-		return false
-	print('map_rect position: ', pos)
-	return current_local_area.is_walkable(pos)
-
-func _physics_process(delta: float) -> void:
-	if is_moving:
-		var move_delta = target_position - position
-		var movement = move_delta.normalized() * move_speed * delta
-		
-		if movement.length() > move_delta.length():
-			position = target_position
-			is_moving = false
-		else:
-			position += movement
-
 func descend_to_local_area() -> void:
 	overworld_grid_pos = overworld.world_to_map(global_position)
 	var tile_type = overworld.get_tile_data(overworld_grid_pos).terrain
@@ -110,14 +85,15 @@ func descend_to_local_area() -> void:
 		current_local_area.SEED = overworld.get_settlement_from_seed(overworld_grid_pos)
 		get_tree().current_scene.add_child(current_local_area)
 		await get_tree().process_frame
-		map_rect = current_local_area.tilemap.get_used_rect()
+		# Use ground layer for map_rect
+		map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
 		find_valid_local_position()
 	else:
 		current_local_area = local_area_scene.instantiate()
 		get_tree().current_scene.add_child(current_local_area)
 		current_local_area.initialize(tile_type, overworld_grid_pos)
 		await get_tree().process_frame
-		map_rect = current_local_area.tilemap.get_used_rect()
+		map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
 		find_valid_local_position()
 		print('overworld_grid_pos: ', overworld_grid_pos)
 	overworld.hide()
@@ -126,7 +102,7 @@ func descend_to_local_area() -> void:
 	update_camera_limits()
 
 func find_valid_local_position() -> void:
-	if not current_local_area or not current_local_area.tilemap:
+	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
 		return
 		
 	# Start at the map's origin (top-left corner)
@@ -149,6 +125,31 @@ func find_valid_local_position() -> void:
 	if not found:
 		print('No walkable position found, defaulting to map origin')
 		position = Vector2(start_pos) * tile_size
+
+func is_local_tile_walkable(pos: Vector2i) -> bool:
+	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
+		return false
+		
+	# Check bounds
+	if pos.x < map_rect.position.x or pos.x >= map_rect.end.x or \
+	   pos.y < map_rect.position.y or pos.y >= map_rect.end.y:
+		print("Position out of bounds: ", pos)
+		return false
+	print('map_rect position: ', pos)
+	return current_local_area.is_walkable(pos)
+
+func _physics_process(_delta: float) -> void:
+	if is_moving:
+		var move_delta = target_position - position
+		if move_delta.length() < 1.0:
+			position = target_position
+			velocity = Vector2.ZERO
+			is_moving = false
+			return
+		velocity = move_delta.normalized() * move_speed
+		move_and_slide()
+	else:
+		velocity = Vector2.ZERO
 
 func return_to_overworld() -> void:
 	if current_local_area:

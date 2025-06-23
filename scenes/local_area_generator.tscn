@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://d0n2oc0epj0fm"]
 
-[ext_resource type="Script" path="res://scripts/LocalAreaGenerator.gd" id="1_b3814"]
+[ext_resource type="Script" uid="uid://klyjjqry1ix6" path="res://scripts/LocalAreaGenerator.gd" id="1_b3814"]
 [ext_resource type="TileSet" uid="uid://bjibwwb63qoxr" path="res://resources/Roguelike_extended_walls.tres" id="2_do61f"]
 
 [node name="LocalAreaGenerator" type="Node2D"]
@@ -8,15 +8,19 @@ visibility_layer = 7
 script = ExtResource("1_b3814")
 noise_scale = 10.0
 
-[node name="TileMap" type="TileMap" parent="."]
-visibility_layer = 15
+[node name="ground" type="TileMapLayer" parent="."]
+use_parent_material = true
 tile_set = ExtResource("2_do61f")
-format = 2
-layer_0/name = "ground"
-layer_1/name = "walls"
-layer_1/navigation_enabled = false
-layer_1/tile_data = PackedInt32Array()
-layer_2/name = "doors"
-layer_2/tile_data = PackedInt32Array()
-layer_3/name = "items"
-layer_3/tile_data = PackedInt32Array()
+
+[node name="walls" type="TileMapLayer" parent="."]
+use_parent_material = true
+tile_set = ExtResource("2_do61f")
+navigation_enabled = false
+
+[node name="doors" type="TileMapLayer" parent="."]
+use_parent_material = true
+tile_set = ExtResource("2_do61f")
+
+[node name="items" type="TileMapLayer" parent="."]
+use_parent_material = true
+tile_set = ExtResource("2_do61f")

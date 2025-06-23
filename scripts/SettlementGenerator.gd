@@ -13,7 +13,15 @@ var BuildingTypeStrings = {
 	BUILDINGTYPE.CHURCH: "church",
 	BUILDINGTYPE.KEEP: "keep"
 }
-@onready var tilemap = $TileMap
+@onready var tilemaps = {
+	"GROUND": $ground,
+	"INTERIOR_FLOOR": $interior_floor,
+	"WALLS": $walls,
+	"FURNITURE": $furniture,
+	"ITEMS": $items,
+	"DOORS": $doors,
+	"ROOF": $roof
+}
 
 # Layer definitions for proper organization
 const LAYERS = {
@@ -314,9 +322,14 @@ var SEED = null
 var building_registry := {}
 
 func _ready() -> void:
-	if not tilemap:
-		push_error("TileMap node not found!")
-		return
+	# Check all tilemaps exist
+	for layer in LAYERS:
+		if not tilemaps.has(layer) or not tilemaps[layer]:
+			push_error("TileMapLayer node for %s not found!" % layer)
+			return
+	# Clear and initialize all layers
+	for layer in LAYERS:
+		tilemaps[layer].clear()
 	
 	# Generate a settlement of type TOWN for demonstration
 	var rng = RandomNumberGenerator.new()
@@ -353,7 +366,8 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 	print("Generating settlement of type ", settlement_type, " with counts: ", building_counts[settlement_type])
 
 	# Clear and initialize all layers
-	tilemap.clear()
+	for layer in LAYERS:
+		tilemaps[layer].clear()
 	
 	# Initialize base layer with appropriate terrain based on settlement type
 	var settlement_terrain = SETTLEMENT_TERRAIN[settlement_type]
@@ -379,8 +393,7 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 	# Apply all terrains using terrain sets for proper transitions
 	for terrain in terrain_cells:
 		if not terrain_cells[terrain].is_empty():
-			tilemap.set_cells_terrain_connect(
-				LAYERS.GROUND,
+			tilemaps["GROUND"].set_cells_terrain_connect(
 				terrain_cells[terrain],
 				TERRAIN_SET_ID,
 				TERRAINS[terrain],
@@ -438,7 +451,7 @@ func generate_settlement(settlement_type: int, rng: RandomNumberGenerator) -> vo
 	connect_terrain()
 
 	# var spawner = NPCSpawner.new()
-	# spawner.spawn_settlement_npcs(GlobalGameState.settlement_data, self)
+	# spawner.spawn_settlement_npcs(GlobalGameState.settlements, self)
 	print_rich(get_settlement_details())
 
 func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, rng: RandomNumberGenerator, building_type: int, settlement_type: int = SETTLEMENTTYPE.TOWN) -> Vector2i:
@@ -519,8 +532,7 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	
 	# Apply terrain using set_cells_terrain_connect for proper transitions
 	var ground_terrain = template["ground"].to_lower()
-	tilemap.set_cells_terrain_connect(
-		LAYERS.GROUND,
+	tilemaps["GROUND"].set_cells_terrain_connect(
 		building_cells,
 		TERRAIN_SET_ID,
 		TERRAINS[ground_terrain]
@@ -529,36 +541,36 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	# Place floor tiles on the interior floor layer
 	for y in range(pos.y, pos.y + size.y):
 		for x in range(pos.x, pos.x + size.x):
-			tilemap.set_cell(LAYERS.INTERIOR_FLOOR, Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["floor"]])
+			tilemaps["INTERIOR_FLOOR"].set_cell(Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["floor"]])
 
 	# Place walls on walls layer
 	for x in range(pos.x, pos.x + size.x):
 		# Top and bottom walls
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["top"]])
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["bottom"]])
+		tilemaps["WALLS"].set_cell(Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["top"]])
+		tilemaps["WALLS"].set_cell(Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["bottom"]])
 		# place roof trim on roof layer above H walls
-		tilemap.set_cell(LAYERS.ROOF, Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["ROOF_DARK_RED_TRIM"])
+		tilemaps["ROOF"].set_cell(Vector2i(x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES["ROOF_DARK_RED_TRIM"])
 
 	# place roof tiles on roof layer
 	for y in range(pos.y, pos.y + size.y - 1):
 		for x in range(pos.x, pos.x + size.x):
-			tilemap.set_cell(LAYERS.ROOF, Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["roof"]])
+			tilemaps["ROOF"].set_cell(Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["roof"]])
 	
 	for y in range(pos.y, pos.y + size.y):
 		# Left and right walls with proper facing
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["right"]])
-		tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["left"]])
+		tilemaps["WALLS"].set_cell(Vector2i(pos.x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["right"]])
+		tilemaps["WALLS"].set_cell(Vector2i(pos.x + size.x - 1, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["left"]])
 
 	# Place corners
-	tilemap.set_cell(LAYERS.WALLS, pos, TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_nw"]])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_ne"]])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_sw"]])
-	tilemap.set_cell(LAYERS.WALLS, Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_se"]])
+	tilemaps["WALLS"].set_cell(pos, TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_nw"]])
+	tilemaps["WALLS"].set_cell(Vector2i(pos.x + size.x - 1, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_ne"]])
+	tilemaps["WALLS"].set_cell(Vector2i(pos.x, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_sw"]])
+	tilemaps["WALLS"].set_cell(Vector2i(pos.x + size.x - 1, pos.y + size.y - 1), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["corner_se"]])
 
 	# Place door on the south wall
 	var door_x = pos.x + (size.x >> 1) # Use bit shift for integer division
 	var door_y = pos.y + size.y - 1
-	tilemap.set_cell(LAYERS.DOORS, Vector2i(door_x, door_y), TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
+	tilemaps["DOORS"].set_cell(Vector2i(door_x, door_y), TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
 
 	place_furniture_and_items_inside_building(pos, size, building_type)
 
@@ -606,8 +618,7 @@ func generate_road_between(building_a: Dictionary, building_b: Dictionary, settl
 				road_cells.append(pos + Vector2i(dx, dy))
 	
 	# Apply terrain change using terrain sets for proper transitions
-	tilemap.set_cells_terrain_connect(
-		LAYERS.GROUND,
+	tilemaps["GROUND"].set_cells_terrain_connect(
 		road_cells,
 		TERRAIN_SET_ID,
 		TERRAINS[road_terrain]
@@ -639,22 +650,21 @@ func generate_plaza_between(building_a: Dictionary, building_b: Dictionary, rng:
 			plaza_cells.append(plaza_start + Vector2i(x, y))
 	
 	# Apply plaza terrain using terrain sets for proper transitions
-	tilemap.set_cells_terrain_connect(
-		LAYERS.GROUND,
+	tilemaps["GROUND"].set_cells_terrain_connect(
 		plaza_cells,
 		TERRAIN_SET_ID,
 		TERRAINS[plaza_terrain]
 	)
-	tilemap.set_cell(LAYERS.WALLS, center, TILE_SOURCE_ID, STRUCTURE_TILES["WELL_RED_ROOF"])
+	tilemaps["WALLS"].set_cell(center, TILE_SOURCE_ID, STRUCTURE_TILES["WELL_RED_ROOF"])
 
 # When connecting terrain, use the terrain set index (not the tile alternative id)
 func connect_terrain() -> void:
-	var tiles = tilemap.get_used_cells(LAYERS.GROUND)
+	var tiles = tilemaps["GROUND"].get_used_cells()
 	var cells_by_terrain = {}
 	
 	# Group cells by their current terrain type
 	for tile_pos in tiles:
-		var cell_data = tilemap.get_cell_tile_data(LAYERS.GROUND, tile_pos)
+		var cell_data = tilemaps["GROUND"].get_cell_tile_data(tile_pos)
 		if not cell_data:
 			continue
 			
@@ -665,8 +675,7 @@ func connect_terrain() -> void:
 	
 	# Apply terrain connections for each group
 	for terrain in cells_by_terrain:
-		tilemap.set_cells_terrain_connect(
-			LAYERS.GROUND,
+		tilemaps["GROUND"].set_cells_terrain_connect(
 			cells_by_terrain[terrain],
 			TERRAIN_SET_ID,
 			terrain
@@ -696,7 +705,7 @@ func get_path_between(start: Vector2i, end: Vector2i) -> Array:
 	return path
 
 func get_cell_ground_type(coords: Vector2i) -> int:
-	var tile_data = tilemap.get_cell_tile_data(LAYERS.GROUND, coords)
+	var tile_data = tilemaps["GROUND"].get_cell_tile_data(coords)
 	if not tile_data:
 		return -1
 	var tile_terrain = tile_data.terrain
@@ -712,7 +721,7 @@ func is_walkable(pos: Vector2i) -> bool:
 		
 	# Check ground layer first
 	var ground_type = get_cell_ground_type(pos)
-	var has_wall = tilemap.get_cell_tile_data(LAYERS.WALLS, pos)
+	var has_wall = tilemaps["WALLS"].get_cell_tile_data(pos)
 	if ground_type == TERRAINS["water"] or has_wall:
 		return false
 	# # Check if there's blocking foliage
@@ -777,7 +786,7 @@ func place_zone_furniture(zone: Rect2i, furniture_list: Array) -> void:
 			if is_against_wall(Vector2i(x, y)):
 				if rng.randf() < 0.4: # 40% chance for wall furniture
 					var furniture = furniture_list[rng.randi() % furniture_list.size()]
-					tilemap.set_cell(LAYERS.FURNITURE, Vector2i(x, y),
+					tilemaps["FURNITURE"].set_cell(Vector2i(x, y),
 								   TILE_SOURCE_ID, FURNITURE_TILES[furniture])
 					placed_positions.append(Vector2i(x, y))
 	
@@ -789,7 +798,7 @@ func place_zone_furniture(zone: Rect2i, furniture_list: Array) -> void:
 				
 			if rng.randf() < 0.2: # 20% chance for open space furniture
 				var furniture = furniture_list[rng.randi() % furniture_list.size()]
-				tilemap.set_cell(LAYERS.FURNITURE, Vector2i(x, y),
+				tilemaps["FURNITURE"].set_cell(Vector2i(x, y),
 							   TILE_SOURCE_ID, FURNITURE_TILES[furniture])
 				placed_positions.append(Vector2i(x, y))
 
@@ -806,7 +815,7 @@ func place_zone_items(zone: Rect2i, items_list: Array) -> void:
 			var pos = Vector2i(x, y)
 			if has_nearby_furniture(pos) and rng.randf() < 0.3: # 30% chance near furniture
 				var item = items_list[rng.randi() % items_list.size()]
-				tilemap.set_cell(LAYERS.ITEMS, pos, TILE_SOURCE_ID, ITEM_TILES[item])
+				tilemaps["ITEMS"].set_cell(pos, TILE_SOURCE_ID, ITEM_TILES[item])
 
 func is_near_furniture(pos: Vector2i, placed_positions: Array) -> bool:
 	for placed in placed_positions:
@@ -818,7 +827,7 @@ func has_nearby_furniture(pos: Vector2i) -> bool:
 	for dx in range(-1, 2):
 		for dy in range(-1, 2):
 			var check_pos = pos + Vector2i(dx, dy)
-			if tilemap.get_cell_source_id(LAYERS.FURNITURE, check_pos) == TILE_SOURCE_ID:
+			if tilemaps["FURNITURE"].get_cell_source_id(check_pos) == TILE_SOURCE_ID:
 				return true
 	return false
 
@@ -826,7 +835,7 @@ func is_against_wall(pos: Vector2i) -> bool:
 	for dx in range(-1, 2):
 		for dy in range(-1, 2):
 			var check_pos = pos + Vector2i(dx, dy)
-			if tilemap.get_cell_source_id(LAYERS.WALLS, check_pos) == TILE_SOURCE_ID:
+			if tilemaps["WALLS"].get_cell_source_id(check_pos) == TILE_SOURCE_ID:
 				return true
 	return false
 
@@ -848,7 +857,7 @@ func generate_wheat_field(area_size: Vector2i, occupied_space_grid: Array, rng: 
 	var is_grass_area = true
 	for y in range(pos.y, pos.y + field_size.y):
 		for x in range(pos.x, pos.x + field_size.x):
-			var cell = tilemap.get_cell_tile_data(LAYERS.GROUND, Vector2i(x, y)).terrain
+			var cell = tilemaps["GROUND"].get_cell_tile_data(Vector2i(x, y)).terrain
 			if cell == TERRAINS.stone:
 				is_grass_area = false
 				break
@@ -861,7 +870,7 @@ func generate_wheat_field(area_size: Vector2i, occupied_space_grid: Array, rng: 
 	# Place the wheat field
 	for y in range(pos.y, pos.y + field_size.y):
 		for x in range(pos.x, pos.x + field_size.x):
-			tilemap.set_cells_terrain_connect(LAYERS.GROUND, [Vector2i(x, y)], TERRAIN_SET_ID, TERRAINS.wheat_field)
+			tilemaps["GROUND"].set_cells_terrain_connect([Vector2i(x, y)], TERRAIN_SET_ID, TERRAINS.wheat_field)
 	
 	# Mark the area as occupied
 	mark_occupied(occupied_space_grid, pos, field_size)

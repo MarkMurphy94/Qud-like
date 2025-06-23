@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://di36j8ada143j"]
 
-[ext_resource type="Script" path="res://scripts/npc.gd" id="1_425qo"]
+[ext_resource type="Script" uid="uid://bmvkc16om8fxj" path="res://scripts/npc.gd" id="1_425qo"]
 [ext_resource type="Texture2D" uid="uid://br0x1tgc8tpf0" path="res://assets/32rogues-0.5.0/32rogues/rogues.png" id="2_8k8i5"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1vbwm"]

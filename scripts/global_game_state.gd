@@ -163,13 +163,13 @@ const FACTIONS = {}
 
 # Example: Add, get, update, and remove functions for settlements and NPCs
 func add_settlement(id: String, data: Dictionary) -> void:
-    settlements[id] = data
+	settlements[id] = data
 
 func get_settlement(id: String) -> Dictionary:
-    return settlements.get(id, {})
+	return settlements.get(id, {})
 
 func add_npc(id: String, data: Dictionary) -> void:
-    npcs[id] = data
+	npcs[id] = data
 
 func get_npc(id: String) -> Dictionary:
-    return npcs.get(id, {})
+	return npcs.get(id, {})
