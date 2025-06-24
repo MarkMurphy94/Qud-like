@@ -1,7 +1,7 @@
 extends CharacterBody2D
 
-@export var move_speed: float = 100.0
-@export var tile_size: int = 16 # Size of each tile in pixels
+@export var move_speed: float = 200.0
+@export var tile_size: int = 16
 
 @onready var overworld = $"../OverworldMap"
 @onready var camera = $Camera2D
@@ -14,35 +14,22 @@ var in_local_area: bool = false
 var target_position: Vector2
 var is_moving: bool = false
 var overworld_grid_pos: Vector2
-# var velocity: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
-	# find_valid_starting_position()
 	target_position = global_position
 	update_camera_limits()
-
-func find_valid_starting_position() -> void:
-	var grid_pos = Vector2i.ZERO
-	for y in overworld.HEIGHT:
-		for x in overworld.WIDTH:
-			if overworld.is_walkable(Vector2i(x, y)):
-				grid_pos = Vector2i(x, y)
-				position = overworld.map_to_world(grid_pos)
-				return
 
 func _process(_delta: float) -> void:
 	if not is_moving:
 		check_movement_input()
-	
-	if Input.is_action_just_pressed("ui_accept"): # Space bar
-		if not in_local_area:
-			descend_to_local_area()
-		else:
+	if Input.is_action_just_pressed("ui_accept"):
+		if in_local_area:
 			return_to_overworld()
+		else:
+			descend_to_local_area()
 
 func check_movement_input() -> void:
 	var direction = Vector2.ZERO
-	
 	if Input.is_action_pressed("ui_right"):
 		direction = Vector2.RIGHT
 	elif Input.is_action_pressed("ui_left"):
@@ -51,14 +38,12 @@ func check_movement_input() -> void:
 		direction = Vector2.UP
 	elif Input.is_action_pressed("ui_down"):
 		direction = Vector2.DOWN
-	
 	if direction != Vector2.ZERO:
 		try_move(direction)
 
 func try_move(direction: Vector2) -> void:
 	var current_grid_pos: Vector2i
 	var new_grid_pos: Vector2i
-	
 	if in_local_area:
 		current_grid_pos = Vector2i(position / tile_size)
 		new_grid_pos = current_grid_pos + Vector2i(direction)
@@ -75,17 +60,14 @@ func try_move(direction: Vector2) -> void:
 func descend_to_local_area() -> void:
 	overworld_grid_pos = overworld.world_to_map(global_position)
 	var tile_type = overworld.get_tile_data(overworld_grid_pos).terrain
-	
 	if tile_type == overworld.Terrain.WATER:
 		print("Can't descend on water")
 		return
-			
 	if overworld.has_settlement(overworld_grid_pos):
 		current_local_area = settlement_scene.instantiate()
 		current_local_area.SEED = overworld.get_settlement_from_seed(overworld_grid_pos)
 		get_tree().current_scene.add_child(current_local_area)
 		await get_tree().process_frame
-		# Use ground layer for map_rect
 		map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
 		find_valid_local_position()
 	else:
@@ -99,43 +81,27 @@ func descend_to_local_area() -> void:
 	overworld.hide()
 	in_local_area = true
 	update_camera_limits()
-	update_camera_limits()
 
 func find_valid_local_position() -> void:
 	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
 		return
-		
-	# Start at the map's origin (top-left corner)
 	var start_pos = Vector2i(map_rect.position)
-	print('Starting search from map origin: ', start_pos)
-	
-	var found = false
-	# Search in a row-by-row pattern from the origin
 	for y in map_rect.size.y:
 		for x in map_rect.size.x:
 			var test_pos = start_pos + Vector2i(x, y)
 			if is_local_tile_walkable(test_pos):
 				position = Vector2(test_pos) * tile_size
-				print('Found valid position at: ', test_pos)
-				found = true
-				break
-		if found:
-			break
-	
-	if not found:
-		print('No walkable position found, defaulting to map origin')
-		position = Vector2(start_pos) * tile_size
+				return
+	position = Vector2(start_pos) * tile_size
 
 func is_local_tile_walkable(pos: Vector2i) -> bool:
 	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
 		return false
-		
-	# Check bounds
 	if pos.x < map_rect.position.x or pos.x >= map_rect.end.x or \
 	   pos.y < map_rect.position.y or pos.y >= map_rect.end.y:
 		print("Position out of bounds: ", pos)
 		return false
-	print('map_rect position: ', pos)
+	# print('map_rect position: ', pos)
 	return current_local_area.is_walkable(pos)
 
 func _physics_process(_delta: float) -> void:
@@ -150,36 +116,43 @@ func _physics_process(_delta: float) -> void:
 		move_and_slide()
 	else:
 		velocity = Vector2.ZERO
+	
+	if in_local_area:
+		_update_roof_visibility()
+
+# Hide/show roof based on whether player is inside a building
+func _update_roof_visibility() -> void:
+	if not current_local_area or not current_local_area.tilemaps:
+		return
+	var roof_map = current_local_area.tilemaps.get("ROOF")
+	if not roof_map:
+		return
+	var interior_map = current_local_area.tilemaps.get("INTERIOR_FLOOR")
+	var grid_pos = Vector2i(position / tile_size)
+	var is_inside = interior_map.get_cell_tile_data(Vector2i(grid_pos.x, grid_pos.y))
+	roof_map.visible = not is_inside
 
 func return_to_overworld() -> void:
 	if current_local_area:
 		current_local_area.queue_free()
 		current_local_area = null
 		map_rect = null
-	
 	overworld.show()
 	in_local_area = false
 	position = overworld.map_to_world(overworld_grid_pos)
-	update_camera_limits()
-	print('position in overworld: ', position)
 	update_camera_limits()
 
 func update_camera_limits() -> void:
 	if not camera:
 		return
-		
 	if in_local_area and current_local_area and map_rect:
-		# Set camera limits for local area
-		var margin = 0 # Pixels of margin around the map edges
+		var margin = 0
 		camera.limit_left = map_rect.position.x * tile_size - margin
 		camera.limit_right = (map_rect.end.x) * tile_size + margin
 		camera.limit_top = map_rect.position.y * tile_size - margin
 		camera.limit_bottom = (map_rect.end.y) * tile_size + margin
-		print("Camera limits set for local area: ", map_rect)
 	else:
-		# Set camera limits for overworld
 		camera.limit_left = 0
 		camera.limit_right = overworld.WIDTH * tile_size
 		camera.limit_top = 0
 		camera.limit_bottom = overworld.HEIGHT * tile_size
-		print("Camera limits set for overworld")

@@ -570,6 +570,8 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	# Place door on the south wall
 	var door_x = pos.x + (size.x >> 1) # Use bit shift for integer division
 	var door_y = pos.y + size.y - 1
+	# Clear any wall at the door position before placing the door
+	tilemaps["WALLS"].set_cell(Vector2i(door_x, door_y), -1)
 	tilemaps["DOORS"].set_cell(Vector2i(door_x, door_y), TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
 
 	place_furniture_and_items_inside_building(pos, size, building_type)

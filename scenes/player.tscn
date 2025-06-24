@@ -8,6 +8,7 @@ size = Vector2(16, 16)
 
 [node name="Player" type="CharacterBody2D"]
 visibility_layer = 7
+z_index = 1
 script = ExtResource("1_fcrbl")
 
 [node name="Camera2D" type="Camera2D" parent="."]
