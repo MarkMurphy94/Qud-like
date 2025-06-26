@@ -47,7 +47,7 @@ func try_move(direction: Vector2) -> void:
 	if in_local_area:
 		current_grid_pos = Vector2i(position / tile_size)
 		new_grid_pos = current_grid_pos + Vector2i(direction)
-		if is_local_tile_walkable(new_grid_pos):
+		if is_tile_within_bounds(new_grid_pos):
 			target_position = Vector2(new_grid_pos) * tile_size
 			is_moving = true
 	else:
@@ -89,12 +89,12 @@ func find_valid_local_position() -> void:
 	for y in map_rect.size.y:
 		for x in map_rect.size.x:
 			var test_pos = start_pos + Vector2i(x, y)
-			if is_local_tile_walkable(test_pos):
+			if is_tile_within_bounds(test_pos):
 				position = Vector2(test_pos) * tile_size
 				return
 	position = Vector2(start_pos) * tile_size
 
-func is_local_tile_walkable(pos: Vector2i) -> bool:
+func is_tile_within_bounds(pos: Vector2i) -> bool:
 	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
 		return false
 	if pos.x < map_rect.position.x or pos.x >= map_rect.end.x or \
