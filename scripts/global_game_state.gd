@@ -20,7 +20,7 @@ var settlements = {
 				"inhabitants": ["npc_1", "npc_2"],
 			}
 		},
-		"npcs": {}
+		"important_npcs": {}
 	},
 	"town_2_full": {
 		"type": SettlementType.TOWN,
@@ -149,14 +149,40 @@ var settlements = {
 				"scripted_content": null
 			}
 		},
-		"npcs": {}
+		"important_npcs": {}
+	}
+}
+
+var settlement_npc_counts = {
+	SettlementType.TOWN: {
+		NpcType.PEASANT: 10,
+		NpcType.SOLDIER: 2,
+		NpcType.MERCHANT: 3,
+		NpcType.NOBLE: 1,
+		NpcType.ANIMAL: 5,
+	},
+	SettlementType.CITY: {
+		NpcType.PEASANT: 30,
+		NpcType.SOLDIER: 5,
+		NpcType.MERCHANT: 10,
+		NpcType.NOBLE: 3,
+		NpcType.BANDIT: 2,
+		NpcType.ANIMAL: 2,
+	},
+	SettlementType.CASTLE: {
+		NpcType.PEASANT: 20,
+		NpcType.SOLDIER: 10,
+		NpcType.MERCHANT: 5,
+		NpcType.NOBLE: 5,
+		NpcType.ANIMAL: 10
 	}
 }
 
 # All important NPCs, keyed by unique ID
-var npcs = {}
+var important_npcs = {}
 
 # Building templates and other static data
+const TILE_SIZE = 16
 const BUILDING_TEMPLATES = {}
 const NPC_TEMPLATES = {}
 const FACTIONS = {}
@@ -169,7 +195,13 @@ func get_settlement(id: String) -> Dictionary:
 	return settlements.get(id, {})
 
 func add_npc(id: String, data: Dictionary) -> void:
-	npcs[id] = data
+	important_npcs[id] = data
 
 func get_npc(id: String) -> Dictionary:
-	return npcs.get(id, {})
+	return important_npcs.get(id, {})
+
+func world_to_map(world_pos: Vector2) -> Vector2i:
+	return Vector2i(world_pos / TILE_SIZE)
+
+func map_to_world(map_pos: Vector2i) -> Vector2:
+	return Vector2(map_pos * TILE_SIZE)
