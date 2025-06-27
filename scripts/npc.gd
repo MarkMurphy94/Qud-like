@@ -178,6 +178,10 @@ var npc_properties = {
 	}
 }
 
+@onready var debug_1 = $Sprite2D/debug_text
+@onready var debug_2 = $Sprite2D/debug_text2
+@onready var debug_3 = $Sprite2D/debug_text3
+
 # === SIGNALS ===
 signal npc_dialogue_started(npc)
 signal npc_dialogue_ended(npc)
@@ -538,6 +542,10 @@ func _change_state(new_state: NPCState) -> void:
 	
 	# Emit state change signal
 	emit_signal("npc_state_changed", self, old_state, new_state)
+	print("npc_state_changed: ", npc_name, " ", old_state, " ", new_state)
+	debug_1.text = npc_name
+	debug_2.text = str(npc_type)
+	debug_3.text = "State: " + str(new_state)
 
 func _check_state_transitions(_delta: float) -> void:
 	# Check for global transitions that can happen in any state
