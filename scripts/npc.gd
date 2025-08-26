@@ -49,8 +49,8 @@ var state_timer: float = 0.0
 var state_data: Dictionary = {} # Additional data for current state
 
 # === MOVEMENT AND NAVIGATION ===
-var environment: Node2D # Can be either overworld or local area
-var environment_type: String = "local" # Can be "local" or "overworld"
+# NPCs are now restricted to local area maps only and cannot transition to overworld
+var environment: Node2D # Local area map only
 var rng = RandomNumberGenerator.new()
 var target_position: Vector2
 var is_moving: bool = false
@@ -62,7 +62,6 @@ var home_position: Vector2 # The position this NPC considers "home"
 var work_position: Vector2 # Where this NPC works
 var wander_radius: float = 5.0 # How far from home position the NPC will wander (in tiles)
 var interaction_range: float = 32.0 # Range for interacting with other NPCs
-var overworld_grid_pos: Vector2i = Vector2i(-1, -1) # Used when NPC is in a local area but needs to remember their overworld position
 
 # === SCHEDULE AND ROUTINES ===
 var schedule: Dictionary = {
@@ -178,9 +177,9 @@ var npc_properties = {
 	}
 }
 
-@onready var debug_1 = $Sprite2D/debug_text
-@onready var debug_2 = $Sprite2D/debug_text2
-@onready var debug_3 = $Sprite2D/debug_text3
+@onready var debug_1: RichTextLabel = $Sprite2D/VBoxContainer/debug_text
+@onready var debug_2: RichTextLabel = $Sprite2D/VBoxContainer/debug_text2
+@onready var debug_3: RichTextLabel = $Sprite2D/VBoxContainer/debug_text3
 
 # === SIGNALS ===
 signal npc_dialogue_started(npc)
@@ -201,9 +200,9 @@ func _ready() -> void:
 	if npc_id == "":
 		npc_id = _generate_unique_id()
 	
-	# Set up collision (layer 1 for NPCs)
-	collision_layer = 1
-	collision_mask = 1
+	# Set up collision layers
+	# collision_layer = 1 # NPCs are on layer 1
+	# collision_mask = 3 # NPCs can collide with walls (layer 1) and player (layer 2)
 	
 	# Apply NPC type-specific properties
 	var properties = npc_properties[npc_type]
@@ -406,13 +405,8 @@ func _load_dialogue(dialogue_template: String) -> void:
 			dialogue_tree["ROOT"]["text"] = "What do you want? Make it quick."
 			dialogue_tree["RUMORS"]["text"] = "I might know something... for a price."
 
-func initialize(area_map: Node2D, start_pos: Vector2 = Vector2.ZERO, env_type: String = "local") -> void:
+func initialize(area_map: Node2D, start_pos: Vector2 = Vector2.ZERO) -> void:
 	environment = area_map
-	environment_type = env_type
-	
-	# Determine if this is an overworld or local area based on the map's properties
-	if area_map.has_method("world_to_map"):
-		environment_type = "overworld"
 	
 	if start_pos != Vector2.ZERO:
 		position = start_pos
@@ -429,11 +423,7 @@ func initialize(area_map: Node2D, start_pos: Vector2 = Vector2.ZERO, env_type: S
 			var grid_pos = Vector2i(x, y)
 			
 			if is_valid_position(grid_pos):
-				if environment_type == "overworld":
-					position = environment.map_to_world(grid_pos)
-				else:
-					position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
-				
+				position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
 				home_position = position
 				found = true
 				break
@@ -488,21 +478,55 @@ func _process(delta: float) -> void:
 	# Check for player detection
 	_check_awareness(delta)
 
-func _physics_process(delta: float) -> void:
-	if is_moving and state != NPCState.DEAD:
-		if path.size() > 0:
-			# Follow path if we have one
-			_follow_path(delta)
+func _physics_process(_delta: float) -> void:
+	if state == NPCState.DEAD:
+		velocity = Vector2.ZERO
+		return
+		
+	# Simple movement towards target position
+	if is_moving and target_position != Vector2.ZERO:
+		var direction = (target_position - position).normalized()
+		velocity = direction * move_speed
+		
+		# Check if we've reached the target
+		if position.distance_to(target_position) < movement_threshold:
+			velocity = Vector2.ZERO
+			is_moving = false
+			target_position = Vector2.ZERO
 		else:
-			# Direct movement to target
-			var move_direction = (target_position - position).normalized()
-			velocity = move_direction * move_speed
+			# Use Godot's built-in collision detection
+			move_and_slide()
 			
-			if position.distance_to(target_position) < movement_threshold:
-				position = target_position
+			# If we hit something and can't move, stop trying
+			if get_slide_collision_count() > 0:
+				velocity = Vector2.ZERO
 				is_moving = false
-			else:
-				move_and_slide()
+				target_position = Vector2.ZERO
+	else:
+		velocity = Vector2.ZERO
+	
+	# Safety check: ensure NPC stays within local area bounds
+	_enforce_boundary_constraints()
+
+# Enforce boundary constraints to prevent NPCs from leaving local area
+func _enforce_boundary_constraints() -> void:
+	var width = environment.WIDTH if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
+	var height = environment.HEIGHT if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
+	
+	var world_width = width * GlobalGameState.TILE_SIZE
+	var world_height = height * GlobalGameState.TILE_SIZE
+	
+	# Clamp position to stay within boundaries
+	position.x = clamp(position.x, 0, world_width - GlobalGameState.TILE_SIZE)
+	position.y = clamp(position.y, 0, world_height - GlobalGameState.TILE_SIZE)
+	
+	# If we hit a boundary, stop moving and choose a new direction
+	var grid_pos = Vector2i(position / GlobalGameState.TILE_SIZE)
+	if grid_pos.x <= 0 or grid_pos.x >= width - 1 or grid_pos.y <= 0 or grid_pos.y >= height - 1:
+		is_moving = false
+		# Reset state to idle so NPC can choose a new direction
+		if state == NPCState.WANDER:
+			move_timer = move_interval # Trigger immediate new move selection
 
 # === STATE MACHINE METHODS ===
 
@@ -542,10 +566,10 @@ func _change_state(new_state: NPCState) -> void:
 	
 	# Emit state change signal
 	emit_signal("npc_state_changed", self, old_state, new_state)
-	print("npc_state_changed: ", npc_name, " ", old_state, " ", new_state)
+	print("npc_state_changed: ", npc_name, " ", get_state_name(old_state), " ", get_state_name(new_state))
 	debug_1.text = npc_name
-	debug_2.text = str(npc_type)
-	debug_3.text = "State: " + str(new_state)
+	debug_2.text = get_npc_type_name(npc_type)
+	debug_3.text = "State: " + get_state_name(new_state)
 
 func _check_state_transitions(_delta: float) -> void:
 	# Check for global transitions that can happen in any state
@@ -852,36 +876,22 @@ func _process_dead_state(_delta: float) -> void:
 # === MOVEMENT AND PATHFINDING ===
 
 func _move_to_position(world_pos: Vector2) -> void:
-	var grid_pos: Vector2i
+	var grid_pos: Vector2i = Vector2i(world_pos / GlobalGameState.TILE_SIZE)
 	
-	if environment_type == "overworld":
-		if environment.has_method("world_to_map"):
-			grid_pos = GlobalGameState.world_to_map(world_pos)
+	# Ensure the target position is within local area bounds
+	if not is_valid_position(grid_pos):
+		# If target is invalid, try to find a valid position near the current location
+		var current_grid_pos = Vector2i(position / GlobalGameState.TILE_SIZE)
+		var valid_alternatives = get_valid_moves_in_radius(current_grid_pos, 2.0)
+		if not valid_alternatives.is_empty():
+			grid_pos = valid_alternatives[rng.randi() % valid_alternatives.size()]
 		else:
-			grid_pos = Vector2i(world_pos / GlobalGameState.TILE_SIZE)
-	else: # Local area
-		grid_pos = Vector2i(world_pos / GlobalGameState.TILE_SIZE)
+			# If no valid alternatives, stay in place
+			return
 	
-	# Eventually implement A* pathfinding here
-	# For now, just set direct target
-	set_move_target(grid_pos)
-
-func _follow_path(_delta: float) -> void:
-	if path.size() == 0:
-		is_moving = false
-		return
-		
-	var next_point = path[0]
-	var move_direction = (next_point - position).normalized()
-	velocity = move_direction * move_speed
-	
-	if position.distance_to(next_point) < movement_threshold:
-		# Reached waypoint
-		path.remove_at(0)
-		if path.size() == 0:
-			is_moving = false
-	else:
-		move_and_slide()
+	# Set target and start moving
+	target_position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
+	is_moving = true
 
 # === AWARENESS AND PERCEPTION ===
 
@@ -962,179 +972,6 @@ func _add_memory_event(event: Dictionary) -> void:
 	recent_events.append(event)
 	if recent_events.size() > max_memory_events:
 		recent_events.remove_at(0) # Remove oldest event
-
-# === DIALOGUE AND INTERACTION ===
-
-func start_dialogue(player_node: Node2D) -> void:
-	if state == NPCState.DEAD:
-		return
-		
-	# Remember the player
-	_remember_entity(player_node, "NEUTRAL")
-	
-	# Switch to interact state
-	state_data["dialogue_partner"] = player_node
-	_change_state(NPCState.INTERACT)
-	
-	# Reset dialogue state
-	dialogue_state = "ROOT"
-	
-	# Emit dialogue started signal
-	emit_signal("npc_dialogue_started", self)
-	
-	# Return initial dialogue
-	return get_current_dialogue()
-
-func get_current_dialogue() -> Dictionary:
-	if dialogue_tree.has(dialogue_state):
-		return dialogue_tree[dialogue_state]
-	return {"text": "...", "options": []}
-
-func process_dialogue_choice(choice_id: String) -> Dictionary:
-	if not dialogue_tree.has(dialogue_state):
-		return {"text": "Error in dialogue system.", "options": []}
-		
-	var options = dialogue_tree[dialogue_state].get("options", [])
-	for option in options:
-		if option["id"] == choice_id:
-			# Check if option has an action
-			if option.has("action"):
-				_execute_dialogue_action(option["action"])
-				
-			# Move to next dialogue state
-			dialogue_state = option["next"]
-			return get_current_dialogue()
-			
-	return {"text": "Invalid choice.", "options": []}
-
-func _execute_dialogue_action(action: String) -> void:
-	match action:
-		"open_trade":
-			# Trigger trade UI
-			pass
-		"give_quest":
-			# Give a quest to the player
-			pass
-		"end_dialogue":
-			emit_signal("npc_dialogue_ended", self)
-		_:
-			# Unknown action
-			pass
-
-# === TRADE AND ECONOMY ===
-
-func get_trade_inventory() -> Array:
-	return store_inventory if can_trade else []
-
-func get_buy_price(item: Dictionary) -> int:
-	return int(item["value"] * trade_prices["buy_multiplier"])
-
-func get_sell_price(item: Dictionary) -> int:
-	return int(item["value"] * trade_prices["sell_multiplier"])
-
-func buy_item_from_npc(item_index: int) -> Dictionary:
-	if not can_trade or item_index >= store_inventory.size():
-		return {"success": false, "message": "Item not available"}
-		
-	var item = store_inventory[item_index]
-	var price = get_buy_price(item)
-	
-	# This would check if player has enough gold
-	# For now just return the result
-	return {
-		"success": true,
-		"item": item,
-		"price": price,
-		"message": "You bought " + item["name"] + " for " + str(price) + " gold."
-	}
-
-func sell_item_to_npc(item: Dictionary) -> Dictionary:
-	if not can_trade:
-		return {"success": false, "message": "This NPC doesn't trade"}
-		
-	var price = get_sell_price(item)
-	
-	# Check if NPC has enough gold
-	if gold < price:
-		return {"success": false, "message": npc_name + " doesn't have enough gold."}
-		
-	# Transaction successful
-	gold -= price
-	
-	return {
-		"success": true,
-		"price": price,
-		"message": "You sold " + item["name"] + " for " + str(price) + " gold."
-	}
-
-# === SERIALIZATION AND PERSISTENCE ===
-
-func save_data() -> Dictionary:
-	var save_dict = {
-		"npc_id": npc_id,
-		"npc_name": npc_name,
-		"npc_type": npc_type,
-		"position_x": position.x,
-		"position_y": position.y,
-		"home_x": home_position.x,
-		"home_y": home_position.y,
-		"work_x": work_position.x,
-		"work_y": work_position.y,
-		"current_health": current_health,
-		"state": state,
-		"gold": gold,
-		"faction": faction,
-		"stats": stats,
-		"inventory": inventory,
-		"relationships": relationships,
-		"quest_flags": quest_flags
-	}
-	return save_dict
-
-func load_data(data: Dictionary) -> void:
-	if data.has("npc_id"):
-		npc_id = data["npc_id"]
-	if data.has("npc_name"):
-		npc_name = data["npc_name"]
-	if data.has("npc_type"):
-		npc_type = data["npc_type"]
-	if data.has("position_x") and data.has("position_y"):
-		position = Vector2(data["position_x"], data["position_y"])
-	if data.has("home_x") and data.has("home_y"):
-		home_position = Vector2(data["home_x"], data["home_y"])
-	if data.has("work_x") and data.has("work_y"):
-		work_position = Vector2(data["work_x"], data["work_y"])
-	if data.has("current_health"):
-		current_health = data["current_health"]
-	if data.has("state"):
-		_change_state(data["state"])
-	if data.has("gold"):
-		gold = data["gold"]
-	if data.has("faction"):
-		faction = data["faction"]
-	if data.has("stats"):
-		stats = data["stats"]
-	if data.has("inventory"):
-		inventory = data["inventory"]
-	if data.has("relationships"):
-		relationships = data["relationships"]
-	if data.has("quest_flags"):
-		quest_flags = data["quest_flags"]
-
-# === EXISTING METHODS WITH UPDATES ===
-
-func choose_next_move() -> void:
-	match npc_properties[npc_type]["behavior"]:
-		"wander_near_home":
-			choose_wander_move()
-		"patrol":
-			choose_patrol_move()
-		"stay_near_shop", "stay_in_manor":
-			choose_restricted_move()
-		"aggressive", "hunt":
-			choose_hunting_move()
-		"flee_on_approach":
-			choose_fleeing_move()
 
 func choose_wander_move() -> void:
 	var current_grid_pos = GlobalGameState.world_to_map(position)
@@ -1234,43 +1071,37 @@ func get_valid_moves_in_radius(current_pos: Vector2i, max_radius: float) -> Arra
 				continue
 			
 			var new_pos = current_pos + Vector2i(dx, dy)
+			# Ensure we don't try to move outside the local area boundaries
 			if is_valid_position(new_pos) and new_pos.distance_to(current_pos) <= max_radius:
 				valid_moves.append(new_pos)
 	
 	return valid_moves
 
 func is_valid_position(grid_pos: Vector2i) -> bool:
-	# Check map bounds
+	# Check map bounds - ensure NPCs stay within local area boundaries
 	var width = environment.WIDTH if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
 	var height = environment.HEIGHT if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
 	
+	# Strict boundary enforcement - NPCs cannot leave the local map
 	if grid_pos.x < 0 or grid_pos.x >= width or grid_pos.y < 0 or grid_pos.y >= height:
 		return false
 	
-	# Check if position is walkable based on environment type
-	if environment_type == "overworld":
-		if environment.has_method("is_walkable"):
-			return environment.is_walkable(grid_pos)
-	else: # Local area
-		if environment.has_method("is_walkable"):
-			return environment.is_walkable(grid_pos)
-		# For local areas with tilemaps
-		elif environment.has_node("walls"):
-			var walls = environment.get_node("walls")
-			# No wall at this position
-			return walls.get_cell_source_id(0, grid_pos) == -1
+	# Check if position is walkable in local area
+	if environment.has_method("is_walkable"):
+		return environment.is_walkable(grid_pos)
+	# For local areas with tilemaps
+	elif environment.has_node("walls"):
+		var walls = environment.get_node("walls")
+		# No wall at this position
+		return walls.get_cell_source_id(0, grid_pos) == -1
 	
 	return true # Fallback if is_walkable not implemented
 
 func set_move_target(grid_pos: Vector2i) -> void:
-	if environment_type == "overworld":
-		target_position = environment.map_to_world(grid_pos)
-		var current_grid_pos = GlobalGameState.world_to_map(position)
-		last_direction = Vector2(grid_pos - current_grid_pos).normalized()
-	else: # Local area
-		target_position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
-		var current_grid_pos = Vector2i(position / GlobalGameState.TILE_SIZE)
-		last_direction = Vector2(grid_pos - current_grid_pos).normalized()
+	# Convert grid position to world position for local area
+	target_position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
+	var current_grid_pos = Vector2i(position / GlobalGameState.TILE_SIZE)
+	last_direction = Vector2(grid_pos - current_grid_pos).normalized()
 	
 	is_moving = true
 	
@@ -1292,143 +1123,10 @@ func update_sprite_direction(direction: Vector2) -> void:
 		sprite.flip_h = direction.x < 0
 		# Set to side-facing frame
 
-# === MAP TRANSITION METHODS ===
-func transition_to_local_area(local_area: Node2D) -> void:
-	# Save overworld position before transitioning
-	if environment_type == "overworld":
-		overworld_grid_pos = GlobalGameState.world_to_map(position)
-	
-	# Update environment reference
-	environment = local_area
-	environment_type = "local"
-	
-	# Find a valid position in local area
-	var found = false
-	var map_rect = null
-	
-	if local_area.has_node("ground"):
-		map_rect = local_area.get_node("ground").get_used_rect()
-	
-	if map_rect:
-		var start_pos = Vector2i(map_rect.position)
-		for y in map_rect.size.y:
-			for x in map_rect.size.x:
-				var test_pos = start_pos + Vector2i(x, y)
-				if is_valid_position(test_pos):
-					position = Vector2(test_pos) * GlobalGameState.TILE_SIZE
-					found = true
-					break
-			if found:
-				break
-	
-	if not found:
-		# Fallback to center of map
-		position = Vector2(local_area.WIDTH / 2, local_area.HEIGHT / 2) * GlobalGameState.TILE_SIZE
-	
-	# Update home and work positions for local area context
-	# This should be done by the calling code after transition
+# === SERIALIZATION AND PERSISTENCE ===
 
-func transition_to_overworld(overworld_map: Node2D) -> void:
-	# Update environment reference
-	environment = overworld_map
-	environment_type = "overworld"
-	
-	# Return to saved overworld position
-	if overworld_grid_pos != Vector2i(-1, -1):
-		position = environment.map_to_world(overworld_grid_pos)
-	else:
-		# If no saved position, place at a random valid position
-		for _i in 100:
-			var x = rng.randi_range(0, environment.WIDTH - 1)
-			var y = rng.randi_range(0, environment.HEIGHT - 1)
-			var grid_pos = Vector2i(x, y)
-			if is_valid_position(grid_pos):
-				position = environment.map_to_world(grid_pos)
-				break
-	
-	# Update state to reflect the transition
-	_change_state(NPCState.IDLE)
+func get_state_name(state_value: NPCState) -> String:
+	return NPCState.keys()[state_value]
 
-# === SAVE/LOAD FOR MAP TRANSITIONS ===
-func save_transition_data() -> Dictionary:
-	var transition_data = {
-		"npc_id": npc_id,
-		"npc_name": npc_name,
-		"npc_type": npc_type,
-		"state": state,
-		"position": {
-			"x": position.x,
-			"y": position.y
-		},
-		"home_position": {
-			"x": home_position.x,
-			"y": home_position.y
-		},
-		"work_position": {
-			"x": work_position.x,
-			"y": work_position.y
-		},
-		"overworld_grid_pos": {
-			"x": overworld_grid_pos.x,
-			"y": overworld_grid_pos.y
-		},
-		"stats": stats,
-		"inventory": inventory,
-		"gold": gold,
-		"current_health": current_health,
-		"faction": faction,
-		"schedule": schedule,
-		"environment_type": environment_type
-	}
-	return transition_data
-
-func load_from_transition(data: Dictionary) -> void:
-	npc_id = data.get("npc_id", npc_id)
-	npc_name = data.get("npc_name", npc_name)
-	if data.has("npc_type"):
-		npc_type = data.get("npc_type")
-	if data.has("state"):
-		state = data.get("state")
-	
-	if data.has("position"):
-		position.x = data["position"].get("x", position.x)
-		position.y = data["position"].get("y", position.y)
-	
-	if data.has("home_position"):
-		home_position.x = data["home_position"].get("x", home_position.x)
-		home_position.y = data["home_position"].get("y", home_position.y)
-	
-	if data.has("work_position"):
-		work_position.x = data["work_position"].get("x", work_position.x)
-		work_position.y = data["work_position"].get("y", work_position.y)
-	
-	if data.has("overworld_grid_pos"):
-		overworld_grid_pos.x = data["overworld_grid_pos"].get("x", overworld_grid_pos.x)
-		overworld_grid_pos.y = data["overworld_grid_pos"].get("y", overworld_grid_pos.y)
-	
-	if data.has("stats"):
-		stats = data.get("stats")
-	if data.has("inventory"):
-		inventory = data.get("inventory")
-	if data.has("gold"):
-		gold = data.get("gold")
-	if data.has("current_health"):
-		current_health = data.get("current_health")
-	if data.has("faction"):
-		faction = data.get("faction")
-	if data.has("schedule"):
-		schedule = data.get("schedule")
-	if data.has("environment_type"):
-		environment_type = data.get("environment_type")
-
-func update_environment(new_environment: Node2D) -> void:
-	environment = new_environment
-	
-	# Determine environment type based on the node's characteristics
-	environment_type = "local"
-	if environment.has_method("world_to_map") and environment.has_method("get_tile_data"):
-		environment_type = "overworld"
-	
-	# Enable processing if it was disabled
-	set_physics_process(true)
-	set_process(true)
+func get_npc_type_name(type_value: GlobalGameState.NpcType) -> String:
+	return GlobalGameState.NpcType.keys()[type_value]

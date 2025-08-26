@@ -2,6 +2,11 @@ extends CharacterBody2D
 
 @export var move_speed: float = 200.0
 @export var tile_size: int = 16
+var sprite_node_pos_tween: Tween
+@onready var up: RayCast2D = $up
+@onready var down: RayCast2D = $down
+@onready var left: RayCast2D = $left
+@onready var right: RayCast2D = $right
 
 @onready var overworld = $"../OverworldMap"
 @onready var camera = $Camera2D
@@ -11,51 +16,115 @@ var current_local_area: Node2D = null
 var map_rect = null
 var in_local_area: bool = false
 
-var target_position: Vector2
-var is_moving: bool = false
 var overworld_grid_pos: Vector2
 
+# Tile-based movement variables for overworld
+var target_position: Vector2
+var is_moving: bool = false
+var movement_threshold: float = 1.0
+
 func _ready() -> void:
+	# Set up player collision layers
+	# collision_layer = 2 # Player is on layer 2
+	# collision_mask = 1 # Player can collide with NPCs and walls (layer 1)
 	target_position = global_position
 	update_camera_limits()
 
 func _process(_delta: float) -> void:
-	if not is_moving:
-		check_movement_input()
+	# Handle input for entering/exiting areas
 	if Input.is_action_just_pressed("ui_accept"):
 		if in_local_area:
 			return_to_overworld()
 		else:
 			descend_to_local_area()
 
-func check_movement_input() -> void:
-	var direction = Vector2.ZERO
-	if Input.is_action_pressed("ui_right"):
-		direction = Vector2.RIGHT
-	elif Input.is_action_pressed("ui_left"):
-		direction = Vector2.LEFT
-	elif Input.is_action_pressed("ui_up"):
-		direction = Vector2.UP
-	elif Input.is_action_pressed("ui_down"):
-		direction = Vector2.DOWN
-	if direction != Vector2.ZERO:
-		try_move(direction)
-
-func try_move(direction: Vector2) -> void:
-	var current_grid_pos: Vector2i
-	var new_grid_pos: Vector2i
+func _physics_process(_delta: float) -> void:
 	if in_local_area:
-		current_grid_pos = Vector2i(position / tile_size)
-		new_grid_pos = current_grid_pos + Vector2i(direction)
-		if is_tile_within_bounds(new_grid_pos):
-			target_position = Vector2(new_grid_pos) * tile_size
-			is_moving = true
+		# Smooth movement in local areas
+		# var input_direction = Vector2.ZERO
+		if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
+			# input_direction += Vector2.RIGHT
+			_move(Vector2.RIGHT)
+		if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
+			_move(Vector2.LEFT)
+		if Input.is_action_just_pressed("ui_up") and !up.is_colliding():
+			_move(Vector2.UP)
+		if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
+			_move(Vector2.DOWN)
+
+		# # Normalize diagonal movement
+		# if input_direction.length() > 0:
+		# 	input_direction = input_direction.normalized()
+		
+		# # Set velocity based on input and move speed
+		# velocity = input_direction * move_speed
+		
+		# Use Godot's built-in physics with collision detection
+		# move_and_slide()
+		
+		# Handle collision interactions (NPCs, objects, etc.)
+		# handle_collisions()
+		
+		# Update roof visibility
+		_update_roof_visibility()
 	else:
-		current_grid_pos = overworld.world_to_map(global_position)
-		new_grid_pos = current_grid_pos + Vector2i(direction)
-		if overworld.is_walkable(new_grid_pos):
-			target_position = overworld.map_to_world(new_grid_pos)
-			is_moving = true
+		# Tile-based movement on overworld
+		if is_moving:
+			# Move towards target position
+			var direction = (target_position - global_position).normalized()
+			velocity = direction * move_speed
+			
+			# Check if we've reached the target
+			if global_position.distance_to(target_position) < movement_threshold:
+				global_position = target_position
+				velocity = Vector2.ZERO
+				is_moving = false
+			else:
+				move_and_slide()
+		else:
+			# Check for input to start new tile movement
+			var input_direction = Vector2.ZERO
+			if Input.is_action_just_pressed("ui_right"):
+				input_direction = Vector2.RIGHT
+			elif Input.is_action_just_pressed("ui_left"):
+				input_direction = Vector2.LEFT
+			elif Input.is_action_just_pressed("ui_up"):
+				input_direction = Vector2.UP
+			elif Input.is_action_just_pressed("ui_down"):
+				input_direction = Vector2.DOWN
+			
+			if input_direction != Vector2.ZERO:
+				try_move_overworld(input_direction)
+
+func _move(dir: Vector2):
+	global_position += dir * tile_size
+	$Sprite2D.global_position -= dir * tile_size
+
+	if sprite_node_pos_tween:
+		sprite_node_pos_tween.kill()
+	sprite_node_pos_tween = create_tween()
+	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+
+func try_move_overworld(direction: Vector2) -> void:
+	var current_grid_pos = overworld.world_to_map(global_position)
+	var new_grid_pos = current_grid_pos + Vector2i(direction)
+	
+	# Check if the new position is walkable on the overworld
+	if overworld.is_walkable(new_grid_pos):
+		target_position = overworld.map_to_world(new_grid_pos)
+		is_moving = true
+
+func handle_collisions() -> void:
+	# Check for collisions with NPCs or interactive objects
+	for i in get_slide_collision_count():
+		var collision = get_slide_collision(i)
+		var collider = collision.get_collider()
+		
+		# If we hit an NPC, stop movement briefly for interaction
+		if collider.has_method("start_dialogue"):
+			# Optionally trigger dialogue automatically or require separate input
+			pass
 
 func descend_to_local_area() -> void:
 	overworld_grid_pos = overworld.world_to_map(global_position)
@@ -103,22 +172,6 @@ func is_tile_within_bounds(pos: Vector2i) -> bool:
 		return false
 	# print('map_rect position: ', pos)
 	return current_local_area.is_walkable(pos)
-
-func _physics_process(_delta: float) -> void:
-	if is_moving:
-		var move_delta = target_position - position
-		if move_delta.length() < 1.0:
-			position = target_position
-			velocity = Vector2.ZERO
-			is_moving = false
-			return
-		velocity = move_delta.normalized() * move_speed
-		move_and_slide()
-	else:
-		velocity = Vector2.ZERO
-	
-	if in_local_area:
-		_update_roof_visibility()
 
 # Hide/show roof based on whether player is inside a building
 func _update_roof_visibility() -> void:

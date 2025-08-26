@@ -99,18 +99,13 @@ func setup_npc_in_settlement(npc: Node, npc_type: GlobalGameState.NpcType, settl
 	if workplace_building.is_empty() and workplace_type != null:
 		workplace_building = find_suitable_building(npc_type, settlement_data)
 	
-	# Determine environment type
-	var env_type = "local"
-	if npc.get_parent().has_method("world_to_map"):
-		env_type = "overworld"
-	
 	# Set home position
 	if not home_building.is_empty():
 		var home_pos = Vector2(
 			home_building["pos"].x * GlobalGameState.TILE_SIZE,
 			home_building["pos"].y * GlobalGameState.TILE_SIZE
 		)
-		npc.initialize(npc.get_parent(), home_pos, env_type)
+		npc.initialize(npc.get_parent(), home_pos)
 		npc.home_position = home_pos
 		
 		# Update occupancy
@@ -118,7 +113,7 @@ func setup_npc_in_settlement(npc: Node, npc_type: GlobalGameState.NpcType, settl
 		building_occupancy[building_id] = building_occupancy.get(building_id, 0) + 1
 	else:
 		# Fallback to random position
-		npc.initialize(npc.get_parent(), Vector2.ZERO, env_type)
+		npc.initialize(npc.get_parent(), Vector2.ZERO)
 	
 	# Set work position if available
 	if not workplace_building.is_empty():
@@ -423,13 +418,8 @@ func spawn_wilderness_npcs(_area_size: Vector2i, parent_node: Node2D, wilderness
 	return spawned_npcs
 
 func setup_npc_in_wilderness(npc: Node, npc_type: GlobalGameState.NpcType, wilderness_type: String) -> void:
-	# Determine environment type
-	var env_type = "local"
-	if npc.get_parent().has_method("world_to_map"):
-		env_type = "overworld"
-	
-	# Initialize NPC at a random position
-	npc.initialize(npc.get_parent(), Vector2.ZERO, env_type)
+	# Initialize NPC at a random position in local area only
+	npc.initialize(npc.get_parent(), Vector2.ZERO)
 	
 	# Assign an appropriate wilderness job
 	var job = ""
@@ -466,12 +456,7 @@ func spawn_npc(npc_type: GlobalGameState.NpcType, parent_node: Node2D) -> Node:
 	parent_node.add_child(npc)
 	npc.npc_type = npc_type
 	
-	# Determine environment type
-	var env_type = "local"
-	if parent_node.has_method("world_to_map"):
-		env_type = "overworld"
-	
-	print("Spawning NPC of type: ", npc_type, " in environment type: ", env_type)
+	print("Spawning NPC of type: ", npc_type, " in local area environment")
 	return npc
 
 func find_suitable_building(npc_type: GlobalGameState.NpcType, settlement_data: Dictionary, specific_type = null, building_occupancy = null) -> Dictionary:
