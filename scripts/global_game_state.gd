@@ -6,6 +6,11 @@ enum SettlementType {TOWN, CITY, CASTLE}
 enum BuildingType {HOUSE, TAVERN, SHOP, MANOR, BARRACKS, CHURCH, KEEP}
 enum NpcType {PEASANT, SOLDIER, MERCHANT, NOBLE, BANDIT, ANIMAL, MONSTER}
 
+# Building templates and other static data
+const TILE_SIZE = 16
+const BUILDING_TEMPLATES = {}
+const NPC_TEMPLATES = {}
+const FACTIONS = {}
 # All settlements, keyed by unique ID or coordinates
 var settlements = {
 	"town_1": {
@@ -180,12 +185,6 @@ var settlement_npc_counts = {
 
 # All important NPCs, keyed by unique ID
 var important_npcs = {}
-
-# Building templates and other static data
-const TILE_SIZE = 16
-const BUILDING_TEMPLATES = {}
-const NPC_TEMPLATES = {}
-const FACTIONS = {}
 
 # Example: Add, get, update, and remove functions for settlements and NPCs
 func add_settlement(id: String, data: Dictionary) -> void:

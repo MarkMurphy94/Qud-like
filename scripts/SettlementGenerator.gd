@@ -1,4 +1,4 @@
-@tool
+#@tool
 extends Node2D
 
 const BUILDINGTYPE = GlobalGameState.BuildingType
@@ -22,6 +22,7 @@ var BuildingTypeStrings = {
 	"DOORS": $doors,
 	"ROOF": $roof
 }
+@onready var spawn_tile: Area2D = $spawn_tile
 
 # Layer definitions for proper organization
 const LAYERS = {

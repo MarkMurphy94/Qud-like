@@ -1,3 +1,4 @@
+@tool
 extends Node2D
 
 # Mirror of OverworldGenerator.Tile for local reference

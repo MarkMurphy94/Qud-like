@@ -39,66 +39,32 @@ func _process(_delta: float) -> void:
 			descend_to_local_area()
 
 func _physics_process(_delta: float) -> void:
-	if in_local_area:
-		# Smooth movement in local areas
-		# var input_direction = Vector2.ZERO
-		if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
-			# input_direction += Vector2.RIGHT
-			_move(Vector2.RIGHT)
-		if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
-			_move(Vector2.LEFT)
-		if Input.is_action_just_pressed("ui_up") and !up.is_colliding():
-			_move(Vector2.UP)
-		if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
-			_move(Vector2.DOWN)
-
-		# # Normalize diagonal movement
-		# if input_direction.length() > 0:
-		# 	input_direction = input_direction.normalized()
-		
-		# # Set velocity based on input and move speed
-		# velocity = input_direction * move_speed
-		
-		# Use Godot's built-in physics with collision detection
-		# move_and_slide()
-		
-		# Handle collision interactions (NPCs, objects, etc.)
-		# handle_collisions()
-		
-		# Update roof visibility
-		_update_roof_visibility()
-	else:
-		# Tile-based movement on overworld
-		if is_moving:
-			# Move towards target position
-			var direction = (target_position - global_position).normalized()
-			velocity = direction * move_speed
-			
-			# Check if we've reached the target
-			if global_position.distance_to(target_position) < movement_threshold:
-				global_position = target_position
-				velocity = Vector2.ZERO
-				is_moving = false
-			else:
-				move_and_slide()
-		else:
-			# Check for input to start new tile movement
-			var input_direction = Vector2.ZERO
-			if Input.is_action_just_pressed("ui_right"):
-				input_direction = Vector2.RIGHT
-			elif Input.is_action_just_pressed("ui_left"):
-				input_direction = Vector2.LEFT
-			elif Input.is_action_just_pressed("ui_up"):
-				input_direction = Vector2.UP
-			elif Input.is_action_just_pressed("ui_down"):
-				input_direction = Vector2.DOWN
-			
-			if input_direction != Vector2.ZERO:
-				try_move_overworld(input_direction)
+	# if not in_local_area:
+	# 	if not overworld.is_walkable(new_grid_pos):
+	# 		return
+	if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
+		_move(Vector2.RIGHT)
+	if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
+		_move(Vector2.LEFT)
+	if Input.is_action_just_pressed("ui_up") and !up.is_colliding():
+		_move(Vector2.UP)
+	if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
+		_move(Vector2.DOWN)
+	
+	# Use Godot's built-in physics with collision detection
+	# move_and_slide()
+	
+	# Handle collision interactions (NPCs, objects, etc.)
+	# handle_collisions()
+	
+	# Update roof visibility
+	_update_roof_visibility()
 
 func _move(dir: Vector2):
+	print("current_tile:", get_current_tile())
 	global_position += dir * tile_size
 	$Sprite2D.global_position -= dir * tile_size
+	print("new_tile:", get_current_tile())
 
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()
@@ -138,30 +104,56 @@ func descend_to_local_area() -> void:
 		get_tree().current_scene.add_child(current_local_area)
 		await get_tree().process_frame
 		map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
-		find_valid_local_position()
+		# find_valid_local_position()
+		position = get_spawn_tile()
 	else:
 		current_local_area = local_area_scene.instantiate()
 		get_tree().current_scene.add_child(current_local_area)
 		current_local_area.initialize(tile_type, overworld_grid_pos)
 		await get_tree().process_frame
 		map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
-		find_valid_local_position()
+		# find_valid_local_position()
 		print('overworld_grid_pos: ', overworld_grid_pos)
 	overworld.hide()
 	in_local_area = true
 	update_camera_limits()
 
+func get_spawn_tile():
+	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
+		return
+	return current_local_area.spawn_tile.position
+
 func find_valid_local_position() -> void:
 	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
 		return
-	var start_pos = Vector2i(map_rect.position)
+	
+	# Calculate bottom center of the map
+	var bottom_center = Vector2i(
+		map_rect.position.x + map_rect.size.x / 2,
+		map_rect.position.y + map_rect.size.y - 1
+	)
+	
+	# Start with closest distance as infinity
+	var closest_distance = INF
+	var closest_valid_position = Vector2i(map_rect.position)
+	var found_valid_position = false
+	
+	# Search all positions in the map to find the closest valid one to bottom center
 	for y in map_rect.size.y:
 		for x in map_rect.size.x:
-			var test_pos = start_pos + Vector2i(x, y)
+			var test_pos = map_rect.position + Vector2i(x, y)
 			if is_tile_within_bounds(test_pos):
-				position = Vector2(test_pos) * tile_size
-				return
-	position = Vector2(start_pos) * tile_size
+				var distance = bottom_center.distance_to(test_pos)
+				if distance < closest_distance:
+					closest_distance = distance
+					closest_valid_position = test_pos
+					found_valid_position = true
+	
+	# Set position to the closest valid position found, or fallback to map start
+	if found_valid_position:
+		position = Vector2(closest_valid_position) * tile_size
+	else:
+		position = Vector2(map_rect.position) * tile_size
 
 func is_tile_within_bounds(pos: Vector2i) -> bool:
 	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
@@ -172,6 +164,15 @@ func is_tile_within_bounds(pos: Vector2i) -> bool:
 		return false
 	# print('map_rect position: ', pos)
 	return current_local_area.is_walkable(pos)
+
+func get_current_tile() -> Vector2i:
+	"""Get the player's current tile position based on their world position and context."""
+	if in_local_area:
+		# In local area, convert position to tile coordinates
+		return Vector2i(position / tile_size)
+	else:
+		# On overworld, use the overworld grid position
+		return Vector2i(overworld.world_to_map(global_position))
 
 # Hide/show roof based on whether player is inside a building
 func _update_roof_visibility() -> void:
