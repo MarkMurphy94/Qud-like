@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=4 uid="uid://bgua044i27thu"]
 
-[ext_resource type="Script" uid="uid://cdvph5ordo7fm" path="res://scripts/SettlementGenerator.gd" id="1_3k6v8"]
+[ext_resource type="Script" uid="uid://cdvph5ordo7fm" path="res://old/SettlementGenerator.gd" id="1_3k6v8"]
 [ext_resource type="TileSet" uid="uid://bjibwwb63qoxr" path="res://resources/Roguelike_extended_walls.tres" id="2_ncqld"]
 [ext_resource type="PackedScene" uid="uid://blrjdlb1fv8at" path="res://scenes/spawn_tile.tscn" id="3_3ertq"]
 

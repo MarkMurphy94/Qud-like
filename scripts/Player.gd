@@ -11,7 +11,6 @@ var sprite_node_pos_tween: Tween
 @onready var overworld = $"../OverworldMap"
 @onready var camera = $Camera2D
 var local_area_scene = preload("res://scenes/local_area_generator.tscn")
-var settlement_scene = preload("res://scenes/settlement_generator.tscn")
 var current_local_area: Node2D = null
 var map_rect = null
 var in_local_area: bool = false
@@ -94,26 +93,46 @@ func handle_collisions() -> void:
 
 func descend_to_local_area() -> void:
 	overworld_grid_pos = overworld.world_to_map(global_position)
-	var tile_type = overworld.get_tile_data(overworld_grid_pos).terrain
-	if tile_type == overworld.Terrain.WATER:
+	var tile_data = overworld.get_tile_data(overworld_grid_pos)
+	
+	# Check if we can descend on this tile type
+	if tile_data.terrain == overworld.Terrain.WATER:
 		print("Can't descend on water")
 		return
-	if overworld.has_settlement(overworld_grid_pos):
-		current_local_area = settlement_scene.instantiate()
-		current_local_area.SEED = overworld.get_settlement_from_seed(overworld_grid_pos)
-		get_tree().current_scene.add_child(current_local_area)
-		await get_tree().process_frame
-		map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
-		# find_valid_local_position()
-		position = get_spawn_tile()
+	
+	# Instantiate the unified AreaGenerator
+	current_local_area = local_area_scene.instantiate()
+	get_tree().current_scene.add_child(current_local_area)
+	
+	# Determine area type and generate accordingly
+	var area_type: int
+	var seed_value: int
+	
+	# Check if this position has a settlement
+	if tile_data.settlement != overworld.Settlement.NONE:
+		match tile_data.settlement:
+			overworld.Settlement.TOWN:
+				area_type = current_local_area.AreaType.TOWN
+			overworld.Settlement.CITY:
+				area_type = current_local_area.AreaType.CITY
+			overworld.Settlement.CASTLE:
+				area_type = current_local_area.AreaType.CASTLE
+		seed_value = overworld.get_settlement_from_seed(overworld_grid_pos)
 	else:
-		current_local_area = local_area_scene.instantiate()
-		get_tree().current_scene.add_child(current_local_area)
-		current_local_area.initialize(tile_type, overworld_grid_pos)
-		await get_tree().process_frame
-		map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
-		# find_valid_local_position()
-		print('overworld_grid_pos: ', overworld_grid_pos)
+		# Natural terrain (grass, mountain, etc.)
+		area_type = current_local_area.AreaType.LOCAL_AREA
+		seed_value = 0 # Use default seed generation for natural areas
+	
+	# Generate the area using the unified interface
+	current_local_area.setup_and_generate(area_type, tile_data.terrain, overworld_grid_pos, seed_value)
+	
+	await get_tree().process_frame
+	map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
+	
+	# Set spawn position
+	if overworld.has_settlement(overworld_grid_pos):
+		position = get_spawn_tile()
+	
 	overworld.hide()
 	in_local_area = true
 	update_camera_limits()

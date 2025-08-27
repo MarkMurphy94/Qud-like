@@ -566,7 +566,7 @@ func _change_state(new_state: NPCState) -> void:
 	
 	# Emit state change signal
 	emit_signal("npc_state_changed", self, old_state, new_state)
-	print("npc_state_changed: ", npc_name, " ", get_state_name(old_state), " ", get_state_name(new_state))
+	# print("npc_state_changed: ", npc_name, " ", get_state_name(old_state), " ", get_state_name(new_state))
 	debug_1.text = npc_name
 	debug_2.text = get_npc_type_name(npc_type)
 	debug_3.text = "State: " + get_state_name(new_state)
