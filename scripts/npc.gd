@@ -3,13 +3,20 @@ class_name NPC
 
 # === EXPORTS AND CONFIGURATION ===
 @export var move_speed: float = 80.0
+@export var tile_size: int = 16
 @export var grid_size: int = 16
 @export var move_interval: float = 0.5 # seconds between moves
 @export var movement_threshold: float = 1.0 # Distance threshold for considering movement complete
+var sprite_node_pos_tween: Tween
 @export var npc_type: GlobalGameState.NpcType = GlobalGameState.NpcType.PEASANT
 @export var vision_range: float = 8.0 # How many tiles the NPC can see
 @export var hearing_range: float = 5.0 # How many tiles the NPC can hear
 @export var max_health: int = 100
+
+@onready var up: RayCast2D = $up
+@onready var down: RayCast2D = $down
+@onready var left: RayCast2D = $left
+@onready var right: RayCast2D = $right
 
 # === IDENTITY AND PERSISTENCE ===
 var npc_id: String = "" # Unique identifier
@@ -203,6 +210,7 @@ func _ready() -> void:
 	# Set up collision layers
 	# collision_layer = 1 # NPCs are on layer 1
 	# collision_mask = 3 # NPCs can collide with walls (layer 1) and player (layer 2)
+	target_position = global_position
 	
 	# Apply NPC type-specific properties
 	var properties = npc_properties[npc_type]
@@ -482,28 +490,9 @@ func _physics_process(_delta: float) -> void:
 	if state == NPCState.DEAD:
 		velocity = Vector2.ZERO
 		return
-		
-	# Simple movement towards target position
-	if is_moving and target_position != Vector2.ZERO:
-		var direction = (target_position - position).normalized()
-		velocity = direction * move_speed
-		
-		# Check if we've reached the target
-		if position.distance_to(target_position) < movement_threshold:
-			velocity = Vector2.ZERO
-			is_moving = false
-			target_position = Vector2.ZERO
-		else:
-			# Use Godot's built-in collision detection
-			move_and_slide()
-			
-			# If we hit something and can't move, stop trying
-			if get_slide_collision_count() > 0:
-				velocity = Vector2.ZERO
-				is_moving = false
-				target_position = Vector2.ZERO
-	else:
-		velocity = Vector2.ZERO
+	
+	# Use Godot's built-in physics with collision detection
+	move_and_slide()
 	
 	# Safety check: ensure NPC stays within local area bounds
 	_enforce_boundary_constraints()
@@ -876,22 +865,38 @@ func _process_dead_state(_delta: float) -> void:
 # === MOVEMENT AND PATHFINDING ===
 
 func _move_to_position(world_pos: Vector2) -> void:
-	var grid_pos: Vector2i = Vector2i(world_pos / GlobalGameState.TILE_SIZE)
+	# Calculate direction to target
+	var direction = (world_pos - position).normalized()
+	var move_dir = Vector2.ZERO
 	
-	# Ensure the target position is within local area bounds
-	if not is_valid_position(grid_pos):
-		# If target is invalid, try to find a valid position near the current location
-		var current_grid_pos = Vector2i(position / GlobalGameState.TILE_SIZE)
-		var valid_alternatives = get_valid_moves_in_radius(current_grid_pos, 2.0)
-		if not valid_alternatives.is_empty():
-			grid_pos = valid_alternatives[rng.randi() % valid_alternatives.size()]
-		else:
-			# If no valid alternatives, stay in place
-			return
+	# Convert to cardinal direction
+	if abs(direction.x) > abs(direction.y):
+		move_dir = Vector2.RIGHT if direction.x > 0 else Vector2.LEFT
+	else:
+		move_dir = Vector2.DOWN if direction.y > 0 else Vector2.UP
 	
-	# Set target and start moving
-	target_position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
-	is_moving = true
+	# Try to move in that direction if possible
+	if can_move_in_direction(move_dir):
+		_move(move_dir)
+	else:
+		# If blocked, try to find an alternative direction
+		var possible_directions = []
+		
+		if not right.is_colliding():
+			possible_directions.append(Vector2.RIGHT)
+		if not left.is_colliding():
+			possible_directions.append(Vector2.LEFT)
+		if not up.is_colliding():
+			possible_directions.append(Vector2.UP)
+		if not down.is_colliding():
+			possible_directions.append(Vector2.DOWN)
+		
+		if not possible_directions.is_empty():
+			# Pick the direction that gets us closest to the target
+			possible_directions.sort_custom(func(a, b):
+				return a.dot(direction) > b.dot(direction)
+			)
+			_move(possible_directions[0])
 
 # === AWARENESS AND PERCEPTION ===
 
@@ -974,22 +979,43 @@ func _add_memory_event(event: Dictionary) -> void:
 		recent_events.remove_at(0) # Remove oldest event
 
 func choose_wander_move() -> void:
-	var current_grid_pos = GlobalGameState.world_to_map(position)
-	var valid_moves = get_valid_moves_in_radius(current_grid_pos, wander_radius)
+	# Get possible directions to move
+	var possible_directions = []
 	
-	if valid_moves.is_empty():
+	# Check each direction using RayCast2D nodes
+	if not right.is_colliding():
+		possible_directions.append(Vector2.RIGHT)
+	if not left.is_colliding():
+		possible_directions.append(Vector2.LEFT)
+	if not up.is_colliding():
+		possible_directions.append(Vector2.UP)
+	if not down.is_colliding():
+		possible_directions.append(Vector2.DOWN)
+	
+	if possible_directions.is_empty():
 		return
 	
-	# Prefer moves that keep us within our wander radius of home
-	var home_grid = GlobalGameState.world_to_map(home_position)
-	valid_moves.sort_custom(func(a, b):
-		return a.distance_to(home_grid) < b.distance_to(home_grid)
-	)
+	# Filter directions that would keep us within wander radius of home
+	var home_grid = Vector2i(home_position / tile_size)
+	var current_grid = get_current_tile()
+	var valid_directions = []
 	
-	# Pick one of the best moves (with some randomness)
-	var move_index = rng.randi() % min(3, valid_moves.size())
-	var new_pos = valid_moves[move_index]
-	set_move_target(new_pos)
+	for dir in possible_directions:
+		var new_pos = current_grid + Vector2i(dir)
+		if new_pos.distance_to(home_grid) <= wander_radius:
+			valid_directions.append(dir)
+	
+	# If no valid directions within wander radius, prefer directions toward home
+	if valid_directions.is_empty():
+		var home_direction = (home_position - position).normalized()
+		valid_directions = possible_directions
+		valid_directions.sort_custom(func(a, b):
+			return a.dot(home_direction) > b.dot(home_direction)
+		)
+	
+	# Pick a random direction from valid options
+	var chosen_direction = valid_directions[rng.randi() % valid_directions.size()]
+	_move(chosen_direction)
 
 func choose_patrol_move() -> void:
 	if state_data.has("patrol_points") and not state_data["patrol_points"].is_empty():
@@ -997,43 +1023,77 @@ func choose_patrol_move() -> void:
 		var current_index = state_data.get("current_patrol_point", 0)
 		
 		var target_point = patrol_points[current_index]
-		set_move_target(target_point)
+		var current_pos = get_current_tile()
+		var direction = Vector2(target_point - current_pos).normalized()
 		
-		# Update to next patrol point
-		current_index = (current_index + 1) % patrol_points.size()
-		state_data["current_patrol_point"] = current_index
+		# Try to move toward the patrol point
+		var move_dir = Vector2.ZERO
+		if abs(direction.x) > abs(direction.y):
+			move_dir = Vector2.RIGHT if direction.x > 0 else Vector2.LEFT
+		else:
+			move_dir = Vector2.DOWN if direction.y > 0 else Vector2.UP
+		
+		# Check if we can move in that direction
+		if can_move_in_direction(move_dir):
+			_move(move_dir)
+			
+			# Check if we reached the patrol point
+			if get_current_tile().distance_to(target_point) <= 1:
+				current_index = (current_index + 1) % patrol_points.size()
+				state_data["current_patrol_point"] = current_index
+		else:
+			# If blocked, try alternative directions
+			choose_wander_move()
 		return
 	
-	# Fallback to old patrol method if no patrol points defined
-	var current_grid_pos = GlobalGameState.world_to_map(position)
-	var valid_moves = get_valid_moves_in_radius(current_grid_pos, 1.0)
+	# Fallback to straight line patrol if no patrol points defined
+	var possible_directions = []
 	
-	if valid_moves.is_empty():
+	if not right.is_colliding():
+		possible_directions.append(Vector2.RIGHT)
+	if not left.is_colliding():
+		possible_directions.append(Vector2.LEFT)
+	if not up.is_colliding():
+		possible_directions.append(Vector2.UP)
+	if not down.is_colliding():
+		possible_directions.append(Vector2.DOWN)
+	
+	if possible_directions.is_empty():
 		return
 	
 	# Soldiers prefer to move along straight lines
-	if last_direction != Vector2.ZERO:
-		for move in valid_moves:
-			if (move - current_grid_pos) == last_direction:
-				set_move_target(move)
-				return
+	if last_direction != Vector2.ZERO and can_move_in_direction(last_direction):
+		_move(last_direction)
+		return
 	
 	# If can't continue straight, choose a new random direction
-	var new_pos = valid_moves[rng.randi() % valid_moves.size()]
-	set_move_target(new_pos)
+	var chosen_direction = possible_directions[rng.randi() % possible_directions.size()]
+	_move(chosen_direction)
 
 func choose_restricted_move() -> void:
-	var current_grid_pos = GlobalGameState.world_to_map(position)
-	var home_grid = GlobalGameState.world_to_map(home_position)
+	var current_grid_pos = get_current_tile()
+	var home_grid = Vector2i(home_position / tile_size)
 	
 	# If too far from home, try to move back
 	if current_grid_pos.distance_to(home_grid) > wander_radius:
-		var valid_moves = get_valid_moves_in_radius(current_grid_pos, 1.0)
-		valid_moves.sort_custom(func(a, b):
-			return a.distance_to(home_grid) < b.distance_to(home_grid)
-		)
-		if not valid_moves.is_empty():
-			set_move_target(valid_moves[0])
+		var home_direction = (home_position - position).normalized()
+		var possible_directions = []
+		
+		if not right.is_colliding():
+			possible_directions.append(Vector2.RIGHT)
+		if not left.is_colliding():
+			possible_directions.append(Vector2.LEFT)
+		if not up.is_colliding():
+			possible_directions.append(Vector2.UP)
+		if not down.is_colliding():
+			possible_directions.append(Vector2.DOWN)
+		
+		if not possible_directions.is_empty():
+			# Pick direction that moves us closest to home
+			possible_directions.sort_custom(func(a, b):
+				return a.dot(home_direction) > b.dot(home_direction)
+			)
+			_move(possible_directions[0])
 		return
 	
 	# Otherwise, just wander nearby
@@ -1063,19 +1123,6 @@ func choose_fleeing_move() -> void:
 	# Otherwise just wander
 	choose_wander_move()
 
-func get_valid_moves_in_radius(current_pos: Vector2i, max_radius: float) -> Array:
-	var valid_moves = []
-	for dy in range(-1, 2):
-		for dx in range(-1, 2):
-			if dx == 0 and dy == 0:
-				continue
-			
-			var new_pos = current_pos + Vector2i(dx, dy)
-			# Ensure we don't try to move outside the local area boundaries
-			if is_valid_position(new_pos) and new_pos.distance_to(current_pos) <= max_radius:
-				valid_moves.append(new_pos)
-	
-	return valid_moves
 
 func is_valid_position(grid_pos: Vector2i) -> bool:
 	# Check map bounds - ensure NPCs stay within local area boundaries
@@ -1097,17 +1144,37 @@ func is_valid_position(grid_pos: Vector2i) -> bool:
 	
 	return true # Fallback if is_walkable not implemented
 
-func set_move_target(grid_pos: Vector2i) -> void:
-	# Convert grid position to world position for local area
-	target_position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
-	var current_grid_pos = Vector2i(position / GlobalGameState.TILE_SIZE)
-	last_direction = Vector2(grid_pos - current_grid_pos).normalized()
-	
-	is_moving = true
-	
-	# Update sprite direction
+
+func _move(dir: Vector2):
+	global_position += dir * tile_size
+	$Sprite2D.global_position -= dir * tile_size
+
+	# Update last direction and sprite
+	last_direction = dir
 	if sprite:
-		update_sprite_direction(last_direction)
+		update_sprite_direction(dir)
+
+	if sprite_node_pos_tween:
+		sprite_node_pos_tween.kill()
+	sprite_node_pos_tween = create_tween()
+	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+
+func get_current_tile() -> Vector2i:
+	"""Get the NPC's current tile position based on their world position."""
+	return Vector2i(position / tile_size)
+
+func can_move_in_direction(dir: Vector2) -> bool:
+	"""Check if the NPC can move in the given direction using RayCast2D nodes."""
+	if dir == Vector2.RIGHT:
+		return not right.is_colliding()
+	elif dir == Vector2.LEFT:
+		return not left.is_colliding()
+	elif dir == Vector2.UP:
+		return not up.is_colliding()
+	elif dir == Vector2.DOWN:
+		return not down.is_colliding()
+	return false
 
 func update_sprite_direction(direction: Vector2) -> void:
 	# Update sprite frame based on direction

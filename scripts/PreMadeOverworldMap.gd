@@ -28,11 +28,15 @@ class CustomTileData:
 	var terrain: int = Terrain.NONE
 	var settlement: int = Settlement.NONE
 	var is_walkable: bool = true
+	var tile_position: Vector2i = Vector2i.ZERO
+	var tile_coordinates: Vector2i = Vector2i.ZERO
 	
-	func _init(t: int, s: int = Settlement.NONE):
+	func _init(t: int, s: int = Settlement.NONE, p: Vector2i = Vector2i.ZERO):
 		terrain = t
 		settlement = s
 		is_walkable = t != Terrain.WATER
+		tile_position = p
+		tile_coordinates = Vector2i(p / TILE_SIZE)
 
 @onready var tilemap: TileMap = $TileMap
 var map_data: Array[Array] = []

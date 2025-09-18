@@ -14,9 +14,11 @@ script = ExtResource("1_fcrbl")
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(1, 1)
 zoom = Vector2(2, 2)
+position_smoothing_enabled = true
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-scale = Vector2(0.53125, 0.53125)
+position = Vector2(-2.98023e-08, -2.98023e-08)
+scale = Vector2(0.5, 0.5)
 texture = ExtResource("2_6k1bd")
 region_enabled = true
 region_rect = Rect2(32, 32, 32, 32)

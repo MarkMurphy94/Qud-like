@@ -15,10 +15,11 @@ var current_local_area: Node2D = null
 var map_rect = null
 var in_local_area: bool = false
 
-var overworld_grid_pos: Vector2
+var overworld_tile: Vector2
+var overworld_tile_pos: Vector2
 
 # Tile-based movement variables for overworld
-var target_position: Vector2
+# var target_position: Vector2
 var is_moving: bool = false
 var movement_threshold: float = 1.0
 
@@ -26,7 +27,7 @@ func _ready() -> void:
 	# Set up player collision layers
 	# collision_layer = 2 # Player is on layer 2
 	# collision_mask = 1 # Player can collide with NPCs and walls (layer 1)
-	target_position = global_position
+	# target_position = global_position
 	update_camera_limits()
 
 func _process(_delta: float) -> void:
@@ -51,19 +52,15 @@ func _physics_process(_delta: float) -> void:
 		_move(Vector2.DOWN)
 	
 	# Use Godot's built-in physics with collision detection
-	# move_and_slide()
-	
-	# Handle collision interactions (NPCs, objects, etc.)
-	# handle_collisions()
+	move_and_slide()
 	
 	# Update roof visibility
 	_update_roof_visibility()
 
 func _move(dir: Vector2):
-	print("current_tile:", get_current_tile())
 	global_position += dir * tile_size
 	$Sprite2D.global_position -= dir * tile_size
-	print("new_tile:", get_current_tile())
+	print("current_tile:", get_current_tile())
 
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()
@@ -71,29 +68,10 @@ func _move(dir: Vector2):
 	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
 
-func try_move_overworld(direction: Vector2) -> void:
-	var current_grid_pos = overworld.world_to_map(global_position)
-	var new_grid_pos = current_grid_pos + Vector2i(direction)
-	
-	# Check if the new position is walkable on the overworld
-	if overworld.is_walkable(new_grid_pos):
-		target_position = overworld.map_to_world(new_grid_pos)
-		is_moving = true
-
-func handle_collisions() -> void:
-	# Check for collisions with NPCs or interactive objects
-	for i in get_slide_collision_count():
-		var collision = get_slide_collision(i)
-		var collider = collision.get_collider()
-		
-		# If we hit an NPC, stop movement briefly for interaction
-		if collider.has_method("start_dialogue"):
-			# Optionally trigger dialogue automatically or require separate input
-			pass
-
 func descend_to_local_area() -> void:
-	overworld_grid_pos = overworld.world_to_map(global_position)
-	var tile_data = overworld.get_tile_data(overworld_grid_pos)
+	overworld_tile = overworld.world_to_map(global_position)
+	overworld_tile_pos = global_position
+	var tile_data = overworld.get_tile_data(overworld_tile)
 	
 	# Check if we can descend on this tile type
 	if tile_data.terrain == overworld.Terrain.WATER:
@@ -117,20 +95,20 @@ func descend_to_local_area() -> void:
 				area_type = current_local_area.AreaType.CITY
 			overworld.Settlement.CASTLE:
 				area_type = current_local_area.AreaType.CASTLE
-		seed_value = overworld.get_settlement_from_seed(overworld_grid_pos)
+		seed_value = overworld.get_settlement_from_seed(overworld_tile)
 	else:
 		# Natural terrain (grass, mountain, etc.)
 		area_type = current_local_area.AreaType.LOCAL_AREA
 		seed_value = 0 # Use default seed generation for natural areas
 	
 	# Generate the area using the unified interface
-	current_local_area.setup_and_generate(area_type, tile_data.terrain, overworld_grid_pos, seed_value)
+	current_local_area.setup_and_generate(area_type, tile_data.terrain, overworld_tile, seed_value)
 	
 	await get_tree().process_frame
 	map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
 	
 	# Set spawn position
-	if overworld.has_settlement(overworld_grid_pos):
+	if overworld.has_settlement(overworld_tile):
 		position = get_spawn_tile()
 	
 	overworld.hide()
@@ -212,7 +190,7 @@ func return_to_overworld() -> void:
 		map_rect = null
 	overworld.show()
 	in_local_area = false
-	position = overworld.map_to_world(overworld_grid_pos)
+	position = overworld_tile_pos
 	update_camera_limits()
 
 func update_camera_limits() -> void:
