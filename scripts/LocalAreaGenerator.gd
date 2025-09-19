@@ -344,7 +344,7 @@ func _ready() -> void:
 	
 	# Initialize noise
 	noise = FastNoiseLite.new()
-	setup_and_generate()
+	# setup_and_generate()
 
 # Public function to generate either local areas or settlements
 func setup_and_generate(area_type = base_area_type, overworld_tile_type: int = OverworldTile.GRASS, world_position: Vector2i = Vector2i.ZERO, seed_value: int = SEED) -> void:
