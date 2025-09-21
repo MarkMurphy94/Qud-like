@@ -56,7 +56,7 @@ var state_timer: float = 0.0
 var state_data: Dictionary = {} # Additional data for current state
 
 # === MOVEMENT AND NAVIGATION ===
-# NPCs are now restricted to local area maps only and cannot transition to overworld
+# NPCs are currently restricted to local area maps only and cannot transition to overworld
 var environment: Node2D # Local area map only
 var rng = RandomNumberGenerator.new()
 var target_position: Vector2
@@ -244,7 +244,7 @@ func _ready() -> void:
 	# Register with global NPC manager
 	if GlobalGameState.has_method("register_npc"):
 		GlobalGameState.register_npc(self)
-	
+	# environment = get_parent()
 	if not environment:
 		set_physics_process(false)
 		set_process(false)
@@ -431,7 +431,8 @@ func initialize(area_map: Node2D, start_pos: Vector2 = Vector2.ZERO) -> void:
 			var grid_pos = Vector2i(x, y)
 			
 			if is_valid_position(grid_pos):
-				position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
+				# position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
+				position = environment.ground.map_to_local(grid_pos)
 				home_position = position
 				found = true
 				break

@@ -321,6 +321,8 @@ const PLAZA_DISTANCE_THRESHOLD = 10
 @export var water_level: float = 0.4
 @export var base_area_type: AreaType = AreaType.LOCAL_AREA
 @onready var spawn_tile: Area2D = $spawn_tile
+@onready var npc_spawner: NPCSpawner = $npc_spawner
+@onready var ground: TileMapLayer = $ground
 
 var noise: FastNoiseLite
 var rng = RandomNumberGenerator.new()
@@ -536,8 +538,7 @@ func generate_settlement(settlement_type: int, settlement_rng: RandomNumberGener
 	
 	# Connect terrain
 	connect_terrain()
-	var spawner = NPCSpawner.new()
-	spawner.spawn_settlement_npcs(GlobalGameState.settlements, self)
+	npc_spawner.spawn_settlement_npcs(GlobalGameState.settlements, self)
 	print_rich("Generated settlement with ", placed_buildings.size(), " buildings")
 
 # When connecting terrain, use the terrain set index (not the tile alternative id)
