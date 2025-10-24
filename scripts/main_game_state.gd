@@ -11,6 +11,9 @@ const TILE_SIZE = 16
 const BUILDING_TEMPLATES = {}
 const NPC_TEMPLATES = {}
 const FACTIONS = {}
+
+var player_turn = false
+
 # All settlements, keyed by unique ID or coordinates
 var settlements = {
 	"town_1": {
@@ -29,6 +32,7 @@ var settlements = {
 	},
 	"town_2_full": {
 		"type": SettlementType.TOWN,
+		"pos": Vector2i(17, 18),
 		"seed": null,
 		"width": 80,
 		"height": 80,
@@ -204,3 +208,36 @@ func world_to_map(world_pos: Vector2) -> Vector2i:
 
 func map_to_world(map_pos: Vector2i) -> Vector2:
 	return Vector2(map_pos * TILE_SIZE)
+	
+# Create a stable key from type+world position
+func make_settlement_key(settlement_type: int, world_pos: Vector2i) -> String:
+	var tname = ["town", "city", "castle"][settlement_type]
+	return "%s_%d_%d" % [tname, world_pos.x, world_pos.y]
+
+# Ensure a minimal config exists for a settlement; returns the config
+func ensure_settlement_config(settlement_type: int, world_pos: Vector2i, seed_value: int = 0) -> Dictionary:
+	var key := make_settlement_key(settlement_type, world_pos)
+	var conf = get_settlement(key)
+	if conf.is_empty():
+		if seed_value == 0:
+			seed_value = randi()
+		conf = {
+			"type": settlement_type,
+			"pos": world_pos,
+			"seed": seed_value,
+			"width": 80,
+			"height": 80,
+			"buildings": {}, # filled after first entry
+			"important_npcs": {}
+		}
+		settlements[key] = conf
+	else:
+		# Backfill missing fields for older saves
+		if not conf.has("type"): conf.type = settlement_type
+		if not conf.has("pos"): conf.pos = world_pos
+		if not conf.has("seed") or conf.seed == null: conf.seed = (seed_value if seed_value != 0 else randi())
+		if not conf.has("width"): conf.width = 80
+		if not conf.has("height"): conf.height = 80
+		if not conf.has("buildings"): conf.buildings = {}
+		settlements[key] = conf
+	return conf

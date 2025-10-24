@@ -8,7 +8,7 @@ class_name NPC
 @export var move_interval: float = 0.5 # seconds between moves
 @export var movement_threshold: float = 1.0 # Distance threshold for considering movement complete
 var sprite_node_pos_tween: Tween
-@export var npc_type: GlobalGameState.NpcType = GlobalGameState.NpcType.PEASANT
+@export var npc_type: MainGameState.NpcType = MainGameState.NpcType.PEASANT
 @export var vision_range: float = 8.0 # How many tiles the NPC can see
 @export var hearing_range: float = 5.0 # How many tiles the NPC can hear
 @export var max_health: int = 100
@@ -97,7 +97,7 @@ var trade_prices: Dictionary = {"buy_multiplier": 1.0, "sell_multiplier": 0.5}
 
 # NPC Type-specific properties
 var npc_properties = {
-	GlobalGameState.NpcType.PEASANT: {
+	MainGameState.NpcType.PEASANT: {
 		"move_speed": 80.0,
 		"move_interval": 0.5,
 		"wander_radius": 5.0,
@@ -109,7 +109,7 @@ var npc_properties = {
 		"can_trade": false,
 		"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 	},
-	GlobalGameState.NpcType.SOLDIER: {
+	MainGameState.NpcType.SOLDIER: {
 		"move_speed": 100.0,
 		"move_interval": 0.4,
 		"wander_radius": 8.0,
@@ -121,7 +121,7 @@ var npc_properties = {
 		"can_trade": false,
 		"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
 	},
-	GlobalGameState.NpcType.MERCHANT: {
+	MainGameState.NpcType.MERCHANT: {
 		"move_speed": 70.0,
 		"move_interval": 0.6,
 		"wander_radius": 3.0,
@@ -134,7 +134,7 @@ var npc_properties = {
 		"trade_prices": {"buy_multiplier": 1.2, "sell_multiplier": 0.4},
 		"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 8, "charisma": 14}
 	},
-	GlobalGameState.NpcType.NOBLE: {
+	MainGameState.NpcType.NOBLE: {
 		"move_speed": 60.0,
 		"move_interval": 0.7,
 		"wander_radius": 4.0,
@@ -146,7 +146,7 @@ var npc_properties = {
 		"can_trade": false,
 		"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 	},
-	GlobalGameState.NpcType.BANDIT: {
+	MainGameState.NpcType.BANDIT: {
 		"move_speed": 120.0,
 		"move_interval": 0.3,
 		"wander_radius": 10.0,
@@ -158,7 +158,7 @@ var npc_properties = {
 		"can_trade": false,
 		"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
 	},
-	GlobalGameState.NpcType.ANIMAL: {
+	MainGameState.NpcType.ANIMAL: {
 		"move_speed": 90.0,
 		"move_interval": 0.4,
 		"wander_radius": 6.0,
@@ -170,7 +170,7 @@ var npc_properties = {
 		"can_trade": false,
 		"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
 	},
-	GlobalGameState.NpcType.MONSTER: {
+	MainGameState.NpcType.MONSTER: {
 		"move_speed": 110.0,
 		"move_interval": 0.3,
 		"wander_radius": 12.0,
@@ -242,8 +242,8 @@ func _ready() -> void:
 		_load_dialogue(properties["dialogue"])
 	
 	# Register with global NPC manager
-	if GlobalGameState.has_method("register_npc"):
-		GlobalGameState.register_npc(self)
+	if MainGameState.has_method("register_npc"):
+		MainGameState.register_npc(self)
 	# environment = get_parent()
 	if not environment:
 		set_physics_process(false)
@@ -351,7 +351,7 @@ func _load_dialogue(dialogue_template: String) -> void:
 			]
 		},
 		"JOB": {
-			"text": "I work as a " + GlobalGameState.NpcType.keys()[npc_type].to_lower() + " around here.",
+			"text": "I work as a " + MainGameState.NpcType.keys()[npc_type].to_lower() + " around here.",
 			"options": [
 				{"id": "1", "text": "Interesting. Tell me about this place.", "next": "PLACE"},
 				{"id": "2", "text": "Back to previous options.", "next": "GREETING"},
@@ -431,7 +431,7 @@ func initialize(area_map: Node2D, start_pos: Vector2 = Vector2.ZERO) -> void:
 			var grid_pos = Vector2i(x, y)
 			
 			if is_valid_position(grid_pos):
-				# position = Vector2(grid_pos) * GlobalGameState.TILE_SIZE
+				# position = Vector2(grid_pos) * MainGameState.TILE_SIZE
 				position = environment.ground.map_to_local(grid_pos)
 				home_position = position
 				found = true
@@ -503,15 +503,15 @@ func _enforce_boundary_constraints() -> void:
 	var width = environment.WIDTH if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
 	var height = environment.HEIGHT if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
 	
-	var world_width = width * GlobalGameState.TILE_SIZE
-	var world_height = height * GlobalGameState.TILE_SIZE
+	var world_width = width * MainGameState.TILE_SIZE
+	var world_height = height * MainGameState.TILE_SIZE
 	
 	# Clamp position to stay within boundaries
-	position.x = clamp(position.x, 0, world_width - GlobalGameState.TILE_SIZE)
-	position.y = clamp(position.y, 0, world_height - GlobalGameState.TILE_SIZE)
+	position.x = clamp(position.x, 0, world_width - MainGameState.TILE_SIZE)
+	position.y = clamp(position.y, 0, world_height - MainGameState.TILE_SIZE)
 	
 	# If we hit a boundary, stop moving and choose a new direction
-	var grid_pos = Vector2i(position / GlobalGameState.TILE_SIZE)
+	var grid_pos = Vector2i(position / MainGameState.TILE_SIZE)
 	if grid_pos.x <= 0 or grid_pos.x >= width - 1 or grid_pos.y <= 0 or grid_pos.y >= height - 1:
 		is_moving = false
 		# Reset state to idle so NPC can choose a new direction
@@ -635,8 +635,8 @@ func _check_state_transitions(_delta: float) -> void:
 func _get_current_hour() -> int:
 	# This would connect to a global time system
 	# For now, just return a placeholder value or simulated time
-	if GlobalGameState.has_method("get_current_hour"):
-		return GlobalGameState.get_current_hour()
+	if MainGameState.has_method("get_current_hour"):
+		return MainGameState.get_current_hour()
 	return 12 # Default to noon
 
 func _should_change_scheduled_activity(current_hour: int) -> bool:
@@ -674,9 +674,9 @@ func _should_fight(_threat: Node2D) -> bool:
 	# Determine if this NPC should fight the threat or flee
 	# Based on NPC type, health, etc.
 	match npc_type:
-		GlobalGameState.NpcType.SOLDIER, GlobalGameState.NpcType.BANDIT, GlobalGameState.NpcType.MONSTER:
+		MainGameState.NpcType.SOLDIER, MainGameState.NpcType.BANDIT, MainGameState.NpcType.MONSTER:
 			return true
-		GlobalGameState.NpcType.ANIMAL:
+		MainGameState.NpcType.ANIMAL:
 			return current_health > max_health * 0.8 # Animals fight if healthy
 		_:
 			return false # Other NPCs prefer to flee
@@ -719,7 +719,7 @@ func _process_patrol_state(delta: float) -> void:
 func _generate_patrol_route() -> void:
 	# Generate a patrol route around the NPC's area
 	var patrol_points = []
-	var center = GlobalGameState.world_to_map(home_position)
+	var center = MainGameState.world_to_map(home_position)
 	
 	for i in range(4): # Create a square patrol route
 		var angle = i * PI / 2 # 0, 90, 180, 270 degrees
@@ -1196,5 +1196,5 @@ func update_sprite_direction(direction: Vector2) -> void:
 func get_state_name(state_value: NPCState) -> String:
 	return NPCState.keys()[state_value]
 
-func get_npc_type_name(type_value: GlobalGameState.NpcType) -> String:
-	return GlobalGameState.NpcType.keys()[type_value]
+func get_npc_type_name(type_value: MainGameState.NpcType) -> String:
+	return MainGameState.NpcType.keys()[type_value]

@@ -17,7 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-GlobalGameState="*res://scripts/global_game_state.gd"
+MainGameState="*res://scripts/main_game_state.gd"
 
 [rendering]
 

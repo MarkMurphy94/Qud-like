@@ -194,8 +194,8 @@ const STRUCTURE_TEMPLATES = {
 }
 
 # Building type mappings for settlements from SettlementGenerator  
-const BUILDINGTYPE = GlobalGameState.BuildingType
-const SETTLEMENTTYPE = GlobalGameState.SettlementType
+const BUILDINGTYPE = MainGameState.BuildingType
+const SETTLEMENTTYPE = MainGameState.SettlementType
 
 var BuildingTypeStrings = {
 	BUILDINGTYPE.HOUSE: "house",
@@ -333,6 +333,16 @@ var overworld_position: Vector2i
 # Registry for all buildings in settlements (from SettlementGenerator)
 var building_registry := {}
 
+var BuildingTypeByName := {
+	"house": BUILDINGTYPE.HOUSE,
+	"tavern": BUILDINGTYPE.TAVERN,
+	"shop": BUILDINGTYPE.SHOP,
+	"manor": BUILDINGTYPE.MANOR,
+	"barracks": BUILDINGTYPE.BARRACKS,
+	"church": BUILDINGTYPE.CHURCH,
+	"keep": BUILDINGTYPE.KEEP
+}
+
 func _ready() -> void:
 	# Check all tilemaps exist
 	for layer in LAYERS:
@@ -349,25 +359,115 @@ func _ready() -> void:
 	# setup_and_generate()
 
 # Public function to generate either local areas or settlements
-func setup_and_generate(area_type = base_area_type, overworld_tile_type: int = OverworldTile.GRASS, world_position: Vector2i = Vector2i.ZERO, seed_value: int = SEED) -> void:
+func setup_and_generate(
+		area_type = base_area_type,
+		overworld_tile_type: int = OverworldTile.GRASS,
+		world_position: Vector2i = Vector2i.ZERO,
+		seed_value: int = SEED
+	) -> void:
+	overworld_position = world_position
 	var local_rng = RandomNumberGenerator.new()
 	if seed_value == 0:
-		# If no seed is provided, generate a random one
 		local_rng.seed = randi()
 	else:
 		local_rng.seed = seed_value
-	
+
 	match area_type:
 		AreaType.LOCAL_AREA:
 			generate_local_area(overworld_tile_type, world_position, local_rng)
-		AreaType.TOWN:
-			generate_settlement(SETTLEMENTTYPE.TOWN, local_rng)
-		AreaType.CITY:
-			generate_settlement(SETTLEMENTTYPE.CITY, local_rng)
-		AreaType.CASTLE:
-			generate_settlement(SETTLEMENTTYPE.CASTLE, local_rng)
-	
+		AreaType.TOWN, AreaType.CITY, AreaType.CASTLE:
+			var stype := (
+				SETTLEMENTTYPE.TOWN if area_type == AreaType.TOWN else
+				SETTLEMENTTYPE.CITY if area_type == AreaType.CITY else
+				SETTLEMENTTYPE.CASTLE
+			)
+			# Ensure a config exists (seed/type/size/pos), then decide build vs generate
+			var conf = MainGameState.ensure_settlement_config(stype, overworld_position, local_rng.seed)
+			if conf.has("buildings") and conf.buildings.size() > 0:
+				build_settlement_from_dataset(conf)
+				npc_spawner.spawn_settlement_npcs(conf, self)
+			else:
+				generate_settlement(stype, local_rng)
 	print("area seed is: ", local_rng.seed)
+
+# Build a settlement from a saved dataset (no randomness in placement)
+func build_settlement_from_dataset(details: Dictionary) -> void:
+	# Clear layers
+	for layer in LAYERS:
+		tilemaps[layer].clear()
+	# Lay base terrain deterministically using saved seed and type
+	var area_size = Vector2i(WIDTH, HEIGHT)
+	var settlement_rng := RandomNumberGenerator.new()
+	settlement_rng.seed = int(details.get("seed", 0))
+	var settlement_type: int = int(details["type"])
+	var settlement_terrain = SETTLEMENT_TERRAIN[settlement_type]
+	for terrain in terrain_cells:
+		terrain_cells[terrain].clear()
+	for y in area_size.y:
+		for x in area_size.x:
+			var terrain_type: String
+			var rand = settlement_rng.randf()
+			if rand < 0.7:
+				terrain_type = settlement_terrain["primary"]
+			elif rand < 0.9:
+				terrain_type = settlement_terrain["secondary"]
+			else:
+				terrain_type = "grass"
+			terrain_cells[terrain_type].append(Vector2i(x, y))
+	for terrain in terrain_cells:
+		if not terrain_cells[terrain].is_empty():
+			tilemaps["GROUND"].set_cells_terrain_connect(terrain_cells[terrain], TERRAIN_SET_ID, TERRAINS[terrain], false)
+
+	# Place buildings exactly as recorded
+	building_registry.clear()
+	var placed_for_roads := []
+	for bid in details.buildings.keys():
+		var b = details.buildings[bid]
+		var btype = b["type"]
+		var enum_type: int = (btype if typeof(btype) == TYPE_INT else BuildingTypeByName.get(String(btype).to_lower(), BUILDINGTYPE.HOUSE))
+		var pos: Vector2i = b["pos"]
+		var size: Vector2i = b["size"]
+		place_building_settlement(pos, size, enum_type)
+		building_registry[bid] = {
+			"type": enum_type,
+			"pos": pos,
+			"size": size,
+			"interior_size": size - Vector2i(2, 2),
+			"zones": b.get("zones", []),
+			"inhabitants": b.get("inhabitants", []),
+			"interior_features": b.get("interior_features", {}),
+			"scripted_content": b.get("scripted_content", null)
+		}
+		placed_for_roads.append({"type": enum_type, "pos": pos, "size": size})
+
+	# Rebuild roads from building list
+	generate_roads_between_buildings(placed_for_roads, RandomNumberGenerator.new(), settlement_type)
+	connect_terrain()
+
+# Gather compact dataset for persistence
+func get_settlement_details() -> Dictionary:
+	var details := {
+		"type": SETTLEMENTTYPE.TOWN, # caller overrides
+		"seed": SEED,
+		"width": WIDTH,
+		"height": HEIGHT,
+		"pos": overworld_position,
+		"buildings": {},
+		"important_npcs": {}
+	}
+	for building_id in building_registry.keys():
+		var b = building_registry[building_id]
+		details.buildings[building_id] = {
+			"id": building_id,
+			"type": b["type"],
+			"pos": b["pos"],
+			"size": b["size"],
+			"zones": b.get("zones", []),
+			"inhabitants": b.get("inhabitants", []),
+			"interior_features": b.get("interior_features", {}),
+			"scripted_content": b.get("scripted_content", null)
+		}
+	return details
 
 # Legacy function for backward compatibility
 func setup_and_generate_local(overworld_tile_type: int, world_position: Vector2i, seed_value: int = 0) -> void:
@@ -433,6 +533,7 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 
 # Generate settlement function (from SettlementGenerator)
 func generate_settlement(settlement_type: int, settlement_rng: RandomNumberGenerator) -> void:
+	SEED = settlement_rng.seed
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var building_counts = {
 		SETTLEMENTTYPE.TOWN: {
@@ -538,8 +639,14 @@ func generate_settlement(settlement_type: int, settlement_rng: RandomNumberGener
 	
 	# Connect terrain
 	connect_terrain()
-	npc_spawner.spawn_settlement_npcs(GlobalGameState.settlements, self)
-	print_rich("Generated settlement with ", placed_buildings.size(), " buildings")
+	# Persist and spawn using per-settlement dataset
+	var details := get_settlement_details()
+	details.type = settlement_type
+	details.seed = settlement_rng.seed
+	var key = MainGameState.make_settlement_key(settlement_type, overworld_position)
+	MainGameState.add_settlement(key, details)
+	npc_spawner.spawn_settlement_npcs(details, self)
+	print_rich("Generated settlement with ", building_registry.size(), " buildings")
 
 # When connecting terrain, use the terrain set index (not the tile alternative id)
 func connect_terrain() -> void:

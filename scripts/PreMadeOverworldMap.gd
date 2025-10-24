@@ -160,9 +160,9 @@ func get_settlement_type(pos: Vector2i) -> int:
 
 func get_settlement_from_seed(pos: Vector2i):
 	var settlement_seed = null
-	for town in GlobalGameState.settlements:
-		if GlobalGameState.settlements[town]["pos"] == pos:
-			settlement_seed = GlobalGameState.settlements[town]["seed"]
+	for town in MainGameState.settlements:
+		if MainGameState.settlements[town]["pos"] == pos:
+			settlement_seed = MainGameState.settlements[town]["seed"]
 			break
 	if settlement_seed:
 		print("Identified settlement from settlement_seed: ", settlement_seed)

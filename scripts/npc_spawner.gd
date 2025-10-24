@@ -2,18 +2,18 @@ extends Node
 
 class_name NPCSpawner
 
-const NpcType = GlobalGameState.NpcType
-const SettlementType = GlobalGameState.SettlementType
+const NpcType = MainGameState.NpcType
+const SettlementType = MainGameState.SettlementType
 
 # Building type to NPC type mappings
 const BUILDING_NPC_TYPES = {
-	GlobalGameState.BuildingType.HOUSE: [NpcType.PEASANT],
-	GlobalGameState.BuildingType.TAVERN: [NpcType.PEASANT, NpcType.MERCHANT],
-	GlobalGameState.BuildingType.SHOP: [NpcType.MERCHANT],
-	GlobalGameState.BuildingType.MANOR: [NpcType.NOBLE],
-	GlobalGameState.BuildingType.BARRACKS: [NpcType.SOLDIER],
-	GlobalGameState.BuildingType.CHURCH: [NpcType.PEASANT],
-	GlobalGameState.BuildingType.KEEP: [NpcType.SOLDIER, NpcType.NOBLE]
+	MainGameState.BuildingType.HOUSE: [NpcType.PEASANT],
+	MainGameState.BuildingType.TAVERN: [NpcType.PEASANT, NpcType.MERCHANT],
+	MainGameState.BuildingType.SHOP: [NpcType.MERCHANT],
+	MainGameState.BuildingType.MANOR: [NpcType.NOBLE],
+	MainGameState.BuildingType.BARRACKS: [NpcType.SOLDIER],
+	MainGameState.BuildingType.CHURCH: [NpcType.PEASANT],
+	MainGameState.BuildingType.KEEP: [NpcType.SOLDIER, NpcType.NOBLE]
 }
 
 # NPC job assignments by type
@@ -29,24 +29,24 @@ const NPC_JOBS = {
 
 # Workplace mappings for jobs
 const JOB_WORKPLACES = {
-	"farmer": GlobalGameState.BuildingType.HOUSE,
-	"laborer": GlobalGameState.BuildingType.HOUSE,
-	"servant": GlobalGameState.BuildingType.MANOR,
-	"shopkeeper": GlobalGameState.BuildingType.SHOP,
-	"trader": GlobalGameState.BuildingType.SHOP,
-	"innkeeper": GlobalGameState.BuildingType.TAVERN,
-	"guard": GlobalGameState.BuildingType.BARRACKS,
-	"patrol": GlobalGameState.BuildingType.BARRACKS,
-	"watchman": GlobalGameState.BuildingType.KEEP,
-	"lord": GlobalGameState.BuildingType.MANOR,
-	"administrator": GlobalGameState.BuildingType.KEEP,
-	"official": GlobalGameState.BuildingType.KEEP,
+	"farmer": MainGameState.BuildingType.HOUSE,
+	"laborer": MainGameState.BuildingType.HOUSE,
+	"servant": MainGameState.BuildingType.MANOR,
+	"shopkeeper": MainGameState.BuildingType.SHOP,
+	"trader": MainGameState.BuildingType.SHOP,
+	"innkeeper": MainGameState.BuildingType.TAVERN,
+	"guard": MainGameState.BuildingType.BARRACKS,
+	"patrol": MainGameState.BuildingType.BARRACKS,
+	"watchman": MainGameState.BuildingType.KEEP,
+	"lord": MainGameState.BuildingType.MANOR,
+	"administrator": MainGameState.BuildingType.KEEP,
+	"official": MainGameState.BuildingType.KEEP,
 	"thief": null, # No fixed workplace
 	"outlaw": null,
 	"marauder": null,
 	"wild": null,
 	"stray": null,
-	"pet": GlobalGameState.BuildingType.HOUSE,
+	"pet": MainGameState.BuildingType.HOUSE,
 	"predator": null,
 	"creature": null,
 	"beast": null
@@ -66,7 +66,7 @@ func spawn_settlement_npcs(settlement_data: Dictionary, parent_node: Node2D) -> 
 	var settlement_type = settlement_data.get("type", SettlementType.TOWN)
 	
 	# Get NPC counts for this settlement type
-	var npc_counts = GlobalGameState.settlement_npc_counts[settlement_type]
+	var npc_counts = MainGameState.settlement_npc_counts[settlement_type]
 	print("Spawning NPCs for settlement type: ", settlement_type, " with counts: ", npc_counts)
 	# Map to track building occupancy
 	var building_occupancy = {}
@@ -83,8 +83,8 @@ func spawn_settlement_npcs(settlement_data: Dictionary, parent_node: Node2D) -> 
 	
 	return spawned_npcs
 
-func setup_npc_in_settlement(npc: Node, npc_type: GlobalGameState.NpcType, settlement_data: Dictionary, building_occupancy: Dictionary) -> void:
-	var home_building = find_suitable_building(npc_type, settlement_data, GlobalGameState.BuildingType.HOUSE, building_occupancy)
+func setup_npc_in_settlement(npc: Node, npc_type: MainGameState.NpcType, settlement_data: Dictionary, building_occupancy: Dictionary) -> void:
+	var home_building = find_suitable_building(npc_type, settlement_data, MainGameState.BuildingType.HOUSE, building_occupancy)
 	var job = assign_job(npc_type)
 	var workplace_type = JOB_WORKPLACES.get(job)
 	var workplace_building = {}
@@ -102,8 +102,8 @@ func setup_npc_in_settlement(npc: Node, npc_type: GlobalGameState.NpcType, settl
 	# Set home position
 	if not home_building.is_empty():
 		var home_pos = Vector2(
-			home_building["pos"].x * GlobalGameState.TILE_SIZE,
-			home_building["pos"].y * GlobalGameState.TILE_SIZE
+			home_building["pos"].x * MainGameState.TILE_SIZE,
+			home_building["pos"].y * MainGameState.TILE_SIZE
 		)
 		npc.initialize(npc.get_parent(), home_pos)
 		npc.home_position = home_pos
@@ -118,8 +118,8 @@ func setup_npc_in_settlement(npc: Node, npc_type: GlobalGameState.NpcType, settl
 	# Set work position if available
 	if not workplace_building.is_empty():
 		var work_pos = Vector2(
-			workplace_building["pos"].x * GlobalGameState.TILE_SIZE,
-			workplace_building["pos"].y * GlobalGameState.TILE_SIZE
+			workplace_building["pos"].x * MainGameState.TILE_SIZE,
+			workplace_building["pos"].y * MainGameState.TILE_SIZE
 		)
 		npc.work_position = work_pos
 		
@@ -144,8 +144,8 @@ func generate_patrol_route(npc: Node, settlement_data: Dictionary) -> void:
 	var important_buildings = []
 	for building in buildings.values():
 		var type = building.get("type")
-		if type in [GlobalGameState.BuildingType.KEEP, GlobalGameState.BuildingType.SHOP,
-				   GlobalGameState.BuildingType.TAVERN, GlobalGameState.BuildingType.CHURCH]:
+		if type in [MainGameState.BuildingType.KEEP, MainGameState.BuildingType.SHOP,
+				   MainGameState.BuildingType.TAVERN, MainGameState.BuildingType.CHURCH]:
 			important_buildings.append(building)
 	
 	if important_buildings.size() >= 2:
@@ -170,7 +170,7 @@ func generate_patrol_route(npc: Node, settlement_data: Dictionary) -> void:
 		npc.state_data["patrol_points"] = patrol_points
 		npc.state_data["current_patrol_point"] = 0
 
-func assign_job(npc_type: GlobalGameState.NpcType) -> String:
+func assign_job(npc_type: MainGameState.NpcType) -> String:
 	var possible_jobs = NPC_JOBS.get(npc_type, ["none"])
 	return possible_jobs[rng.randi() % possible_jobs.size()]
 
@@ -203,7 +203,7 @@ func setup_npc_job(npc: Node, job: String, _workplace: Dictionary, settlement_da
 	# Set custom dialogue based on job
 	setup_dialogue_for_job(npc, job, settlement_data)
 
-func generate_name_for_job(job: String, npc_type: GlobalGameState.NpcType) -> String:
+func generate_name_for_job(job: String, npc_type: MainGameState.NpcType) -> String:
 	var first_names = [
 		"John", "Emma", "Bjorn", "Astrid", "Karim", "Leila", "Takeshi",
 		"Mei", "Olga", "Diego", "Darius", "Lyra", "Marcus", "Sefa"
@@ -256,7 +256,7 @@ func generate_name_for_job(job: String, npc_type: GlobalGameState.NpcType) -> St
 			
 	return npc_full_name
 
-func generate_schedule_for_job(job: String, npc_type: GlobalGameState.NpcType) -> Dictionary:
+func generate_schedule_for_job(job: String, npc_type: MainGameState.NpcType) -> Dictionary:
 	var schedule = {}
 	
 	# Basic schedule template
@@ -417,7 +417,7 @@ func spawn_wilderness_npcs(_area_size: Vector2i, parent_node: Node2D, wilderness
 	
 	return spawned_npcs
 
-func setup_npc_in_wilderness(npc: Node, npc_type: GlobalGameState.NpcType, wilderness_type: String) -> void:
+func setup_npc_in_wilderness(npc: Node, npc_type: MainGameState.NpcType, wilderness_type: String) -> void:
 	# Initialize NPC at a random position in local area only
 	npc.initialize(npc.get_parent(), Vector2.ZERO)
 	
@@ -451,7 +451,7 @@ func setup_npc_in_wilderness(npc: Node, npc_type: GlobalGameState.NpcType, wilde
 			# Travelers and hunters wander farther
 			npc.wander_radius = 15.0 if job == "traveler" or job == "hunter" else 8.0
 
-func spawn_npc(npc_type: GlobalGameState.NpcType, parent_node: Node2D) -> Node:
+func spawn_npc(npc_type: MainGameState.NpcType, parent_node: Node2D) -> Node:
 	var npc = npc_scene.instantiate()
 	parent_node.add_child(npc)
 	npc.npc_type = npc_type
@@ -459,7 +459,7 @@ func spawn_npc(npc_type: GlobalGameState.NpcType, parent_node: Node2D) -> Node:
 	print("Spawning NPC of type: ", npc_type, " in local area environment")
 	return npc
 
-func find_suitable_building(npc_type: GlobalGameState.NpcType, settlement_data: Dictionary, specific_type = null, building_occupancy = null) -> Dictionary:
+func find_suitable_building(npc_type: MainGameState.NpcType, settlement_data: Dictionary, specific_type = null, building_occupancy = null) -> Dictionary:
 	var buildings = settlement_data.get("buildings", {})
 	var suitable_buildings = []
 	
