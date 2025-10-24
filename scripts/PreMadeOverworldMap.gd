@@ -37,18 +37,20 @@ class CustomTileData:
 		is_walkable = t != Terrain.WATER
 		tile_position = p
 		tile_coordinates = Vector2i(p / TILE_SIZE)
+		
+@onready var ground: TileMapLayer = $ground
+@onready var mountains: TileMapLayer = $Mountains
+@onready var settlements: TileMapLayer = $settlements
 
-@onready var tilemap: TileMap = $TileMap
 var map_data: Array[Array] = []
 const TILE_SIZE = 16 # Size of each tile in pixels
 const WIDTH = 2096.0 / TILE_SIZE
 const HEIGHT = 1296.0 / TILE_SIZE
 
 func _ready() -> void:
-	if not tilemap:
-		push_error("TileMap node not found!")
-		return
-	
+	# if not tilemap:
+	# 	push_error("TileMap node not found!")
+	# 	return
 	initialize_map_data()
 
 # Initialize the map data from the TileMap
@@ -70,7 +72,7 @@ func initialize_map_data() -> void:
 			var settlement = Settlement.NONE
 			
 			# Check ground layer (0) for base terrain
-			var ground_data = tilemap.get_cell_tile_data(Layer.GROUND, pos)
+			var ground_data = ground.get_cell_tile_data(pos)
 			if ground_data != null:
 				# Get terrain from terrain set first
 				if ground_data.terrain_set >= 0:
@@ -80,16 +82,16 @@ func initialize_map_data() -> void:
 					terrain = get_terrain_from_id(ground_data.terrain)
 			
 			# Check geography layer (3) for mountains
-			var geo_data = tilemap.get_cell_tile_data(Layer.MOUNTAINS, pos)
+			var geo_data = mountains.get_cell_tile_data(pos)
 			if geo_data != null:
-				var atlas_coords = tilemap.get_cell_atlas_coords(Layer.MOUNTAINS, pos)
+				var atlas_coords = mountains.get_cell_atlas_coords(pos)
 				if atlas_coords == GEOGRAPHY_TILES.MOUNTAIN: # Mountain tile coordinates
 					terrain = Terrain.MOUNTAIN
 			
 			# Check settlements layer (2)
-			var settlement_data = tilemap.get_cell_tile_data(Layer.SETTLEMENTS, pos)
+			var settlement_data = settlements.get_cell_tile_data(pos)
 			if settlement_data != null:
-				var atlas_coords = tilemap.get_cell_atlas_coords(Layer.SETTLEMENTS, pos)
+				var atlas_coords = settlements.get_cell_atlas_coords(pos)
 				settlement = get_settlement_from_coords(atlas_coords)
 			
 			map_data[y][x] = CustomTileData.new(terrain, settlement)
@@ -183,10 +185,10 @@ func debug_print_tile(pos: Vector2i) -> void:
 	var terrain_source = ""
 	
 	# Check which layer the terrain comes from
-	if tilemap.get_cell_tile_data(Layer.MOUNTAINS, pos) != null:
+	if mountains.get_cell_tile_data(pos) != null:
 		terrain_source = " (from mountains layer)"
-	elif tilemap.get_cell_tile_data(Layer.GROUND, pos) != null:
-		var ground_data = tilemap.get_cell_tile_data(Layer.GROUND, pos)
+	elif ground.get_cell_tile_data(pos) != null:
+		var ground_data = ground.get_cell_tile_data(pos)
 		terrain_source = " (from ground layer, terrain set: " + str(ground_data.terrain_set) + ")"
 	
 	print("Terrain: ", terrain_str, terrain_source)
