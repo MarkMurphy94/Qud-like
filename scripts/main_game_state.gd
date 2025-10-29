@@ -15,8 +15,10 @@ const FACTIONS = {}
 var player_turn = false
 
 # All settlements, keyed by unique ID or coordinates
+# TODO - add new entries manually. Only include overworld position and see if it generates full config correctly
 var settlements = {
 	"town_1": {
+		"name": "town_1",
 		"pos": Vector2i(13, 21),
 		"seed": 1605628986,
 		"type": SettlementType.TOWN,
@@ -30,135 +32,22 @@ var settlements = {
 		},
 		"important_npcs": {}
 	},
-	"town_2_full": {
+	"town_2": {
+		"name": "town_2",
 		"type": SettlementType.TOWN,
 		"pos": Vector2i(17, 18),
-		"seed": null,
+		"climate": null,
+		"culture": null,
+		"seed": 1471873267,
 		"width": 80,
 		"height": 80,
-		"buildings": {
-			"tavern_at_29_41": {
-				"id": "tavern_at_29_41",
-				"type": BuildingType.TAVERN,
-				"pos": Vector2i(29, 41),
-				"size": Vector2i(7, 7),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"shop_at_56_34": {
-				"id": "shop_at_56_34",
-				"type": BuildingType.SHOP,
-				"pos": Vector2i(56, 34),
-				"size": Vector2i(6, 7),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_34_32": {
-				"id": "house_at_34_32",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(34, 32),
-				"size": Vector2i(4, 6),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_40_31": {
-				"id": "house_at_40_31",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(40, 31),
-				"size": Vector2i(6, 5),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_39_51": {
-				"id": "house_at_39_51",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(39, 51),
-				"size": Vector2i(5, 4),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_26_14": {
-				"id": "house_at_26_14",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(26, 14),
-				"size": Vector2i(6, 4),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_18_46": {
-				"id": "house_at_18_46",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(18, 46),
-				"size": Vector2i(6, 5),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_50_44": {
-				"id": "house_at_50_44",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(50, 44),
-				"size": Vector2i(5, 6),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_39_42": {
-				"id": "house_at_39_42",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(39, 42),
-				"size": Vector2i(5, 6),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_33_23": {
-				"id": "house_at_33_23",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(33, 23),
-				"size": Vector2i(4, 5),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_20_39": {
-				"id": "house_at_20_39",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(20, 39),
-				"size": Vector2i(6, 5),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			},
-			"house_at_40_56": {
-				"id": "house_at_40_56",
-				"type": BuildingType.HOUSE,
-				"pos": Vector2i(40, 56),
-				"size": Vector2i(6, 4),
-				"zones": [],
-				"inhabitants": [],
-				"interior_features": {},
-				"scripted_content": null
-			}
-		},
+		"buildings": {},
 		"important_npcs": {}
+	},
+	"town_3": {
+		"name": "town_3",
+		"pos": Vector2i(7, 22),
+		"type": SettlementType.CASTLE,
 	}
 }
 
@@ -193,6 +82,7 @@ var important_npcs = {}
 # Example: Add, get, update, and remove functions for settlements and NPCs
 func add_settlement(id: String, data: Dictionary) -> void:
 	settlements[id] = data
+	print(settlements[id])
 
 func get_settlement(id: String) -> Dictionary:
 	return settlements.get(id, {})
@@ -215,13 +105,14 @@ func make_settlement_key(settlement_type: int, world_pos: Vector2i) -> String:
 	return "%s_%d_%d" % [tname, world_pos.x, world_pos.y]
 
 # Ensure a minimal config exists for a settlement; returns the config
-func ensure_settlement_config(settlement_type: int, world_pos: Vector2i, seed_value: int = 0) -> Dictionary:
+func ensure_settlement_config(settlement_type: int, world_pos: Vector2i, seed_value: int = 0):
 	var key := make_settlement_key(settlement_type, world_pos)
 	var conf = get_settlement(key)
 	if conf.is_empty():
 		if seed_value == 0:
 			seed_value = randi()
 		conf = {
+			"name": key,
 			"type": settlement_type,
 			"pos": world_pos,
 			"seed": seed_value,
@@ -230,7 +121,6 @@ func ensure_settlement_config(settlement_type: int, world_pos: Vector2i, seed_va
 			"buildings": {}, # filled after first entry
 			"important_npcs": {}
 		}
-		settlements[key] = conf
 	else:
 		# Backfill missing fields for older saves
 		if not conf.has("type"): conf.type = settlement_type
@@ -239,5 +129,5 @@ func ensure_settlement_config(settlement_type: int, world_pos: Vector2i, seed_va
 		if not conf.has("width"): conf.width = 80
 		if not conf.has("height"): conf.height = 80
 		if not conf.has("buildings"): conf.buildings = {}
-		settlements[key] = conf
+	add_settlement(key, conf)
 	return conf

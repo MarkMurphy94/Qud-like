@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SettlementConfig" load_steps=2 format=3 uid="uid://cjoig2hnu5fcd"]
+
+[ext_resource type="Script" uid="uid://baxf1dd61f7dd" path="res://resources/settlement.gd" id="1_1jrai"]
+
+[resource]
+script = ExtResource("1_1jrai")
+noise_scale = 20.0
+tree_density = 0.1
+bush_density = 0.15
+rock_density = 0.08
+water_level = 0.4
+overworld_tile = Vector2i(17, 18)
+SEED = 3167523846
+settlement_name = "town_1"
+area_type = 1
+climate = ""
+culture = ""

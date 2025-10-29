@@ -1,8 +1,11 @@
-[gd_scene load_steps=4 format=3 uid="uid://c1othl8sw151g"]
+[gd_scene load_steps=7 format=3 uid="uid://c1othl8sw151g"]
 
 [ext_resource type="Script" uid="uid://dlmon0wdqcnnl" path="res://scripts/main_game.gd" id="1_lnu2h"]
 [ext_resource type="PackedScene" uid="uid://2yt1rem30pxh" path="res://scenes/player.tscn" id="1_obwjb"]
 [ext_resource type="PackedScene" uid="uid://bus31nsk52q8w" path="res://scenes/overworld_map_drawn.tscn" id="2_3ygxx"]
+[ext_resource type="Script" uid="uid://baxf1dd61f7dd" path="res://resources/settlement.gd" id="2_lbhrr"]
+[ext_resource type="Resource" uid="uid://h6wcob6b8yx7" path="res://resources/town_1.tres" id="5_iywne"]
+[ext_resource type="Resource" uid="uid://cjoig2hnu5fcd" path="res://resources/town_2.tres" id="6_p57ef"]
 
 [node name="Overworld" type="Node2D"]
 visibility_layer = 7
@@ -13,3 +16,4 @@ z_index = 2
 position = Vector2(184, 344)
 
 [node name="OverworldMap" parent="." instance=ExtResource("2_3ygxx")]
+settlements_list = Array[ExtResource("2_lbhrr")]([ExtResource("5_iywne"), ExtResource("6_p57ef")])
