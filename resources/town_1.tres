@@ -1,5 +1,6 @@
-[gd_resource type="Resource" script_class="SettlementConfig" load_steps=2 format=3 uid="uid://h6wcob6b8yx7"]
+[gd_resource type="Resource" script_class="SettlementConfig" load_steps=3 format=3 uid="uid://h6wcob6b8yx7"]
 
+[ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_0em7w"]
 [ext_resource type="Script" uid="uid://baxf1dd61f7dd" path="res://resources/settlement.gd" id="1_gjda2"]
 
 [resource]
@@ -12,6 +13,7 @@ water_level = 0.4
 overworld_tile = Vector2i(13, 21)
 SEED = 1605628986
 settlement_name = "town_1"
+buildings = Array[ExtResource("1_0em7w")]([])
 area_type = 1
 climate = ""
 culture = ""

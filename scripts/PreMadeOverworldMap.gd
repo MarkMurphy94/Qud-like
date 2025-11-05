@@ -42,6 +42,8 @@ class CustomTileData:
 @onready var mountains: TileMapLayer = $Mountains
 @onready var settlements: TileMapLayer = $settlements
 
+@export var settlements_list: Array[SettlementConfig] = []
+
 var map_data: Array[Array] = []
 const TILE_SIZE = 16 # Size of each tile in pixels
 const WIDTH = 2096.0 / TILE_SIZE
@@ -67,12 +69,12 @@ func initialize_map_data() -> void:
 	# Read data from tilemap layers
 	for y in HEIGHT:
 		for x in WIDTH:
-			var pos = Vector2i(x, y)
+			var tile_pos = Vector2i(x, y)
 			var terrain = Terrain.NONE
 			var settlement = Settlement.NONE
 			
 			# Check ground layer (0) for base terrain
-			var ground_data = ground.get_cell_tile_data(pos)
+			var ground_data = ground.get_cell_tile_data(tile_pos)
 			if ground_data != null:
 				# Get terrain from terrain set first
 				if ground_data.terrain_set >= 0:
@@ -82,16 +84,16 @@ func initialize_map_data() -> void:
 					terrain = get_terrain_from_id(ground_data.terrain)
 			
 			# Check geography layer (3) for mountains
-			var geo_data = mountains.get_cell_tile_data(pos)
+			var geo_data = mountains.get_cell_tile_data(tile_pos)
 			if geo_data != null:
-				var atlas_coords = mountains.get_cell_atlas_coords(pos)
+				var atlas_coords = mountains.get_cell_atlas_coords(tile_pos)
 				if atlas_coords == GEOGRAPHY_TILES.MOUNTAIN: # Mountain tile coordinates
 					terrain = Terrain.MOUNTAIN
 			
 			# Check settlements layer (2)
-			var settlement_data = settlements.get_cell_tile_data(pos)
+			var settlement_data = settlements.get_cell_tile_data(tile_pos)
 			if settlement_data != null:
-				var atlas_coords = settlements.get_cell_atlas_coords(pos)
+				var atlas_coords = settlements.get_cell_atlas_coords(tile_pos)
 				settlement = get_settlement_from_coords(atlas_coords)
 			
 			map_data[y][x] = CustomTileData.new(terrain, settlement)
@@ -131,64 +133,70 @@ func map_to_world(map_pos: Vector2i) -> Vector2:
 
 # Public methods for querying map data
 
-func get_tile_data(pos: Vector2i) -> CustomTileData:
-	if is_valid_position(pos):
-		return map_data[pos.y][pos.x]
+func get_tile_data(tile_pos: Vector2i) -> CustomTileData:
+	if is_valid_position(tile_pos):
+		return map_data[tile_pos.y][tile_pos.x]
 	return CustomTileData.new(Terrain.NONE)
 
-func is_valid_position(pos: Vector2i) -> bool:
-	return pos.x >= 0 and pos.x < WIDTH and pos.y >= 0 and pos.y < HEIGHT
+func is_valid_position(tile_pos: Vector2i) -> bool:
+	return tile_pos.x >= 0 and tile_pos.x < WIDTH and tile_pos.y >= 0 and tile_pos.y < HEIGHT
 
-func is_walkable(pos: Vector2i) -> bool:
-	if not is_valid_position(pos):
+func is_walkable(tile_pos: Vector2i) -> bool:
+	if not is_valid_position(tile_pos):
 		return false
-	return map_data[pos.y][pos.x].is_walkable
+	return map_data[tile_pos.y][tile_pos.x].is_walkable
 
-func has_settlement(pos: Vector2i) -> bool:
-	debug_print_tile(pos)
-	if not is_valid_position(pos):
+func has_settlement(tile_pos: Vector2i) -> bool:
+	debug_print_tile(tile_pos)
+	if not is_valid_position(tile_pos):
 		return false
-	return map_data[pos.y][pos.x].settlement != Settlement.NONE
+	return map_data[tile_pos.y][tile_pos.x].settlement != Settlement.NONE
 
-func get_terrain(pos: Vector2i) -> int:
-	if not is_valid_position(pos):
+func get_terrain(tile_pos: Vector2i) -> int:
+	if not is_valid_position(tile_pos):
 		return Terrain.NONE
-	return map_data[pos.y][pos.x].terrain
+	return map_data[tile_pos.y][tile_pos.x].terrain
 
-func get_settlement_type(pos: Vector2i) -> int:
-	if not is_valid_position(pos):
+func get_settlement_type(tile_pos: Vector2i) -> int:
+	if not is_valid_position(tile_pos):
 		return Settlement.NONE
-	return map_data[pos.y][pos.x].settlement
+	return map_data[tile_pos.y][tile_pos.x].settlement
 
-func get_settlement_from_seed(pos: Vector2i):
-	var settlement_seed = null
-	for town in MainGameState.settlements:
-		if MainGameState.settlements[town]["pos"] == pos:
-			settlement_seed = MainGameState.settlements[town]["seed"]
+func get_settlement_from_seed(tile_pos: Vector2i):
+	var settlement_seed = 0
+	for s in settlements_list:
+		if s.overworld_tile == tile_pos:
+			settlement_seed = settlements_list[s]["seed"]
 			break
 	if settlement_seed:
 		print("Identified settlement from settlement_seed: ", settlement_seed)
-		return settlement_seed
 	else:
 		print("No settlement found for settlement_seed: ", settlement_seed)
+	return settlement_seed
 
-func debug_print_tile(pos: Vector2i) -> void:
-	if not is_valid_position(pos):
-		print("Invalid position: ", pos)
+func settlement_at_tile(tile_pos: Vector2i) -> SettlementConfig:
+	for s in settlements_list:
+		if s.overworld_tile == tile_pos:
+			return s
+	return null
+
+func debug_print_tile(tile_pos: Vector2i) -> void:
+	if not is_valid_position(tile_pos):
+		print("Invalid position: ", tile_pos)
 		return
 	
-	var tile = map_data[pos.y][pos.x]
-	print("Position: ", pos)
+	var tile = map_data[tile_pos.y][tile_pos.x]
+	print("Position: ", tile_pos)
 	
 	# Print terrain info with layer source
 	var terrain_str = Terrain.keys()[tile.terrain]
 	var terrain_source = ""
 	
 	# Check which layer the terrain comes from
-	if mountains.get_cell_tile_data(pos) != null:
+	if mountains.get_cell_tile_data(tile_pos) != null:
 		terrain_source = " (from mountains layer)"
-	elif ground.get_cell_tile_data(pos) != null:
-		var ground_data = ground.get_cell_tile_data(pos)
+	elif ground.get_cell_tile_data(tile_pos) != null:
+		var ground_data = ground.get_cell_tile_data(tile_pos)
 		terrain_source = " (from ground layer, terrain set: " + str(ground_data.terrain_set) + ")"
 	
 	print("Terrain: ", terrain_str, terrain_source)
