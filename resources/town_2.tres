@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="SettlementConfig" load_steps=4 format=3 uid="uid://cjoig2hnu5fcd"]
+[gd_resource type="Resource" script_class="AreaConfig" load_steps=4 format=3 uid="uid://cjoig2hnu5fcd"]
 
 [ext_resource type="Script" uid="uid://baxf1dd61f7dd" path="res://resources/settlement.gd" id="1_1jrai"]
 [ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_ndkx0"]

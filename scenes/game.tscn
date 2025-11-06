@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://baxf1dd61f7dd" path="res://resources/settlement.gd" id="2_lbhrr"]
 [ext_resource type="Resource" uid="uid://h6wcob6b8yx7" path="res://resources/town_1.tres" id="5_iywne"]
 [ext_resource type="Resource" uid="uid://cjoig2hnu5fcd" path="res://resources/town_2.tres" id="6_p57ef"]
-[ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/settlement_container.tscn" id="7_u5sy4"]
+[ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/area_container.tscn" id="7_u5sy4"]
 
 [node name="Overworld" type="Node2D"]
 visibility_layer = 7
@@ -19,4 +19,4 @@ position = Vector2(184, 344)
 [node name="OverworldMap" parent="." instance=ExtResource("2_3ygxx")]
 settlements_list = Array[ExtResource("2_lbhrr")]([ExtResource("5_iywne"), ExtResource("6_p57ef")])
 
-[node name="SettlementContainer" parent="." instance=ExtResource("7_u5sy4")]
+[node name="AreaContainer" parent="." instance=ExtResource("7_u5sy4")]

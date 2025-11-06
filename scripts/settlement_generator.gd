@@ -1,12 +1,12 @@
 @tool
 extends Node2D
-class_name AreaGenerator
+class_name LocationGenerator
 
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, DIRT, WATER}
 enum FoliageTile {TREE, BUSH, ROCK}
-enum StructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
+enum HamletStructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
 
 # Area generation types
 enum AreaType {
@@ -16,7 +16,7 @@ enum AreaType {
 	CASTLE # Castle settlement
 }
 
-# Terrain sets for ground tiles (matching SettlementGenerator)
+# Terrain sets for ground tiles (matching LocationGenerator)
 const TERRAINS = {
 	"stone": 0, # Stone paths and plazas
 	"grass": 1, # Natural grass areas
@@ -25,7 +25,7 @@ const TERRAINS = {
 	"wheat_field": 4,
 }
 
-# Layer definitions matching SettlementGenerator
+# Layer definitions matching LocationGenerator
 const LAYERS = {
 	"GROUND": 0,
 	"INTERIOR_FLOOR": 1,
@@ -68,7 +68,7 @@ const FOLIAGE_COORDS = {
 	FoliageTile.ROCK: Vector2i(4, 8) # Boulder/rock tile
 }
 
-# Tile definitions matching SettlementGenerator structure
+# Tile definitions matching LocationGenerator structure
 const STRUCTURE_TILES = {
 	"FLOOR_WOOD": Vector2i(67, 10),
 	"FLOOR_STONE": Vector2i(7, 10),
@@ -101,7 +101,7 @@ const STRUCTURE_TILES = {
 }
 
 const STRUCTURE_TEMPLATES = {
-	StructureType.HOUSE: {
+		HamletStructureType.HOUSE: {
 		"min_size": Vector2i(4, 4),
 		"max_size": Vector2i(6, 6),
 		"floor": "FLOOR_WOOD",
@@ -119,7 +119,7 @@ const STRUCTURE_TEMPLATES = {
 		"ground": "DIRT",
 		"spacing": 1
 	},
-	StructureType.SHOP: {
+		HamletStructureType.SHOP: {
 		"min_size": Vector2i(5, 5),
 		"max_size": Vector2i(7, 7),
 		"floor": "FLOOR_WOOD",
@@ -137,7 +137,7 @@ const STRUCTURE_TEMPLATES = {
 		"ground": "STONE",
 		"spacing": 2
 	},
-	StructureType.TEMPLE: {
+		HamletStructureType.TEMPLE: {
 		"min_size": Vector2i(6, 6),
 		"max_size": Vector2i(9, 9),
 		"floor": "FLOOR_WOOD",
@@ -155,7 +155,7 @@ const STRUCTURE_TEMPLATES = {
 		"ground": "GRASS",
 		"spacing": 3
 	},
-	StructureType.TOWER: {
+		HamletStructureType.TOWER: {
 		"min_size": Vector2i(4, 4),
 		"max_size": Vector2i(6, 6),
 		"floor": "FLOOR_STONE",
@@ -173,7 +173,7 @@ const STRUCTURE_TEMPLATES = {
 		"ground": "STONE",
 		"spacing": 3
 	},
-	StructureType.WALL: {
+		HamletStructureType.WALL: {
 		"min_size": Vector2i(6, 6),
 		"max_size": Vector2i(9, 9),
 		"floor": "FLOOR_STONE",
@@ -193,23 +193,11 @@ const STRUCTURE_TEMPLATES = {
 	}
 }
 
-# Building type mappings for settlements from SettlementGenerator  
-const BUILDINGTYPE = MainGameState.BuildingType
-const SETTLEMENTTYPE = MainGameState.SettlementType
+# (Legacy MainGameState enums removed; using Structure.StructureType and AreaType)
 
-var BuildingTypeStrings = {
-	BUILDINGTYPE.HOUSE: "house",
-	BUILDINGTYPE.TAVERN: "tavern",
-	BUILDINGTYPE.SHOP: "shop",
-	BUILDINGTYPE.MANOR: "manor",
-	BUILDINGTYPE.BARRACKS: "barracks",
-	BUILDINGTYPE.CHURCH: "church",
-	BUILDINGTYPE.KEEP: "keep"
-}
-
-# Building templates for settlements (from SettlementGenerator)
+# Building templates for settlements (from LocationGenerator)
 const BUILDING_TEMPLATES = {
-	BUILDINGTYPE.HOUSE: {
+		Structure.StructureType.HOUSE: {
 		"min_size": Vector2i(4, 4),
 		"max_size": Vector2i(6, 6),
 		"floor": "FLOOR_WOOD",
@@ -227,7 +215,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "DIRT",
 		"spacing": 1
 	},
-	BUILDINGTYPE.TAVERN: {
+		Structure.StructureType.TAVERN: {
 		"min_size": Vector2i(6, 6),
 		"max_size": Vector2i(8, 8),
 		"floor": "FLOOR_WOOD",
@@ -245,7 +233,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "STONE",
 		"spacing": 2
 	},
-	BUILDINGTYPE.SHOP: {
+		Structure.StructureType.SHOP: {
 		"min_size": Vector2i(5, 5),
 		"max_size": Vector2i(7, 7),
 		"floor": "FLOOR_WOOD",
@@ -263,7 +251,7 @@ const BUILDING_TEMPLATES = {
 		"ground": "STONE",
 		"spacing": 2
 	},
-	BUILDINGTYPE.MANOR: {
+		Structure.StructureType.MANOR: {
 		"min_size": Vector2i(8, 8),
 		"max_size": Vector2i(12, 12),
 		"floor": "FLOOR_TILE",
@@ -289,37 +277,33 @@ const TILE_SIZE = 16 # Size of each tile in pixels
 const TILE_SOURCE_ID = 5 # The ID of the TileSetAtlasSource in the tileset
 const TERRAIN_SET_ID = 0 # The ID of the TerrainSetAtlasSource in the tileset
 
-# Default terrain type for each settlement type (from SettlementGenerator)
+# Default terrain type for each settlement type (from LocationGenerator)
 const SETTLEMENT_TERRAIN = {
-	SETTLEMENTTYPE.TOWN: {
+		AreaType.TOWN: {
 		"primary": "grass",
 		"secondary": "grass",
 		"paths": "dirt"
 	},
-	SETTLEMENTTYPE.CITY: {
+		AreaType.CITY: {
 		"primary": "grass",
 		"secondary": "dirt",
 		"paths": "stone"
 	},
-	SETTLEMENTTYPE.CASTLE: {
+		AreaType.CASTLE: {
 		"primary": "stone",
 		"secondary": "dirt",
 		"paths": "stone"
 	}
 }
 
-# Road generation parameters (from SettlementGenerator)
+# Road generation parameters (from LocationGenerator)
 const ROAD_WIDTH = 2
 const PLAZA_MIN_SIZE = 4
 const PLAZA_MAX_SIZE = 8
 const PLAZA_DISTANCE_THRESHOLD = 10
 
-@export var noise_scale: float = 20.0
-@export var tree_density: float = 0.1
-@export var bush_density: float = 0.15
-@export var rock_density: float = 0.08
-@export var water_level: float = 0.4
-@export var base_area_type: AreaType = AreaType.LOCAL_AREA
+@export var area_template: AreaConfig
+
 @onready var spawn_tile: Area2D = $spawn_tile
 @onready var npc_spawner: NPCSpawner = $npc_spawner
 @onready var ground: TileMapLayer = $ground
@@ -328,20 +312,8 @@ var noise: FastNoiseLite
 var rng = RandomNumberGenerator.new()
 var base_terrain: int = 1 # The overworld terrain type this area is based on, default = grass
 var overworld_position: Vector2i
-@export var SEED: int = 0
 
-# Registry for all buildings in settlements (from SettlementGenerator)
-var building_registry := {}
-
-var BuildingTypeByName := {
-	"house": BUILDINGTYPE.HOUSE,
-	"tavern": BUILDINGTYPE.TAVERN,
-	"shop": BUILDINGTYPE.SHOP,
-	"manor": BUILDINGTYPE.MANOR,
-	"barracks": BUILDINGTYPE.BARRACKS,
-	"church": BUILDINGTYPE.CHURCH,
-	"keep": BUILDINGTYPE.KEEP
-}
+# Using area_template.buildings (Array[Structure]) as the authoritative building list
 
 func _ready() -> void:
 	# Check all tilemaps exist
@@ -356,14 +328,15 @@ func _ready() -> void:
 	
 	# Initialize noise
 	noise = FastNoiseLite.new()
-	# setup_and_generate()
+	# npc_spawner.settlement_data = area_template
+	setup_and_generate() # un-comment to use in-editor
 
 # Public function to generate either local areas or settlements
 func setup_and_generate(
-		area_type = base_area_type,
+		area_type = area_template.area_type,
 		overworld_tile_type: int = OverworldTile.GRASS,
 		world_position: Vector2i = Vector2i.ZERO,
-		seed_value: int = SEED
+		seed_value: int = area_template.SEED
 	) -> void:
 	overworld_position = world_position
 	var local_rng = RandomNumberGenerator.new()
@@ -376,30 +349,25 @@ func setup_and_generate(
 		AreaType.LOCAL_AREA:
 			generate_local_area(overworld_tile_type, world_position, local_rng)
 		AreaType.TOWN, AreaType.CITY, AreaType.CASTLE:
-			var stype := (
-				SETTLEMENTTYPE.TOWN if area_type == AreaType.TOWN else
-				SETTLEMENTTYPE.CITY if area_type == AreaType.CITY else
-				SETTLEMENTTYPE.CASTLE
-			)
 			# Ensure a config exists (seed/type/size/pos), then decide build vs generate
-			var conf = MainGameState.ensure_settlement_config(stype, overworld_position, local_rng.seed)
-			if conf.has("buildings") and conf.buildings.size() > 0:
-				build_settlement_from_dataset(conf)
-				npc_spawner.spawn_settlement_npcs(conf, self)
-			else:
-				generate_settlement(stype, local_rng)
+			# comment out the below block + un-indent generate_settlement() to use in editor
+			# if area_template.buildings and area_template.buildings.size() > 0:
+			# 	build_settlement_from_dataset()
+			# else:
+			generate_settlement(area_type, local_rng)
+			# npc_spawner.spawn_settlement_npcs(self)
 	print("area seed is: ", local_rng.seed)
 
 # Build a settlement from a saved dataset (no randomness in placement)
-func build_settlement_from_dataset(details: Dictionary) -> void:
+func build_settlement_from_dataset() -> void:
 	# Clear layers
 	for layer in LAYERS:
 		tilemaps[layer].clear()
 	# Lay base terrain deterministically using saved seed and type
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var settlement_rng := RandomNumberGenerator.new()
-	settlement_rng.seed = int(details.get("seed", 0))
-	var settlement_type: int = int(details["type"])
+	settlement_rng.seed = int(area_template.SEED)
+	var settlement_type: int = int(area_template.area_type)
 	var settlement_terrain = SETTLEMENT_TERRAIN[settlement_type]
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
@@ -418,26 +386,15 @@ func build_settlement_from_dataset(details: Dictionary) -> void:
 		if not terrain_cells[terrain].is_empty():
 			tilemaps["GROUND"].set_cells_terrain_connect(terrain_cells[terrain], TERRAIN_SET_ID, TERRAINS[terrain], false)
 
-	# Place buildings exactly as recorded
-	building_registry.clear()
-	var placed_for_roads := []
-	for bid in details.buildings.keys():
-		var b = details.buildings[bid]
-		var btype = b["type"]
-		var enum_type: int = (btype if typeof(btype) == TYPE_INT else BuildingTypeByName.get(String(btype).to_lower(), BUILDINGTYPE.HOUSE))
-		var pos: Vector2i = b["pos"]
-		var size: Vector2i = b["size"]
+	# Place buildings from resource array exactly as recorded
+	var placed_for_roads: Array = []
+	for b: Structure in area_template.buildings:
+		if b == null:
+			continue
+		var enum_type: int = int(b.TYPE)
+		var pos: Vector2i = b.POSITION
+		var size: Vector2i = (b.INTERIOR_SIZE if b.INTERIOR_SIZE != Vector2i.ZERO else Vector2i(4, 4)) + Vector2i(2, 2)
 		place_building_settlement(pos, size, enum_type)
-		building_registry[bid] = {
-			"type": enum_type,
-			"pos": pos,
-			"size": size,
-			"interior_size": size - Vector2i(2, 2),
-			"zones": b.get("zones", []),
-			"inhabitants": b.get("inhabitants", []),
-			"interior_features": b.get("interior_features", {}),
-			"scripted_content": b.get("scripted_content", null)
-		}
 		placed_for_roads.append({"type": enum_type, "pos": pos, "size": size})
 
 	# Rebuild roads from building list
@@ -446,27 +403,33 @@ func build_settlement_from_dataset(details: Dictionary) -> void:
 
 # Gather compact dataset for persistence
 func get_settlement_details() -> Dictionary:
+	# Legacy summary using resource-backed data (useful for debugging/compat)
 	var details := {
-		"type": SETTLEMENTTYPE.TOWN, # caller overrides
-		"seed": SEED,
+		"type": int(area_template.area_type),
+		"seed": area_template.SEED,
 		"width": WIDTH,
 		"height": HEIGHT,
 		"pos": overworld_position,
 		"buildings": {},
 		"important_npcs": {}
 	}
-	for building_id in building_registry.keys():
-		var b = building_registry[building_id]
+	var idx := 0
+	for b: Structure in area_template.buildings:
+		if b == null:
+			continue
+		var outer_size: Vector2i = (b.INTERIOR_SIZE if b.INTERIOR_SIZE != Vector2i.ZERO else Vector2i(4, 4)) + Vector2i(2, 2)
+		var building_id = "%s_%d" % [str(b.TYPE).to_lower(), idx]
 		details.buildings[building_id] = {
 			"id": building_id,
-			"type": b["type"],
-			"pos": b["pos"],
-			"size": b["size"],
-			"zones": b.get("zones", []),
-			"inhabitants": b.get("inhabitants", []),
-			"interior_features": b.get("interior_features", {}),
-			"scripted_content": b.get("scripted_content", null)
+			"type": int(b.TYPE),
+			"pos": b.POSITION,
+			"size": outer_size,
+			"zones": b.ZONES,
+			"inhabitants": [],
+			"interior_features": b.INTERIOR_FEATURES,
+			"scripted_content": b.SCRIPTED_CONTENT
 		}
+		idx += 1
 	return details
 
 # Legacy function for backward compatibility
@@ -482,14 +445,14 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 	var map_seed = generate_seed(world_position, overworld_tile_type)
 	local_rng.seed = map_seed
 	noise.seed = map_seed
-	noise.frequency = 1.0 / noise_scale
+	noise.frequency = 1.0 / area_template.noise_scale
 	print("local area seed: ", map_seed, " for terrain: ", base_terrain)
 	
 	# Initialize terrain cells for each type
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
 	
-	# Generate base terrain using the same structure as SettlementGenerator
+	# Generate base terrain using the same structure as LocationGenerator
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	
 	# Set initial terrain and collect cells for each terrain type
@@ -531,28 +494,28 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 	# Connect terrain for proper transitions
 	connect_terrain()
 
-# Generate settlement function (from SettlementGenerator)
+# Generate settlement function (from LocationGenerator)
 func generate_settlement(settlement_type: int, settlement_rng: RandomNumberGenerator) -> void:
-	SEED = settlement_rng.seed
+	area_template.SEED = settlement_rng.seed
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var building_counts = {
-		SETTLEMENTTYPE.TOWN: {
-			BUILDINGTYPE.HOUSE: 10,
-			BUILDINGTYPE.TAVERN: 1,
-			BUILDINGTYPE.SHOP: 1,
-			BUILDINGTYPE.MANOR: 0
+			AreaType.TOWN: {
+				Structure.StructureType.HOUSE: 10,
+				Structure.StructureType.TAVERN: 1,
+				Structure.StructureType.SHOP: 1,
+				Structure.StructureType.MANOR: 0
 		},
-		SETTLEMENTTYPE.CITY: {
-			BUILDINGTYPE.HOUSE: 20,
-			BUILDINGTYPE.TAVERN: 3,
-			BUILDINGTYPE.SHOP: 3,
-			BUILDINGTYPE.MANOR: 4
+			AreaType.CITY: {
+				Structure.StructureType.HOUSE: 20,
+				Structure.StructureType.TAVERN: 3,
+				Structure.StructureType.SHOP: 3,
+				Structure.StructureType.MANOR: 4
 		},
-		SETTLEMENTTYPE.CASTLE: {
-			BUILDINGTYPE.HOUSE: settlement_rng.randi_range(2, 4),
-			BUILDINGTYPE.TAVERN: 0,
-			BUILDINGTYPE.SHOP: 0,
-			BUILDINGTYPE.MANOR: 1
+			AreaType.CASTLE: {
+				Structure.StructureType.HOUSE: settlement_rng.randi_range(2, 4),
+				Structure.StructureType.TAVERN: 0,
+				Structure.StructureType.SHOP: 0,
+				Structure.StructureType.MANOR: 1
 		}
 	}
 	print("Generating settlement of type ", settlement_type, " with counts: ", building_counts[settlement_type])
@@ -602,8 +565,8 @@ func generate_settlement(settlement_type: int, settlement_rng: RandomNumberGener
 			occupied_space_grid[y].append(false)
 
 	# Place buildings in order: Manor first, then Taverns, Shops, and finally Houses
-	var placed_buildings = []
-	var building_order = [BUILDINGTYPE.MANOR, BUILDINGTYPE.TAVERN, BUILDINGTYPE.SHOP, BUILDINGTYPE.HOUSE]
+	var placed_buildings: Array = []
+	var building_order = [Structure.StructureType.MANOR, Structure.StructureType.TAVERN, Structure.StructureType.SHOP, Structure.StructureType.HOUSE]
 	
 	for building_type in building_order:
 		var count = building_counts[settlement_type][building_type]
@@ -618,21 +581,15 @@ func generate_settlement(settlement_type: int, settlement_rng: RandomNumberGener
 				place_building_settlement(pos, size, building_type)
 				mark_occupied_settlement(occupied_space_grid, pos, size, template["spacing"])
 				placed_buildings.append({"type": building_type, "pos": pos, "size": size})
-				
-				# Register building
-				var building_name = BuildingTypeStrings[building_type]
-				var building_id = "%s_at_%d_%d" % [building_name, pos.x, pos.y]
-				var building_interior_size = size - Vector2i(2, 2)
-				building_registry[building_id] = {
-					"type": building_type,
-					"pos": pos,
-					"size": size,
-					"interior_size": building_interior_size,
-					"zones": [],
-					"inhabitants": [],
-					"interior_features": {},
-					"scripted_content": null
-				}
+				# Create and append a Structure resource instance
+				var s := Structure.new()
+				s.TYPE = building_type
+				s.POSITION = pos
+				s.INTERIOR_SIZE = size - Vector2i(2, 2)
+				s.ZONES = []
+				s.INTERIOR_FEATURES = []
+				s.SCRIPTED_CONTENT = null
+				area_template.buildings.append(s)
 	
 	# Generate roads between buildings
 	generate_roads_between_buildings(placed_buildings, settlement_rng, settlement_type)
@@ -643,10 +600,12 @@ func generate_settlement(settlement_type: int, settlement_rng: RandomNumberGener
 	var details := get_settlement_details()
 	details.type = settlement_type
 	details.seed = settlement_rng.seed
-	var key = MainGameState.make_settlement_key(settlement_type, overworld_position)
-	MainGameState.add_settlement(key, details)
-	npc_spawner.spawn_settlement_npcs(details, self)
-	print_rich("Generated settlement with ", building_registry.size(), " buildings")
+	# print_rich("Settlement details: ", details)
+
+	# comment out the below 3 lines for use in editor
+	# var key = MainGameState.make_settlement_key(settlement_type, overworld_position)
+	# MainGameState.add_settlement(key, details)
+	print_rich("Generated settlement with ", area_template.buildings.size(), " buildings")
 
 # When connecting terrain, use the terrain set index (not the tile alternative id)
 func connect_terrain() -> void:
@@ -691,7 +650,7 @@ func get_ground_tile(_x: int, _y: int, height: float) -> int:
 func add_foliage() -> void:
 	var detail_noise = FastNoiseLite.new()
 	detail_noise.seed = rng.randi()
-	detail_noise.frequency = 1.0 / (noise_scale * 0.5)
+	detail_noise.frequency = 1.0 / (area_template.noise_scale * 0.5)
 	
 	for y in HEIGHT:
 		for x in WIDTH:
@@ -705,9 +664,9 @@ func add_foliage() -> void:
 			# Only add foliage on walkable ground tiles
 			if ground_type in [GroundTile.GRASS, GroundTile.DIRT, GroundTile.STONE]:
 				# Scale densities based on terrain type
-				var local_tree_density = tree_density
-				var local_bush_density = bush_density
-				var local_rock_density = rock_density
+				var local_tree_density = area_template.tree_density
+				var local_bush_density = area_template.bush_density
+				var local_rock_density = area_template.rock_density
 				
 				match ground_type:
 					GroundTile.DIRT:
@@ -842,7 +801,7 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> v
 	var buildings_placed = 0
 	var attempts = 0
 	while buildings_placed < building_count and attempts < 100:
-		var building_type = StructureType.values()[local_rng.randi() % StructureType.size()]
+		var building_type = HamletStructureType.values()[local_rng.randi() % HamletStructureType.size()]
 		if try_place_building(building_type, occupation_grid, local_rng):
 			buildings_placed += 1
 		attempts += 1
@@ -854,12 +813,12 @@ func try_place_building(building_type: int, occupation_grid: Array, local_rng: R
 		local_rng.randi_range(template.min_size.y, template.max_size.y)
 	)
 	
-	# Find valid position using SettlementGenerator-style logic
+	# Find valid position using LocationGenerator-style logic
 	var pos = find_valid_building_position(Vector2i(WIDTH, HEIGHT), size, occupation_grid, local_rng, building_type)
 	if pos.x == -1:
 		return false
 	
-	# Place building using SettlementGenerator structure
+	# Place building using LocationGenerator structure
 	place_building(pos, size, building_type)
 	
 	# Mark area as occupied with spacing
@@ -914,7 +873,7 @@ func mark_occupied(occupied_space_grid: Array, pos: Vector2i, size: Vector2i, sp
 			if y >= 0 and y < occupied_space_grid.size() and x >= 0 and x < occupied_space_grid[y].size():
 				occupied_space_grid[y][x] = true
 
-# Update the place_building function to use SettlementGenerator structure
+# Update the place_building function to use LocationGenerator structure
 func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	var template = STRUCTURE_TEMPLATES[building_type]
 	print('placing building: ', building_type, ' at ', pos, ' with size ', size)
@@ -940,7 +899,7 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 		for x in range(pos.x, pos.x + size.x):
 			tilemaps["INTERIOR_FLOOR"].set_cell(Vector2i(x, y), TILE_SOURCE_ID, STRUCTURE_TILES[template["floor"]])
 
-	# Place walls on walls layer using SettlementGenerator structure
+	# Place walls on walls layer using LocationGenerator structure
 	for x in range(pos.x, pos.x + size.x):
 		# Top and bottom walls
 		tilemaps["WALLS"].set_cell(Vector2i(x, pos.y), TILE_SOURCE_ID, STRUCTURE_TILES[template["walls"]["top"]])
@@ -972,7 +931,7 @@ func place_building(pos: Vector2i, size: Vector2i, building_type: int) -> void:
 	tilemaps["DOORS"].set_cell(Vector2i(door_x, door_y), TILE_SOURCE_ID, STRUCTURE_TILES["DOOR"])
 
 # Settlement-specific building functions
-func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, settlement_rng: RandomNumberGenerator, building_type: int, settlement_type: int = SETTLEMENTTYPE.TOWN) -> Vector2i:
+func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, settlement_rng: RandomNumberGenerator, building_type: int, settlement_type: int = AreaType.TOWN) -> Vector2i:
 	var template = BUILDING_TEMPLATES[building_type]
 	var spacing = template["spacing"]
 	var attempts = 0
@@ -981,7 +940,7 @@ func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i
 	var center = Vector2(area_size.x / 2.0, area_size.y / 2.0)
 	var max_distance = center.length()
 	
-	var positions_to_try = 10 if settlement_type == SETTLEMENTTYPE.TOWN else 1
+	var positions_to_try = 10 if settlement_type == AreaType.TOWN else 1
 	
 	while attempts < 100:
 		var x = settlement_rng.randi_range(spacing, area_size.x - size.x - spacing)
@@ -1008,7 +967,7 @@ func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i
 				break
 		
 		if valid:
-			if settlement_type != SETTLEMENTTYPE.TOWN:
+			if settlement_type != AreaType.TOWN:
 				return Vector2i(x, y)
 			
 			# For towns, calculate score based on distance from center

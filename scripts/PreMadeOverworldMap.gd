@@ -42,7 +42,7 @@ class CustomTileData:
 @onready var mountains: TileMapLayer = $Mountains
 @onready var settlements: TileMapLayer = $settlements
 
-@export var settlements_list: Array[SettlementConfig] = []
+@export var settlements_list: Array[AreaConfig] = []
 
 var map_data: Array[Array] = []
 const TILE_SIZE = 16 # Size of each tile in pixels
@@ -174,7 +174,7 @@ func get_settlement_from_seed(tile_pos: Vector2i):
 		print("No settlement found for settlement_seed: ", settlement_seed)
 	return settlement_seed
 
-func settlement_at_tile(tile_pos: Vector2i) -> SettlementConfig:
+func settlement_at_tile(tile_pos: Vector2i) -> AreaConfig:
 	for s in settlements_list:
 		if s.overworld_tile == tile_pos:
 			return s

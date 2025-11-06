@@ -30,7 +30,7 @@ func get_all_settlements() -> Array:
 	return out
 
 func create_new_settlement_config():
-	var config := SettlementConfig.new()
+	var config := AreaConfig.new()
 	# Decide a filename using your existing key maker
 	var pos := Vector2i(13, 21)
 	var stype := MainGameState.SettlementType.TOWN
@@ -38,16 +38,16 @@ func create_new_settlement_config():
 	var path := "res://resources/settlements/%s.tres" % key
 
 	# Create and save
-	var result := SettlementConfig.create_and_save(path, {
-		"area_type": SettlementConfig.AreaType.TOWN,
+	var result := AreaConfig.create_and_save(path, {
+		"area_type": AreaConfig.AreaType.TOWN,
 		"settlement_name": "Ravenford",
 		"climate": "temperate",
 		"culture": "midlands"
 	})
 	if result.error == OK:
 		print("Saved: ", path)
-		var cfg := load(path) as SettlementConfig
+		var cfg := load(path) as AreaConfig
 		print("Loaded settlement name: ", cfg.settlement_name)
 	else:
-		push_error("Failed to save SettlementConfig: %s" % result.error)
+		push_error("Failed to save AreaConfig: %s" % result.error)
 	return config
