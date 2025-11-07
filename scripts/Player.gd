@@ -10,6 +10,8 @@ var sprite_node_pos_tween: Tween
 
 @onready var overworld = $"../OverworldMap"
 @onready var camera = $Camera2D
+@onready var area_container: Node2D = $"../AreaContainer"
+
 var local_area_scene = preload("res://scenes/local_area_generator.tscn")
 var current_local_area: Node2D = null
 var map_rect = null
@@ -78,47 +80,32 @@ func descend_to_local_area() -> void:
 		print("Can't descend on water")
 		return
 	
-	# Instantiate the unified AreaGenerator
-	current_local_area = local_area_scene.instantiate()
-	get_tree().current_scene.add_child(current_local_area)
-	
-	# Determine area type and generate accordingly
-	var area_type: int
-	var seed_value: int
-	
-	# Check if this position has a settlement
-	if tile_data.settlement != overworld.Settlement.NONE:
-		match tile_data.settlement:
-			overworld.Settlement.TOWN:
-				area_type = current_local_area.AreaType.TOWN
-			overworld.Settlement.CITY:
-				area_type = current_local_area.AreaType.CITY
-			overworld.Settlement.CASTLE:
-				area_type = current_local_area.AreaType.CASTLE
-		seed_value = overworld.get_settlement_from_seed(overworld_tile)
+	var settlement_scene_path = overworld.settlement_at_tile(overworld_tile)
+	if settlement_scene_path != "":
+		area_container.set_settlement_scene(settlement_scene_path)
 	else:
-		# Natural terrain (grass, mountain, etc.)
-		area_type = current_local_area.AreaType.LOCAL_AREA
-		seed_value = 0 # Use default seed generation for natural areas
-	
-	# Generate the area using the unified interface
-	current_local_area.setup_and_generate(area_type, tile_data.terrain, overworld_tile, seed_value)
+		# TODO: if no location already generated here, then:
+		area_container.set_local_area()
 	
 	await get_tree().process_frame
-	map_rect = current_local_area.tilemaps["GROUND"].get_used_rect()
-	
-	# Set spawn position
-	if overworld.has_settlement(overworld_tile):
-		position = get_spawn_tile()
+	map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
+	position = get_spawn_tile()
 	
 	overworld.hide()
 	in_local_area = true
 	update_camera_limits()
 
+func return_to_overworld() -> void:
+	if in_local_area:
+		area_container.clear_local_area_scene()
+		map_rect = null
+	overworld.show()
+	in_local_area = false
+	position = overworld_tile_pos
+	update_camera_limits()
+
 func get_spawn_tile():
-	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
-		return
-	return current_local_area.spawn_tile.position
+	return area_container.spawn_tile.position
 
 func find_valid_local_position() -> void:
 	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
@@ -182,16 +169,6 @@ func _update_roof_visibility() -> void:
 	var grid_pos = Vector2i(position / tile_size)
 	var is_inside = interior_map.get_cell_tile_data(Vector2i(grid_pos.x, grid_pos.y))
 	roof_map.visible = not is_inside
-
-func return_to_overworld() -> void:
-	if current_local_area:
-		current_local_area.queue_free()
-		current_local_area = null
-		map_rect = null
-	overworld.show()
-	in_local_area = false
-	position = overworld_tile_pos
-	update_camera_limits()
 
 func update_camera_limits() -> void:
 	if not camera:

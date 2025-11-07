@@ -15,5 +15,7 @@ func clear_local_area_scene():
 		current_area.queue_free()
 		current_area = null
 
-func set_settlement():
-	pass
+func set_settlement_scene(scene_path: String):
+	var scene = load(scene_path)
+	current_area = scene.instantiate()
+	area.add_child(current_area)

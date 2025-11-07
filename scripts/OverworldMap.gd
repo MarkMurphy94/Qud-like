@@ -42,7 +42,8 @@ class CustomTileData:
 @onready var mountains: TileMapLayer = $Mountains
 @onready var settlements: TileMapLayer = $settlements
 
-@export var settlements_list: Array[AreaConfig] = []
+#@export var settlements_list: Array[AreaConfig] = []
+@export var settlements_list: Dictionary[Vector2i, String]
 
 var map_data: Array[Array] = []
 const TILE_SIZE = 16 # Size of each tile in pixels
@@ -125,6 +126,12 @@ func get_settlement_from_coords(coords: Vector2i) -> Settlement: # return type c
 		Vector2i(5, 18): return Settlement.CASTLE
 		_: return Settlement.NONE
 
+func settlement_at_tile(tile_pos: Vector2i) -> String:
+	for s in settlements_list:
+		if s == tile_pos:
+			return settlements_list[s]
+	return ""
+
 func world_to_map(world_pos: Vector2) -> Vector2i:
 	return Vector2i(world_pos / TILE_SIZE)
 
@@ -162,23 +169,11 @@ func get_settlement_type(tile_pos: Vector2i) -> int:
 		return Settlement.NONE
 	return map_data[tile_pos.y][tile_pos.x].settlement
 
-func get_settlement_from_seed(tile_pos: Vector2i):
-	var settlement_seed = 0
-	for s in settlements_list:
-		if s.overworld_tile == tile_pos:
-			settlement_seed = settlements_list[s]["seed"]
-			break
-	if settlement_seed:
-		print("Identified settlement from settlement_seed: ", settlement_seed)
-	else:
-		print("No settlement found for settlement_seed: ", settlement_seed)
-	return settlement_seed
-
-func settlement_at_tile(tile_pos: Vector2i) -> AreaConfig:
-	for s in settlements_list:
-		if s.overworld_tile == tile_pos:
-			return s
-	return null
+# func settlement_at_tile(tile_pos: Vector2i):
+# 	for s in settlements_list:
+# 		if s == tile_pos:
+# 			return s
+# 	return null
 
 func debug_print_tile(tile_pos: Vector2i) -> void:
 	if not is_valid_position(tile_pos):

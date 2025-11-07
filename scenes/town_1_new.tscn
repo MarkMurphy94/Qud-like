@@ -1,8 +1,10 @@
-[gd_scene load_steps=2 format=4 uid="uid://cs3ycfcmj1xuy"]
+[gd_scene load_steps=3 format=4 uid="uid://cs3ycfcmj1xuy"]
 
 [ext_resource type="TileSet" uid="uid://bjibwwb63qoxr" path="res://resources/Roguelike_extended_walls.tres" id="1_75fje"]
+[ext_resource type="Script" uid="uid://mw201smsmec3" path="res://scripts/town_1_new.gd" id="1_ecscq"]
 
 [node name="town_1_new" type="Node2D"]
+script = ExtResource("1_ecscq")
 
 [node name="ground" type="TileMapLayer" parent="."]
 use_parent_material = true

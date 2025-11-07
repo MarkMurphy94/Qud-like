@@ -1,20 +1,21 @@
 [gd_resource type="Resource" script_class="AreaConfig" load_steps=3 format=3 uid="uid://qh5fn8627tmx"]
 
 [ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_qebw0"]
-[ext_resource type="Script" uid="uid://baxf1dd61f7dd" path="res://resources/settlement.gd" id="2_b7h4k"]
+[ext_resource type="Script" uid="uid://ct70kc27fm6x4" path="res://resources/area_config.gd" id="2_qebw0"]
 
 [resource]
-script = ExtResource("2_b7h4k")
+script = ExtResource("2_qebw0")
 noise_scale = 20.0
 tree_density = 0.1
 bush_density = 0.15
 rock_density = 0.08
 water_level = 0.4
 overworld_tile = Vector2i(0, 0)
+scene_path = ""
 SEED = 0
 settlement_name = ""
 buildings = Array[ExtResource("1_qebw0")]([])
 area_type = 0
 climate = ""
 culture = ""
-metadata/_custom_type_script = "uid://baxf1dd61f7dd"
+metadata/_custom_type_script = "uid://ct70kc27fm6x4"
