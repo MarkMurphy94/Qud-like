@@ -1,5 +1,7 @@
 extends Node2D
 
+@export var config: AreaConfig
+
 @onready var tilemaps = {
 	"GROUND": $ground,
 	"INTERIOR_FLOOR": $interior_floor,

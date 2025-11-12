@@ -1,19 +1,128 @@
-[gd_resource type="Resource" script_class="AreaConfig" load_steps=3 format=3 uid="uid://h6wcob6b8yx7"]
+[gd_resource type="Resource" script_class="AreaConfig" load_steps=15 format=3 uid="uid://h6wcob6b8yx7"]
 
 [ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_0em7w"]
-[ext_resource type="Script" uid="uid://baxf1dd61f7dd" path="res://resources/settlement.gd" id="1_gjda2"]
+[ext_resource type="Script" uid="uid://ct70kc27fm6x4" path="res://resources/area_config.gd" id="2_qebw0"]
+
+[sub_resource type="Resource" id="Resource_0em7w"]
+script = ExtResource("1_0em7w")
+TYPE = 1
+POSITION = Vector2i(34, 23)
+INTERIOR_SIZE = Vector2i(6, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_r335a"]
+script = ExtResource("1_0em7w")
+TYPE = 2
+POSITION = Vector2i(38, 38)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_7kfj0"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(57, 38)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_cqnn2"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(49, 33)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_if2hl"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(11, 48)
+INTERIOR_SIZE = Vector2i(2, 3)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_teypb"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(29, 57)
+INTERIOR_SIZE = Vector2i(2, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_t3i0h"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(21, 38)
+INTERIOR_SIZE = Vector2i(4, 2)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_6c68e"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(28, 44)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_o2as6"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(46, 54)
+INTERIOR_SIZE = Vector2i(2, 3)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_c40s3"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(35, 58)
+INTERIOR_SIZE = Vector2i(3, 2)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_hrhvv"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(51, 19)
+INTERIOR_SIZE = Vector2i(3, 3)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_c7beb"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(65, 29)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
 
 [resource]
-script = ExtResource("1_gjda2")
+script = ExtResource("2_qebw0")
 noise_scale = 20.0
 tree_density = 0.1
 bush_density = 0.15
 rock_density = 0.08
 water_level = 0.4
 overworld_tile = Vector2i(13, 21)
+scene_path = ""
 SEED = 1605628986
 settlement_name = "town_1"
-buildings = Array[ExtResource("1_0em7w")]([])
+buildings = Array[ExtResource("1_0em7w")]([SubResource("Resource_0em7w"), SubResource("Resource_r335a"), SubResource("Resource_7kfj0"), SubResource("Resource_cqnn2"), SubResource("Resource_if2hl"), SubResource("Resource_teypb"), SubResource("Resource_t3i0h"), SubResource("Resource_6c68e"), SubResource("Resource_o2as6"), SubResource("Resource_c40s3"), SubResource("Resource_hrhvv"), SubResource("Resource_c7beb")])
 area_type = 1
 climate = ""
 culture = ""
