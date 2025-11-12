@@ -62,7 +62,7 @@ func _physics_process(_delta: float) -> void:
 func _move(dir: Vector2):
 	global_position += dir * tile_size
 	$Sprite2D.global_position -= dir * tile_size
-	print("current_tile:", get_current_tile())
+	# print("current_tile:", get_current_tile())
 
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()

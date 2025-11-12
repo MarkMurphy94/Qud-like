@@ -50,7 +50,7 @@ enum NPCState {
 	FOLLOW,
 	DEAD
 }
-var state = NPCState.IDLE
+var state = NPCState.WANDER
 var previous_state = NPCState.IDLE
 var state_timer: float = 0.0
 var state_data: Dictionary = {} # Additional data for current state
@@ -61,7 +61,7 @@ var environment: Node2D # Local area map only
 var rng = RandomNumberGenerator.new()
 var target_position: Vector2
 var is_moving: bool = false
-var move_timer: float = 0.0
+var move_timer: float = 7.0
 var last_direction: Vector2 = Vector2.ZERO
 var path: Array = [] # For pathfinding
 var sprite: Sprite2D
@@ -188,6 +188,7 @@ var npc_properties = {
 @onready var debug_2: RichTextLabel = $Sprite2D/VBoxContainer/debug_text2
 @onready var debug_3: RichTextLabel = $Sprite2D/VBoxContainer/debug_text3
 
+
 # === SIGNALS ===
 signal npc_dialogue_started(npc)
 signal npc_dialogue_ended(npc)
@@ -197,1004 +198,433 @@ signal npc_attacked(npc, target)
 signal npc_item_given(npc, item, target)
 signal npc_item_received(npc, item, source)
 
-func _ready() -> void:
-	rng.randomize()
-	sprite = $Sprite2D
-	if not sprite:
-		push_error("Sprite2D node not found!")
-	
-	# Generate unique ID if none exists
-	if npc_id == "":
-		npc_id = _generate_unique_id()
-	
-	# Set up collision layers
-	# collision_layer = 1 # NPCs are on layer 1
-	# collision_mask = 3 # NPCs can collide with walls (layer 1) and player (layer 2)
-	target_position = global_position
-	
-	# Apply NPC type-specific properties
-	var properties = npc_properties[npc_type]
-	move_speed = properties["move_speed"]
-	move_interval = properties["move_interval"]
-	wander_radius = properties["wander_radius"]
-	faction = properties["faction"]
-	
-	if properties.has("stats"):
-		stats = properties["stats"]
-	if properties.has("can_trade"):
-		can_trade = properties["can_trade"]
-	if properties.has("trade_prices"):
-		trade_prices = properties["trade_prices"]
-	
-	if sprite:
-		sprite.region_rect = properties["sprite_region_coords"]
-	
-	# Generate a random name if none was set
-	if npc_name == "":
-		npc_name = _generate_name()
-		
-	# Initialize inventory based on template
-	if properties.has("inventory_template"):
-		_initialize_inventory(properties["inventory_template"])
-	
-	# Load dialogue tree if available
-	if properties.has("dialogue") and properties["dialogue"] != "none":
-		_load_dialogue(properties["dialogue"])
-	
-	# Register with global NPC manager
-	if MainGameState.has_method("register_npc"):
-		MainGameState.register_npc(self)
-	# environment = get_parent()
-	if not environment:
-		set_physics_process(false)
-		set_process(false)
+func apply_type_profile():
+	var profile = npc_properties.get(npc_type, null)
+	if profile:
+		move_speed = profile.move_speed if profile.has("move_speed") else move_speed
+		move_interval = profile.move_interval if profile.has("move_interval") else move_interval
+		wander_radius = profile.wander_radius if profile.has("wander_radius") else wander_radius
+		faction = profile.faction
+		stats = profile.stats
+		can_trade = profile.get("can_trade", false)
+		if profile.has("trade_prices"):
+			trade_prices = profile.trade_prices
+# Simple helper to set home/work
+func set_locations(home: Vector2, work: Vector2 = Vector2.ZERO):
+	home_position = home
+	work_position = work if work != Vector2.ZERO else home
 
-func _generate_unique_id() -> String:
-	return str(randi() % 100000) + "_" + str(Time.get_unix_time_from_system())
+# =============================
+# NEW AI IMPLEMENTATION SECTION
+# =============================
 
-func _generate_name() -> String:
-	var first_names = ["John", "Emma", "Bjorn", "Astrid", "Karim", "Leila", "Takeshi", "Mei", "Olga", "Diego"]
-	var last_names = ["Smith", "Andersen", "Al-Farsi", "Tanaka", "Chen", "Ivanov", "Rodriguez", "Okafor", "Singh", "Müller"]
-	
-	var first = first_names[rng.randi() % first_names.size()]
-	var last = last_names[rng.randi() % last_names.size()]
-	
-	return first + " " + last
+# --- GAME TIME / SCHEDULING SUPPORT ---
+var internal_time_seconds: float = 0.0 # Fallback internal clock if no global time system
+var seconds_per_game_hour: float = 10.0 # Adjustable pacing (3600 for real-time hour)
+var last_schedule_hour: int = -1
 
-func _initialize_inventory(template: String) -> void:
-	# This would ideally load from a resource or database
-	# For now we'll just add some placeholder items
-	inventory.clear()
-	
-	match template:
-		"peasant_items":
-			inventory.append({"id": "food_bread", "name": "Bread", "type": "food", "value": 2})
-			gold = rng.randi_range(1, 10)
-		"guard_items":
-			inventory.append({"id": "weapon_sword", "name": "Iron Sword", "type": "weapon", "value": 25})
-			inventory.append({"id": "armor_chain", "name": "Chain Mail", "type": "armor", "value": 40})
-			gold = rng.randi_range(10, 30)
-		"merchant_items":
-			# Merchants get special store inventory
-			for i in range(5 + rng.randi() % 10):
-				_add_random_store_item()
-			gold = rng.randi_range(50, 200)
-		"noble_items":
-			inventory.append({"id": "jewelry_gold", "name": "Gold Necklace", "type": "jewelry", "value": 100})
-			gold = rng.randi_range(100, 500)
-		"bandit_items":
-			inventory.append({"id": "weapon_dagger", "name": "Dagger", "type": "weapon", "value": 15})
-			gold = rng.randi_range(5, 25)
-		"monster_items":
-			inventory.append({"id": "monster_hide", "name": "Monster Hide", "type": "material", "value": 20})
-		_:
-			# Default inventory
-			gold = rng.randi_range(1, 5)
+# --- PERCEPTION CACHES ---
+var current_target: Node2D = null
+var threat_source: Node2D = null
+var flee_timer: float = 0.0
+var combat_range: float = 32.0
+var hear_event_cooldown: float = 0.0
 
-func _add_random_store_item() -> void:
-	var item_types = ["weapon", "armor", "potion", "food", "jewelry", "book"]
-	var type = item_types[rng.randi() % item_types.size()]
-	var tier = rng.randi() % 3 + 1 # 1-3
-	var value = (10 * tier) + rng.randi() % (10 * tier)
-	
-	var item = {
-		"id": type + "_" + str(rng.randi() % 1000),
-		"name": _generate_item_name(type, tier),
-		"type": type,
-		"value": value,
-		"tier": tier
-	}
-	
-	store_inventory.append(item)
+# --- DEBUG OPTIONS ---
+var show_debug: bool = true
 
-func _generate_item_name(type: String, tier: int) -> String:
-	var prefixes = ["", "Fine ", "Superior "]
-	var names = {
-		"weapon": ["Dagger", "Sword", "Axe", "Mace", "Bow"],
-		"armor": ["Leather Armor", "Chain Mail", "Plate Armor", "Shield", "Helmet"],
-		"potion": ["Health Potion", "Mana Potion", "Stamina Potion", "Poison", "Elixir"],
-		"food": ["Bread", "Cheese", "Meat", "Fruit", "Stew"],
-		"jewelry": ["Ring", "Amulet", "Bracelet", "Earrings", "Crown"],
-		"book": ["Spellbook", "History Book", "Map", "Journal", "Manual"]
-	}
-	
-	var name_options = names.get(type, ["Item"])
-	var item_name = name_options[rng.randi() % name_options.size()]
-	return prefixes[tier - 1] + item_name
-
-func _load_dialogue(dialogue_template: String) -> void:
-	# This would ideally load from a resource or JSON file
-	# For now we'll just add some basic dialogue templates
-	dialogue_tree = {
-		"ROOT": {
-			"text": "Greetings, traveler.",
-			"options": [
-				{"id": "1", "text": "Hello there.", "next": "GREETING"},
-				{"id": "2", "text": "I need information.", "next": "INFO"},
-				{"id": "3", "text": "Goodbye.", "next": "EXIT"}
-			]
-		},
-		"GREETING": {
-			"text": "How can I help you today?",
-			"options": [
-				{"id": "1", "text": "Tell me about yourself.", "next": "ABOUT"},
-				{"id": "2", "text": "I need information.", "next": "INFO"},
-				{"id": "3", "text": "Goodbye.", "next": "EXIT"}
-			]
-		},
-		"ABOUT": {
-			"text": "My name is " + npc_name + ". I'm just a simple person trying to get by.",
-			"options": [
-				{"id": "1", "text": "Tell me more about what you do.", "next": "JOB"},
-				{"id": "2", "text": "Back to previous options.", "next": "GREETING"},
-				{"id": "3", "text": "Goodbye.", "next": "EXIT"}
-			]
-		},
-		"JOB": {
-			"text": "I work as a " + MainGameState.NpcType.keys()[npc_type].to_lower() + " around here.",
-			"options": [
-				{"id": "1", "text": "Interesting. Tell me about this place.", "next": "PLACE"},
-				{"id": "2", "text": "Back to previous options.", "next": "GREETING"},
-				{"id": "3", "text": "Goodbye.", "next": "EXIT"}
-			]
-		},
-		"PLACE": {
-			"text": "This is a peaceful settlement. We try to keep to ourselves mostly.",
-			"options": [
-				{"id": "1", "text": "Back to previous options.", "next": "GREETING"},
-				{"id": "2", "text": "Goodbye.", "next": "EXIT"}
-			]
-		},
-		"INFO": {
-			"text": "What kind of information are you looking for?",
-			"options": [
-				{"id": "1", "text": "Tell me about this place.", "next": "PLACE"},
-				{"id": "2", "text": "Any rumors lately?", "next": "RUMORS"},
-				{"id": "3", "text": "Goodbye.", "next": "EXIT"}
-			]
-		},
-		"RUMORS": {
-			"text": "Hmm, nothing specific comes to mind right now.",
-			"options": [
-				{"id": "1", "text": "Back to previous options.", "next": "GREETING"},
-				{"id": "2", "text": "Goodbye.", "next": "EXIT"}
-			]
-		},
-		"EXIT": {
-			"text": "Farewell, traveler. Safe journeys.",
-			"options": []
-		}
-	}
-	
-	# Add trade option for merchants
-	if can_trade:
-		dialogue_tree["GREETING"]["options"].insert(1, {"id": "T", "text": "I want to trade.", "next": "TRADE"})
-		dialogue_tree["TRADE"] = {
-			"text": "Here's what I have to offer.",
-			"options": [
-				{"id": "1", "text": "Show me your goods.", "next": "TRADE_BUY", "action": "open_trade"},
-				{"id": "2", "text": "Back to previous options.", "next": "GREETING"},
-				{"id": "3", "text": "Goodbye.", "next": "EXIT"}
-			]
-		}
-
-	# Customize based on template
-	match dialogue_template:
-		"guard_dialogue":
-			dialogue_tree["ROOT"]["text"] = "Halt. State your business."
-			dialogue_tree["RUMORS"]["text"] = "Keep an eye out for bandits on the roads."
-		"merchant_dialogue":
-			dialogue_tree["ROOT"]["text"] = "Welcome! Looking to trade?"
-			dialogue_tree["JOB"]["text"] = "I deal in all sorts of goods. Take a look at my wares!"
-		"noble_dialogue":
-			dialogue_tree["ROOT"]["text"] = "Yes? What is it?"
-			dialogue_tree["ABOUT"]["text"] = "I am " + npc_name + ", of the noble house."
-		"bandit_dialogue":
-			dialogue_tree["ROOT"]["text"] = "What do you want? Make it quick."
-			dialogue_tree["RUMORS"]["text"] = "I might know something... for a price."
-
-func initialize(area_map: Node2D, start_pos: Vector2 = Vector2.ZERO) -> void:
-	environment = area_map
-	
-	if start_pos != Vector2.ZERO:
-		position = start_pos
-		home_position = start_pos
-	else:
-		# Find valid starting position
-		var found = false
-		var width = environment.WIDTH if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
-		var height = environment.HEIGHT if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
-		
-		for _i in 100:
-			var x = rng.randi_range(0, width - 1)
-			var y = rng.randi_range(0, height - 1)
-			var grid_pos = Vector2i(x, y)
-			
-			if is_valid_position(grid_pos):
-				# position = Vector2(grid_pos) * MainGameState.TILE_SIZE
-				position = environment.ground.map_to_local(grid_pos)
-				home_position = position
-				found = true
-				break
-		
-		if not found:
-			push_error("Could not find valid starting position for NPC")
-			queue_free()
-			return
-	
-	# Set work position (can be overridden later)
-	work_position = home_position
-	
-	# Enable processing
-	set_physics_process(true)
+func _ready():
+	apply_type_profile()
+	# Attempt to locate player for reference (optional)
+	if not player_reference:
+		player_reference = _find_player()
+	# Initialize schedule to nearest state
+	_update_schedule(true)
 	set_process(true)
-	
-	# Start initial state
-	_change_state(NPCState.IDLE)
+	set_physics_process(true)
 
-func _process(delta: float) -> void:
-	# Update state timer
-	state_timer += delta
-	
-	# Process the current state
-	match state:
-		NPCState.IDLE:
-			_process_idle_state(delta)
-		NPCState.WANDER:
-			_process_wander_state(delta)
-		NPCState.PATROL:
-			_process_patrol_state(delta)
-		NPCState.WORK:
-			_process_work_state(delta)
-		NPCState.SLEEP:
-			_process_sleep_state(delta)
-		NPCState.EAT:
-			_process_eat_state(delta)
-		NPCState.INTERACT:
-			_process_interact_state(delta)
-		NPCState.COMBAT:
-			_process_combat_state(delta)
-		NPCState.FLEE:
-			_process_flee_state(delta)
-		NPCState.FOLLOW:
-			_process_follow_state(delta)
-		NPCState.DEAD:
-			_process_dead_state(delta)
-	
-	# Check for state transitions
-	_check_state_transitions(delta)
-	
-	# Check for player detection
-	_check_awareness(delta)
-
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if state == NPCState.DEAD:
-		velocity = Vector2.ZERO
 		return
-	
-	# Use Godot's built-in physics with collision detection
-	move_and_slide()
-	
-	# Safety check: ensure NPC stays within local area bounds
-	_enforce_boundary_constraints()
 
-# Enforce boundary constraints to prevent NPCs from leaving local area
-func _enforce_boundary_constraints() -> void:
-	var width = environment.WIDTH if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
-	var height = environment.HEIGHT if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
-	
-	var world_width = width * MainGameState.TILE_SIZE
-	var world_height = height * MainGameState.TILE_SIZE
-	
-	# Clamp position to stay within boundaries
-	position.x = clamp(position.x, 0, world_width - MainGameState.TILE_SIZE)
-	position.y = clamp(position.y, 0, world_height - MainGameState.TILE_SIZE)
-	
-	# If we hit a boundary, stop moving and choose a new direction
-	var grid_pos = Vector2i(position / MainGameState.TILE_SIZE)
-	if grid_pos.x <= 0 or grid_pos.x >= width - 1 or grid_pos.y <= 0 or grid_pos.y >= height - 1:
-		is_moving = false
-		# Reset state to idle so NPC can choose a new direction
-		if state == NPCState.WANDER:
-			move_timer = move_interval # Trigger immediate new move selection
+	state_timer += delta
+	move_timer += delta
+	if hear_event_cooldown > 0:
+		hear_event_cooldown -= delta
 
-# === STATE MACHINE METHODS ===
+	# Update or simulate time-of-day
+	internal_time_seconds += delta
+	_update_schedule()
+	_perception_update()
+	_behavior_decision()
+	_execute_state(delta)
+	_update_debug()
 
-func _change_state(new_state: NPCState) -> void:
+func set_state(new_state: NPCState, data: Dictionary = {}):
 	if state == new_state:
 		return
-		
-	var old_state = state
+	var old = state
 	previous_state = state
+	_exit_state(old)
 	state = new_state
+	state_data = data
 	state_timer = 0.0
-	
-	# Handle state entry actions
-	match new_state:
-		NPCState.IDLE:
-			_enter_idle_state()
-		NPCState.WANDER:
-			_enter_wander_state()
-		NPCState.PATROL:
-			_enter_patrol_state()
-		NPCState.WORK:
-			_enter_work_state()
-		NPCState.SLEEP:
-			_enter_sleep_state()
-		NPCState.EAT:
-			_enter_eat_state()
-		NPCState.INTERACT:
-			_enter_interact_state()
-		NPCState.COMBAT:
-			_enter_combat_state()
-		NPCState.FLEE:
-			_enter_flee_state()
-		NPCState.FOLLOW:
-			_enter_follow_state()
-		NPCState.DEAD:
-			_enter_dead_state()
-	
-	# Emit state change signal
-	emit_signal("npc_state_changed", self, old_state, new_state)
-	# print("npc_state_changed: ", npc_name, " ", get_state_name(old_state), " ", get_state_name(new_state))
-	debug_1.text = npc_name
-	debug_2.text = get_npc_type_name(npc_type)
-	debug_3.text = "State: " + get_state_name(new_state)
+	_enter_state(new_state)
+	emit_signal("npc_state_changed", self, old, new_state)
 
-func _check_state_transitions(_delta: float) -> void:
-	# Check for global transitions that can happen in any state
-	if state != NPCState.DEAD:
-		# Check if health depleted
-		if current_health <= 0:
-			_change_state(NPCState.DEAD)
-			return
-			
-		# Check for threats
-		var threat = _get_nearest_threat()
-		if threat and state != NPCState.COMBAT and state != NPCState.FLEE:
-			if _should_fight(threat):
-				state_data["target"] = threat
-				_change_state(NPCState.COMBAT)
-			else:
-				state_data["threat"] = threat
-				_change_state(NPCState.FLEE)
-			return
-	
-	# Check schedule transitions
-	var current_hour = _get_current_hour()
-	if _should_change_scheduled_activity(current_hour):
-		var activity = _get_activity_for_hour(current_hour)
-		if activity:
-			current_activity = activity
-			var new_state = activity.get("state", NPCState.IDLE)
-			_change_state(new_state)
-			return
-	
-	# State-specific transitions
+func _enter_state(s: int):
+	match s:
+		NPCState.WANDER:
+			_choose_new_wander_target()
+		NPCState.FLEE:
+			flee_timer = 3.0
+		NPCState.SLEEP, NPCState.EAT, NPCState.IDLE:
+			velocity = Vector2.ZERO
+		NPCState.WORK:
+			# Move towards work position; if none fallback to home
+			if work_position == Vector2.ZERO:
+				work_position = home_position
+		NPCState.COMBAT:
+			# Ensure we still have a valid target
+			if not is_instance_valid(current_target):
+				current_target = player_reference
+
+func _exit_state(_s: int):
+	pass # Placeholder for future cleanup (e.g., stop tweens, release reservations)
+
+func _update_schedule(force: bool = false):
+	# Attempt to pull global hour if available; else derive from internal clock
+	var hour: int = -1
+	if Engine.has_singleton("MainGameState") and MainGameState.has_method("get_current_hour"):
+		# If user later adds a proper method
+		hour = MainGameState.get_current_hour()
+	else:
+		var sim_hours = int(internal_time_seconds / seconds_per_game_hour)
+		hour = sim_hours % 24
+	if hour == last_schedule_hour and not force:
+		return
+	last_schedule_hour = hour
+	# Find the latest schedule entry whose hour <= current hour
+	var chosen_key: int = -1
+	for h in schedule.keys():
+		if h <= hour and h > chosen_key:
+			chosen_key = h
+	if chosen_key == -1:
+		return
+	var entry = schedule[chosen_key]
+	# Avoid re-entering same state unless forced
+	if state != entry.state or force:
+		set_state(entry.state, {"schedule_location": entry.location})
+
+func _perception_update():
+	# Acquire player reference if missing
+	if not player_reference or not is_instance_valid(player_reference):
+		player_reference = _find_player()
+	if player_reference:
+		var dist = global_position.distance_to(player_reference.global_position)
+		if dist <= vision_range * tile_size:
+			_known_entity_update("player", player_reference.global_position, _attitude_towards_player())
+			# Hostile logic
+			if _is_hostile_to_player():
+				current_target = player_reference
+			elif faction == "WILDLIFE" and dist < vision_range * 0.6 * tile_size:
+				# Wildlife flees sooner
+				threat_source = player_reference
+				if state != NPCState.FLEE:
+					set_state(NPCState.FLEE)
+
+func _behavior_decision():
+	# If fleeing and timer active keep fleeing
+	if state == NPCState.FLEE:
+		if flee_timer <= 0:
+			set_state(NPCState.WANDER)
+		return
+
+	# Combat decisions
+	if _should_enter_combat():
+		if state != NPCState.COMBAT:
+			set_state(NPCState.COMBAT)
+		return
+
+	# Low health flee (non-monster) condition
+	if current_health < max_health * 0.25 and state != NPCState.FLEE and faction in ["CIVILIAN", "OUTLAW", "WILDLIFE"]:
+		threat_source = current_target
+		set_state(NPCState.FLEE)
+		return
+
+	# Schedule-determined states already handled; supplement wandering if idle
+	if state in [NPCState.IDLE, NPCState.WANDER] and move_timer >= move_interval:
+		_choose_new_wander_target()
+
+func _execute_state(delta: float):
 	match state:
-		NPCState.IDLE:
-			if state_timer > 3.0 and rng.randf() < 0.3:
-				_change_state(NPCState.WANDER)
-		
 		NPCState.WANDER:
-			if state_timer > 30.0:
-				_change_state(NPCState.IDLE)
-		
-		NPCState.PATROL:
-			# Continue patrolling indefinitely unless interrupted
-			pass
-		
+			_move_towards_target(delta)
 		NPCState.WORK:
-			# Work until schedule changes
-			pass
-		
+			if work_position != Vector2.ZERO:
+				target_position = work_position
+				_move_towards_target(delta, true)
 		NPCState.SLEEP:
-			# Sleep until schedule changes
-			pass
-		
+			target_position = home_position
+			_move_towards_target(delta, true)
 		NPCState.EAT:
-			if state_timer > 5.0:
-				_change_state(NPCState.IDLE)
-		
-		NPCState.INTERACT:
-			if state_timer > 10.0:
-				_change_state(previous_state)
-		
+			target_position = home_position
+			velocity = Vector2.ZERO
+		NPCState.IDLE:
+			velocity = Vector2.ZERO
 		NPCState.COMBAT:
-			if not state_data.has("target") or not is_instance_valid(state_data["target"]):
-				_change_state(NPCState.IDLE)
-		
+			_combat_update(delta)
 		NPCState.FLEE:
-			if state_timer > 10.0 or (state_data.has("threat") and not is_instance_valid(state_data["threat"])):
-				_change_state(NPCState.IDLE)
-		
+			flee_timer -= delta
+			_flee_update(delta)
+		NPCState.PATROL:
+			# Placeholder: treat like wander for now
+			_move_towards_target(delta)
 		NPCState.FOLLOW:
-			if not state_data.has("follow_target") or not is_instance_valid(state_data["follow_target"]):
-				_change_state(NPCState.IDLE)
+			_follow_update(delta)
+		NPCState.INTERACT:
+			velocity = Vector2.ZERO
+		NPCState.DEAD:
+			velocity = Vector2.ZERO
 
-func _get_current_hour() -> int:
-	# This would connect to a global time system
-	# For now, just return a placeholder value or simulated time
-	if MainGameState.has_method("get_current_hour"):
-		return MainGameState.get_current_hour()
-	return 12 # Default to noon
+	# Apply movement
+	if velocity.length() > 0.1:
+		move_and_slide()
 
-func _should_change_scheduled_activity(current_hour: int) -> bool:
-	# Check if we should start a new scheduled activity
-	if not current_activity or current_activity.size() == 0:
-		return true
-		
-	if schedule.has(current_hour) and current_activity != schedule[current_hour]:
-		return true
-		
+func _move_towards_target(_delta: float, arrive_idle: bool = false):
+	if target_position == Vector2.ZERO:
+		return
+	if move_timer < move_interval:
+		return
+	if is_moving:
+		return
+	var curr_tile: Vector2i = Vector2i(global_position / tile_size)
+	var target_tile: Vector2i = Vector2i(target_position / tile_size)
+	if curr_tile == target_tile:
+		if arrive_idle:
+			set_state(NPCState.IDLE)
+		return
+
+	var delta_tile: Vector2i = target_tile - curr_tile
+	var primary_dir: Vector2
+	var secondary_dir: Vector2
+	if abs(delta_tile.x) >= abs(delta_tile.y):
+		primary_dir = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
+		secondary_dir = Vector2.DOWN if delta_tile.y > 0 else Vector2.UP
+	else:
+		primary_dir = Vector2.DOWN if delta_tile.y > 0 else Vector2.UP
+		secondary_dir = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
+
+	if not _grid_try_move(primary_dir):
+		_grid_try_move(secondary_dir)
+
+func _choose_new_wander_target():
+	# move_timer = 3.0
+	var center = home_position if home_position != Vector2.ZERO else global_position
+	var radius_pixels = wander_radius * tile_size
+	var offset = Vector2(rng.randf_range(-radius_pixels, radius_pixels), rng.randf_range(-radius_pixels, radius_pixels))
+	target_position = center + offset
+
+func _combat_update(delta: float):
+	if not is_instance_valid(current_target):
+		set_state(NPCState.WANDER)
+		return
+	var dist = global_position.distance_to(current_target.global_position)
+	if dist > vision_range * tile_size * 1.2:
+		# Lost target
+		current_target = null
+		set_state(NPCState.WANDER)
+		return
+	if dist <= combat_range:
+		# Placeholder attack logic
+		velocity = Vector2.ZERO
+		# Could emit npc_attacked signal periodically
+	else:
+		# Chase
+		target_position = current_target.global_position
+		_move_towards_target(delta)
+
+func _flee_update(_delta: float):
+	if not is_instance_valid(threat_source):
+		set_state(NPCState.WANDER)
+		return
+	if is_moving:
+		return
+	if move_timer < move_interval:
+		return
+	var away = (global_position - threat_source.global_position)
+	if away.length() < 1:
+		away = Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1))
+	var dir = _vector_to_cardinal(away)
+	# Try the main flee direction, then orthogonals if blocked
+	if not _grid_try_move(dir):
+		var ortho = _orthogonal_dirs(dir)
+		if not _grid_try_move(ortho[0]):
+			_grid_try_move(ortho[1])
+
+func _follow_update(delta: float):
+	if not is_instance_valid(current_target):
+		set_state(NPCState.IDLE)
+		return
+	target_position = current_target.global_position
+	_move_towards_target(delta)
+
+func _should_enter_combat() -> bool:
+	if faction in ["CIVILIAN", "MERCHANT", "NOBLE", "WILDLIFE"]:
+		return false
+	if current_target and is_instance_valid(current_target):
+		var dist = global_position.distance_to(current_target.global_position)
+		return dist <= vision_range * tile_size
 	return false
 
-func _get_activity_for_hour(hour: int) -> Dictionary:
-	# Get the activity for the current hour, or the most recent activity
-	if schedule.has(hour):
-		return schedule[hour]
-	
-	var last_hour = 0
-	for schedule_hour in schedule.keys():
-		if schedule_hour <= hour and schedule_hour > last_hour:
-			last_hour = schedule_hour
-	
-	if last_hour > 0:
-		return schedule[last_hour]
-	
-	return {}
-
-func _get_nearest_threat() -> Node2D:
-	# This would scan for hostile entities nearby
-	# var threats = []
-	# For now, just return null (no threats)
-	return null
-
-func _should_fight(_threat: Node2D) -> bool:
-	# Determine if this NPC should fight the threat or flee
-	# Based on NPC type, health, etc.
-	match npc_type:
-		MainGameState.NpcType.SOLDIER, MainGameState.NpcType.BANDIT, MainGameState.NpcType.MONSTER:
+func _is_hostile_to_player() -> bool:
+	# Basic faction hostility matrix (expand later)
+	match faction:
+		"OUTLAW", "MONSTER":
 			return true
-		MainGameState.NpcType.ANIMAL:
-			return current_health > max_health * 0.8 # Animals fight if healthy
 		_:
-			return false # Other NPCs prefer to flee
+			return false
 
-# === STATE PROCESSING METHODS ===
+func _attitude_towards_player() -> int:
+	if _is_hostile_to_player():
+		return -50
+	return 10
 
-func _enter_idle_state() -> void:
-	is_moving = false
-	# Could play idle animation here
-
-func _process_idle_state(_delta: float) -> void:
-	# Just stand around
-	pass
-
-func _enter_wander_state() -> void:
-	# Set up wander behavior
-	move_timer = 0.0
-
-func _process_wander_state(delta: float) -> void:
-	if not is_moving:
-		move_timer += delta
-		if move_timer >= move_interval:
-			move_timer = 0.0
-			choose_wander_move()
-
-func _enter_patrol_state() -> void:
-	# Set up patrol behavior
-	move_timer = 0.0
-	if not state_data.has("patrol_points"):
-		# Create patrol route if none exists
-		_generate_patrol_route()
-
-func _process_patrol_state(delta: float) -> void:
-	if not is_moving:
-		move_timer += delta
-		if move_timer >= move_interval:
-			move_timer = 0.0
-			choose_patrol_move()
-
-func _generate_patrol_route() -> void:
-	# Generate a patrol route around the NPC's area
-	var patrol_points = []
-	var center = MainGameState.world_to_map(home_position)
-	
-	for i in range(4): # Create a square patrol route
-		var angle = i * PI / 2 # 0, 90, 180, 270 degrees
-		var distance = wander_radius
-		var point = center + Vector2(cos(angle), sin(angle)) * distance
-		patrol_points.append(Vector2i(point))
-	
-	state_data["patrol_points"] = patrol_points
-	state_data["current_patrol_point"] = 0
-
-func _enter_work_state() -> void:
-	# Go to work location
-	_move_to_position(work_position)
-
-func _process_work_state(_delta: float) -> void:
-	# If we're at the work position, just stay there
-	# Otherwise, continue moving to it
-	if not is_moving and position.distance_to(work_position) > grid_size:
-		_move_to_position(work_position)
-
-func _enter_sleep_state() -> void:
-	# Go to bed at home
-	_move_to_position(home_position)
-
-func _process_sleep_state(_delta: float) -> void:
-	# Just sleep
-	pass
-
-func _enter_eat_state() -> void:
-	# Find a place to eat
-	pass
-
-func _process_eat_state(_delta: float) -> void:
-	# Eating animation/behavior
-	pass
-
-func _enter_interact_state() -> void:
-	# Started interaction with someone
-	is_moving = false
-
-func _process_interact_state(_delta: float) -> void:
-	# Handle interaction
-	pass
-
-func _enter_combat_state() -> void:
-	# Prepare for combat
-	if state_data.has("target") and is_instance_valid(state_data["target"]):
-		_move_to_position(state_data["target"].position)
-
-func _process_combat_state(delta: float) -> void:
-	# Handle combat behavior
-	if state_data.has("target") and is_instance_valid(state_data["target"]):
-		var target = state_data["target"]
-		
-		# If target moved, update our movement
-		if not is_moving and position.distance_to(target.position) > interaction_range:
-			_move_to_position(target.position)
-		
-		# Attack if in range
-		if position.distance_to(target.position) <= interaction_range:
-			state_data["attack_timer"] = state_data.get("attack_timer", 0.0) + delta
-			if state_data["attack_timer"] >= 1.0: # Attack once per second
-				state_data["attack_timer"] = 0.0
-				_attack_target(target)
-
-func _attack_target(target: Node2D) -> void:
-	# Calculate damage based on stats
-	var damage = stats["strength"] / 2 + rng.randi_range(1, 6)
-	
-	# Apply damage to target
-	if target.has_method("take_damage"):
-		target.take_damage(damage, self)
-	
-	# Emit attack signal
-	emit_signal("npc_attacked", self, target)
-
-func take_damage(amount: int, attacker: Node2D = null) -> void:
-	current_health -= amount
-	
-	# Remember the attacker
-	if attacker:
-		_remember_entity(attacker, "HOSTILE")
-		
-	# Maybe play hurt animation/sound
-	
-	if current_health <= 0:
-		_change_state(NPCState.DEAD)
-
-func _enter_flee_state() -> void:
-	# Run away from threat
-	if state_data.has("threat") and is_instance_valid(state_data["threat"]):
-		var flee_direction = position - state_data["threat"].position
-		var flee_position = position + flee_direction.normalized() * (wander_radius * grid_size)
-		_move_to_position(flee_position)
-
-func _process_flee_state(delta: float) -> void:
-	# Keep running away if threat still exists
-	if state_data.has("threat") and is_instance_valid(state_data["threat"]):
-		var threat = state_data["threat"]
-		
-		# Update flee direction every few seconds
-		state_data["flee_timer"] = state_data.get("flee_timer", 0.0) + delta
-		if state_data["flee_timer"] >= 2.0:
-			state_data["flee_timer"] = 0.0
-			var flee_direction = position - threat.position
-			var flee_position = position + flee_direction.normalized() * (wander_radius * grid_size)
-			_move_to_position(flee_position)
-
-func _enter_follow_state() -> void:
-	# Start following target
-	if state_data.has("follow_target") and is_instance_valid(state_data["follow_target"]):
-		_move_to_position(state_data["follow_target"].position)
-
-func _process_follow_state(delta: float) -> void:
-	# Keep following target
-	if state_data.has("follow_target") and is_instance_valid(state_data["follow_target"]):
-		var target = state_data["follow_target"]
-		
-		# Update movement every second
-		state_data["follow_timer"] = state_data.get("follow_timer", 0.0) + delta
-		if state_data["follow_timer"] >= 1.0:
-			state_data["follow_timer"] = 0.0
-			if position.distance_to(target.position) > grid_size * 2:
-				_move_to_position(target.position)
-
-func _enter_dead_state() -> void:
-	# Die
-	is_moving = false
-	velocity = Vector2.ZERO
-	
-	# Maybe play death animation
-	
-	# Disable collision
-	collision_layer = 0
-	collision_mask = 0
-	
-	# Emit death signal
-	emit_signal("npc_died", self)
-
-func _process_dead_state(_delta: float) -> void:
-	# Stay dead
-	pass
-
-# === MOVEMENT AND PATHFINDING ===
-
-func _move_to_position(world_pos: Vector2) -> void:
-	# Calculate direction to target
-	var direction = (world_pos - position).normalized()
-	var move_dir = Vector2.ZERO
-	
-	# Convert to cardinal direction
-	if abs(direction.x) > abs(direction.y):
-		move_dir = Vector2.RIGHT if direction.x > 0 else Vector2.LEFT
-	else:
-		move_dir = Vector2.DOWN if direction.y > 0 else Vector2.UP
-	
-	# Try to move in that direction if possible
-	if can_move_in_direction(move_dir):
-		_move(move_dir)
-	else:
-		# If blocked, try to find an alternative direction
-		var possible_directions = []
-		
-		if not right.is_colliding():
-			possible_directions.append(Vector2.RIGHT)
-		if not left.is_colliding():
-			possible_directions.append(Vector2.LEFT)
-		if not up.is_colliding():
-			possible_directions.append(Vector2.UP)
-		if not down.is_colliding():
-			possible_directions.append(Vector2.DOWN)
-		
-		if not possible_directions.is_empty():
-			# Pick the direction that gets us closest to the target
-			possible_directions.sort_custom(func(a, b):
-				return a.dot(direction) > b.dot(direction)
-			)
-			_move(possible_directions[0])
-
-# === AWARENESS AND PERCEPTION ===
-
-func _check_awareness(_delta: float) -> void:
-	# Check for entities in vision and hearing range
-	# Find the player if they're nearby
-	var player = _find_player()
-	if player:
-		var distance = position.distance_to(player.position) / grid_size
-		
-		# Visual detection
-		if distance <= vision_range:
-			_on_player_spotted(player)
-			
-		# Hearing detection (simpler than vision)
-		elif distance <= hearing_range:
-			_on_player_heard(player)
-
-func _find_player() -> Node2D:
-	# Get the player reference
-	if player_reference and is_instance_valid(player_reference):
-		return player_reference
-		
-	# Try to find player in the scene
-	var players = get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		player_reference = players[0]
-		return player_reference
-		
-	return null
-
-func _on_player_spotted(player: Node2D) -> void:
-	# React to seeing the player
-	_remember_entity(player, "NEUTRAL")
-	
-	# Different reactions based on NPC type
-	match npc_properties[npc_type]["behavior"]:
-		"aggressive", "hunt":
-			if state != NPCState.COMBAT and state != NPCState.DEAD:
-				state_data["target"] = player
-				_change_state(NPCState.COMBAT)
-		"flee_on_approach":
-			if state != NPCState.FLEE and state != NPCState.DEAD:
-				state_data["threat"] = player
-				_change_state(NPCState.FLEE)
-		_:
-			# Just acknowledge the player
-			pass
-
-func _on_player_heard(player: Node2D) -> void:
-	# React to hearing the player
-	_remember_entity(player, "NEUTRAL")
-	
-	# Maybe look in that direction or become alert
-
-func _remember_entity(entity: Node2D, attitude: String) -> void:
-	# Add to known entities
-	var entity_id = entity.get("npc_id") if entity.has("npc_id") else str(entity)
-	
-	known_entities[entity_id] = {
-		"entity": entity,
-		"last_seen_time": _get_current_hour(),
-		"last_seen_position": entity.position,
+func _known_entity_update(id: String, pos: Vector2, attitude: int = 0):
+	known_entities[id] = {
+		"last_seen_time": internal_time_seconds,
+		"last_seen_position": pos,
 		"attitude": attitude
 	}
-	
-	# Add to recent events
-	var event = {
-		"type": "entity_spotted",
-		"entity": entity,
-		"time": _get_current_hour(),
-		"position": entity.position
-	}
-	
-	_add_memory_event(event)
 
-func _add_memory_event(event: Dictionary) -> void:
+func _find_player() -> Node2D:
+	# Try group first
+	var players = get_tree().get_nodes_in_group("Player")
+	if players.size() > 0:
+		return players[0]
+	# Fallback search by type name
+	var root = get_tree().get_root()
+	return root.find_child("Player", true, false)
+
+func record_event(event: Dictionary):
 	recent_events.append(event)
-	if recent_events.size() > max_memory_events:
-		recent_events.remove_at(0) # Remove oldest event
+	while recent_events.size() > max_memory_events:
+		recent_events.pop_front()
 
-func choose_wander_move() -> void:
-	# Get possible directions to move
-	var possible_directions = []
-	
-	# Check each direction using RayCast2D nodes
-	if not right.is_colliding():
-		possible_directions.append(Vector2.RIGHT)
-	if not left.is_colliding():
-		possible_directions.append(Vector2.LEFT)
-	if not up.is_colliding():
-		possible_directions.append(Vector2.UP)
-	if not down.is_colliding():
-		possible_directions.append(Vector2.DOWN)
-	
-	if possible_directions.is_empty():
+func _update_debug():
+	if not show_debug:
 		return
-	
-	# Filter directions that would keep us within wander radius of home
-	var home_grid = Vector2i(home_position / tile_size)
-	var current_grid = get_current_tile()
-	var valid_directions = []
-	
-	for dir in possible_directions:
-		var new_pos = current_grid + Vector2i(dir)
-		if new_pos.distance_to(home_grid) <= wander_radius:
-			valid_directions.append(dir)
-	
-	# If no valid directions within wander radius, prefer directions toward home
-	if valid_directions.is_empty():
-		var home_direction = (home_position - position).normalized()
-		valid_directions = possible_directions
-		valid_directions.sort_custom(func(a, b):
-			return a.dot(home_direction) > b.dot(home_direction)
-		)
-	
-	# Pick a random direction from valid options
-	var chosen_direction = valid_directions[rng.randi() % valid_directions.size()]
-	_move(chosen_direction)
+	if debug_1:
+		debug_1.text = "State: %s  HP:%d/%d" % [_state_name(state), current_health, max_health]
+	if debug_2:
+		var hour = last_schedule_hour
+		debug_2.text = "Hour:%02d Target:%s" % [hour, Vector2i(target_position)]
+	if debug_3:
+		var tgt = current_target if current_target else null
+		debug_3.text = "Faction:%s Hostile:%s Target:%s" % [faction, str(_is_hostile_to_player()), (tgt and tgt.name) if tgt else "None"]
 
-func choose_patrol_move() -> void:
-	if state_data.has("patrol_points") and not state_data["patrol_points"].is_empty():
-		var patrol_points = state_data["patrol_points"]
-		var current_index = state_data.get("current_patrol_point", 0)
-		
-		var target_point = patrol_points[current_index]
-		var current_pos = get_current_tile()
-		var direction = Vector2(target_point - current_pos).normalized()
-		
-		# Try to move toward the patrol point
-		var move_dir = Vector2.ZERO
-		if abs(direction.x) > abs(direction.y):
-			move_dir = Vector2.RIGHT if direction.x > 0 else Vector2.LEFT
-		else:
-			move_dir = Vector2.DOWN if direction.y > 0 else Vector2.UP
-		
-		# Check if we can move in that direction
-		if can_move_in_direction(move_dir):
-			_move(move_dir)
-			
-			# Check if we reached the patrol point
-			if get_current_tile().distance_to(target_point) <= 1:
-				current_index = (current_index + 1) % patrol_points.size()
-				state_data["current_patrol_point"] = current_index
-		else:
-			# If blocked, try alternative directions
-			choose_wander_move()
-		return
-	
-	# Fallback to straight line patrol if no patrol points defined
-	var possible_directions = []
-	
-	if not right.is_colliding():
-		possible_directions.append(Vector2.RIGHT)
-	if not left.is_colliding():
-		possible_directions.append(Vector2.LEFT)
-	if not up.is_colliding():
-		possible_directions.append(Vector2.UP)
-	if not down.is_colliding():
-		possible_directions.append(Vector2.DOWN)
-	
-	if possible_directions.is_empty():
-		return
-	
-	# Soldiers prefer to move along straight lines
-	if last_direction != Vector2.ZERO and can_move_in_direction(last_direction):
-		_move(last_direction)
-		return
-	
-	# If can't continue straight, choose a new random direction
-	var chosen_direction = possible_directions[rng.randi() % possible_directions.size()]
-	_move(chosen_direction)
+func _state_name(s: int) -> String:
+	match s:
+		NPCState.IDLE: return "IDLE"
+		NPCState.WANDER: return "WANDER"
+		NPCState.PATROL: return "PATROL"
+		NPCState.WORK: return "WORK"
+		NPCState.SLEEP: return "SLEEP"
+		NPCState.EAT: return "EAT"
+		NPCState.INTERACT: return "INTERACT"
+		NPCState.COMBAT: return "COMBAT"
+		NPCState.FLEE: return "FLEE"
+		NPCState.FOLLOW: return "FOLLOW"
+		NPCState.DEAD: return "DEAD"
+		_: return "UNKNOWN"
 
-func choose_restricted_move() -> void:
-	var current_grid_pos = get_current_tile()
-	var home_grid = Vector2i(home_position / tile_size)
-	
-	# If too far from home, try to move back
-	if current_grid_pos.distance_to(home_grid) > wander_radius:
-		var home_direction = (home_position - position).normalized()
-		var possible_directions = []
-		
-		if not right.is_colliding():
-			possible_directions.append(Vector2.RIGHT)
-		if not left.is_colliding():
-			possible_directions.append(Vector2.LEFT)
-		if not up.is_colliding():
-			possible_directions.append(Vector2.UP)
-		if not down.is_colliding():
-			possible_directions.append(Vector2.DOWN)
-		
-		if not possible_directions.is_empty():
-			# Pick direction that moves us closest to home
-			possible_directions.sort_custom(func(a, b):
-				return a.dot(home_direction) > b.dot(home_direction)
-			)
-			_move(possible_directions[0])
+func take_damage(amount: int, source: Node2D = null):
+	if state == NPCState.DEAD:
 		return
-	
-	# Otherwise, just wander nearby
-	choose_wander_move()
-
-func choose_hunting_move() -> void:
-	# Look for targets to hunt
-	var player = _find_player()
-	if player and position.distance_to(player.position) / grid_size <= vision_range:
-		# Hunt the player
-		state_data["target"] = player
-		_change_state(NPCState.COMBAT)
+	current_health -= amount
+	record_event({"type": "damage", "amount": amount})
+	if current_health <= 0:
+		current_health = 0
+		set_state(NPCState.DEAD)
+		emit_signal("npc_died", self)
+		velocity = Vector2.ZERO
 		return
-		
-	# Otherwise just wander
-	choose_wander_move()
+	# Reaction: set combat target or flee
+	if source and source != self:
+		if _is_hostile_to_player() or faction in ["OUTLAW", "MONSTER", "GUARD"]:
+			current_target = source
+			set_state(NPCState.COMBAT)
+		elif faction in ["CIVILIAN", "WILDLIFE", "MERCHANT", "NOBLE"]:
+			threat_source = source
+			set_state(NPCState.FLEE)
 
-func choose_fleeing_move() -> void:
-	# Check if player is nearby
-	var player = _find_player()
-	if player and position.distance_to(player.position) / grid_size <= vision_range:
-		# Flee from player
-		state_data["threat"] = player
-		_change_state(NPCState.FLEE)
+func hear_noise(source_pos: Vector2, intensity: float = 1.0):
+	if intensity <= 0 or hear_event_cooldown > 0:
 		return
-		
-	# Otherwise just wander
-	choose_wander_move()
+	var dist = global_position.distance_to(source_pos)
+	if dist <= hearing_range * tile_size * intensity:
+		hear_event_cooldown = 1.0
+		# Mild curiosity: if idle become wander towards approximate location
+		if state in [NPCState.IDLE, NPCState.SLEEP, NPCState.EAT]:
+			target_position = source_pos
+			set_state(NPCState.WANDER)
 
+# =============================
+# GRID MOVEMENT HELPERS (RayCast2D based)
+# =============================
 
-func is_valid_position(grid_pos: Vector2i) -> bool:
-	# Check map bounds - ensure NPCs stay within local area boundaries
-	var width = environment.WIDTH if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
-	var height = environment.HEIGHT if environment.has_method("get_tile_data") || environment.has_method("is_walkable") else 80
-	
-	# Strict boundary enforcement - NPCs cannot leave the local map
-	if grid_pos.x < 0 or grid_pos.x >= width or grid_pos.y < 0 or grid_pos.y >= height:
+func _get_raycast(dir: Vector2) -> RayCast2D:
+	if dir == Vector2.UP:
+		return up
+	elif dir == Vector2.DOWN:
+		return down
+	elif dir == Vector2.LEFT:
+		return left
+	elif dir == Vector2.RIGHT:
+		return right
+	return null
+
+func _grid_can_move(dir: Vector2) -> bool:
+	var rc := _get_raycast(dir)
+	if rc == null:
 		return false
-	
-	# Check if position is walkable in local area
-	if environment.has_method("is_walkable"):
-		return environment.is_walkable(grid_pos)
-	# For local areas with tilemaps
-	elif environment.has_node("walls"):
-		var walls = environment.get_node("walls")
-		# No wall at this position
-		return walls.get_cell_source_id(0, grid_pos) == -1
-	
-	return true # Fallback if is_walkable not implemented
+	rc.enabled = true
+	rc.force_raycast_update()
+	return not rc.is_colliding()
 
+func _grid_try_move(dir: Vector2) -> bool:
+	if dir == Vector2.ZERO:
+		return false
+	if not _grid_can_move(dir):
+		return false
+	_grid_step(dir)
+	return true
 
-func _move(dir: Vector2):
+func _grid_step(dir: Vector2) -> void:
+	# Move the body one tile and tween the sprite for a smooth slide
+	is_moving = true
+	move_timer = 0.0
 	global_position += dir * tile_size
-	$Sprite2D.global_position -= dir * tile_size
-
-	# Update last direction and sprite
-	last_direction = dir
-	if sprite:
-		update_sprite_direction(dir)
-
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()
+	$Sprite2D.global_position -= dir * tile_size
 	sprite_node_pos_tween = create_tween()
 	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+	sprite_node_pos_tween.finished.connect(_on_move_tween_finished)
+	is_moving = false
 
-func get_current_tile() -> Vector2i:
-	"""Get the NPC's current tile position based on their world position."""
-	return Vector2i(position / tile_size)
+func _on_move_tween_finished() -> void:
+	is_moving = false
 
-func can_move_in_direction(dir: Vector2) -> bool:
-	"""Check if the NPC can move in the given direction using RayCast2D nodes."""
-	if dir == Vector2.RIGHT:
-		return not right.is_colliding()
-	elif dir == Vector2.LEFT:
-		return not left.is_colliding()
-	elif dir == Vector2.UP:
-		return not up.is_colliding()
-	elif dir == Vector2.DOWN:
-		return not down.is_colliding()
-	return false
+func _vector_to_cardinal(v: Vector2) -> Vector2:
+	if abs(v.x) > abs(v.y):
+		return Vector2.RIGHT if v.x > 0.0 else Vector2.LEFT
+	else:
+		return Vector2.DOWN if v.y > 0.0 else Vector2.UP
 
-func update_sprite_direction(direction: Vector2) -> void:
-	# Update sprite frame based on direction
-	# This depends on your specific sprite setup
-	# Example implementation:
-	if direction.y > 0:
-		sprite.flip_h = false
-		# Set to down-facing frame
-	elif direction.y < 0:
-		sprite.flip_h = false
-		# Set to up-facing frame
-	elif direction.x != 0:
-		sprite.flip_h = direction.x < 0
-		# Set to side-facing frame
-
-# === SERIALIZATION AND PERSISTENCE ===
-
-func get_state_name(state_value: NPCState) -> String:
-	return NPCState.keys()[state_value]
-
-func get_npc_type_name(type_value: MainGameState.NpcType) -> String:
-	return MainGameState.NpcType.keys()[type_value]
+func _orthogonal_dirs(dir: Vector2) -> Array:
+	if dir == Vector2.LEFT or dir == Vector2.RIGHT:
+		return [Vector2.UP, Vector2.DOWN]
+	else:
+		return [Vector2.LEFT, Vector2.RIGHT]

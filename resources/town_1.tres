@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AreaConfig" load_steps=15 format=3 uid="uid://h6wcob6b8yx7"]
+[gd_resource type="Resource" script_class="AreaConfig" load_steps=16 format=3 uid="uid://h6wcob6b8yx7"]
 
 [ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_0em7w"]
 [ext_resource type="Script" uid="uid://ct70kc27fm6x4" path="res://resources/area_config.gd" id="2_qebw0"]
@@ -111,6 +111,15 @@ ZONES = Array[Vector2i]([])
 INTERIOR_FEATURES = Array[String]([])
 SCRIPTED_CONTENT = null
 
+[sub_resource type="Resource" id="Resource_w7cs0"]
+script = ExtResource("1_0em7w")
+TYPE = 1
+POSITION = Vector2i(34, 23)
+INTERIOR_SIZE = Vector2i(6, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
 [resource]
 script = ExtResource("2_qebw0")
 noise_scale = 20.0
@@ -122,7 +131,7 @@ overworld_tile = Vector2i(13, 21)
 scene_path = ""
 SEED = 1605628986
 settlement_name = "town_1"
-buildings = Array[ExtResource("1_0em7w")]([SubResource("Resource_0em7w"), SubResource("Resource_r335a"), SubResource("Resource_7kfj0"), SubResource("Resource_cqnn2"), SubResource("Resource_if2hl"), SubResource("Resource_teypb"), SubResource("Resource_t3i0h"), SubResource("Resource_6c68e"), SubResource("Resource_o2as6"), SubResource("Resource_c40s3"), SubResource("Resource_hrhvv"), SubResource("Resource_c7beb")])
+buildings = Array[ExtResource("1_0em7w")]([SubResource("Resource_0em7w"), SubResource("Resource_r335a"), SubResource("Resource_7kfj0"), SubResource("Resource_cqnn2"), SubResource("Resource_if2hl"), SubResource("Resource_teypb"), SubResource("Resource_t3i0h"), SubResource("Resource_6c68e"), SubResource("Resource_o2as6"), SubResource("Resource_c40s3"), SubResource("Resource_hrhvv"), SubResource("Resource_c7beb"), SubResource("Resource_w7cs0")])
 area_type = 1
 climate = ""
 culture = ""
