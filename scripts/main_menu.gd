@@ -20,7 +20,7 @@ func load_game() -> void:
 		save_game_file = SaveGameResource.load_savegame()
 	else:
 		save_game_file = SaveGameResource.new()
-	get_tree().change_scene_to_file(save_game_file.player_current_scene_path)
+	get_tree().change_scene_to_file("res://scenes/game.tscn")
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()

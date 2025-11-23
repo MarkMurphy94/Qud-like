@@ -35,7 +35,7 @@ static func get_save_path() -> String:
 
 static func reset_savegame() -> void:
 	var new_save := SaveGameResource.new()
-	new_save.player_position = Vector2i(11, 21) # TODO - get starting pos from player spawn
+	new_save.player_position = Vector2i(171, 373) # TODO - get translated starting pos from player spawn
 	new_save.player_current_scene_path = "res://scenes/game.tscn"
 	new_save.version = 1
 	ResourceSaver.save(new_save, get_save_path())
