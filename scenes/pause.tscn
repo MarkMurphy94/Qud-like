@@ -1,0 +1,39 @@
+[gd_scene load_steps=2 format=3 uid="uid://bjhncns8a6cou"]
+
+[ext_resource type="Script" uid="uid://cgf187nq3fjrd" path="res://scripts/pause.gd" id="1_f1d2v"]
+
+[node name="pause" type="Node2D"]
+top_level = true
+script = ExtResource("1_f1d2v")
+
+[node name="ButtonManager" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ButtonManager"]
+layout_mode = 0
+offset_right = 93.0
+offset_bottom = 66.0
+
+[node name="resume" type="Button" parent="ButtonManager/VBoxContainer"]
+layout_mode = 2
+text = "resume"
+
+[node name="save_game" type="Button" parent="ButtonManager/VBoxContainer"]
+layout_mode = 2
+text = "Save game"
+
+[node name="load_game" type="Button" parent="ButtonManager/VBoxContainer"]
+layout_mode = 2
+text = "Load game"
+
+[node name="quit" type="Button" parent="ButtonManager/VBoxContainer"]
+layout_mode = 2
+text = "quit"
+
+[connection signal="pressed" from="ButtonManager/VBoxContainer/resume" to="." method="_on_resume_pressed"]
+[connection signal="pressed" from="ButtonManager/VBoxContainer/save_game" to="." method="_on_save_game_pressed"]
+[connection signal="pressed" from="ButtonManager/VBoxContainer/load_game" to="." method="_on_load_game_pressed"]
+[connection signal="pressed" from="ButtonManager/VBoxContainer/quit" to="." method="_on_quit_pressed"]

@@ -16,6 +16,26 @@ position = Vector2(1, 1)
 zoom = Vector2(2, 2)
 position_smoothing_enabled = true
 
+[node name="CanvasLayer" type="CanvasLayer" parent="Camera2D"]
+visible = false
+
+[node name="Control" type="Control" parent="Camera2D/CanvasLayer"]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 247.0
+offset_top = -153.0
+offset_right = 279.0
+offset_bottom = -121.0
+
+[node name="pause_button" type="Button" parent="Camera2D/CanvasLayer/Control"]
+top_level = true
+layout_mode = 0
+offset_left = 248.0
+offset_top = -152.0
+offset_right = 280.0
+offset_bottom = -121.0
+text = "II"
+
 [node name="Sprite2D" type="Sprite2D" parent="."]
 position = Vector2(-2.98023e-08, -2.98023e-08)
 scale = Vector2(0.5, 0.5)
@@ -45,3 +65,5 @@ hit_from_inside = true
 position = Vector2(8, 0)
 target_position = Vector2(8, 0)
 hit_from_inside = true
+
+[connection signal="pressed" from="Camera2D/CanvasLayer/Control/pause_button" to="." method="_on_pause_button_pressed"]

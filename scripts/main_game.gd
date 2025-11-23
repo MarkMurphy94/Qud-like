@@ -1,6 +1,10 @@
 extends Node
 @onready var overworld_map: Node2D = $OverworldMap
+@onready var player: CharacterBody2D = $Player
+@onready var pause: Node2D = $CanvasLayer/pause
 
+const SAVE_PATH := "user://save_game_file.tres"
+var _save := SaveGameResource.new()
 
 # Optional: call this from your Game.gd on startup with your overworld MainGameState.settlements
 # entries: [{ "type": SettlementType.TOWN, "pos": Vector2i(13,21), "seed": 123 }, ...]
@@ -10,7 +14,8 @@ func bootstrap_settlements() -> void:
 
 func _ready() -> void:
 	# If you already know MainGameState.settlements at launch, call:
-	bootstrap_settlements()
+	create_or_load_save()
+	# bootstrap_settlements()
 
 func _deterministic_seed(settlement_type: int, pos: Vector2i) -> int:
 	var v := int(settlement_type) * 83492791 ^ (pos.x * 73856093) ^ (pos.y * 19349663)
@@ -51,3 +56,32 @@ func create_new_settlement_config():
 	else:
 		push_error("Failed to save AreaConfig: %s" % result.error)
 	return config
+
+func create_or_load_save():
+	if SaveGameResource.save_exists():
+		_save = SaveGameResource.load_savegame()
+	else:
+		_save = SaveGameResource.new()
+		_save.player_position = player.global_position
+		_save.player_current_scene_path = get_tree().current_scene.scene_file_path
+		_save.write_savegame()
+	load_game()
+
+func _on_pause_button_pressed() -> void:
+	get_tree().paused = true
+	pause.show()
+
+
+func load_game() -> void:
+	player.global_position = _save.player_position
+	# player.current_scene = _save.player_current_scene_path
+
+	# if ResourceLoader.exists(SAVE_PATH):
+	# 	_save = ResourceLoader.load(SAVE_PATH, "", ResourceLoader.CACHE_MODE_IGNORE)
+	# else:
+	# 	_save = SaveGameResource.new()
+
+func save_game() -> void:
+	_save.player_position = player.global_position
+	_save.player_current_scene_path = get_tree().current_scene.scene_file_path
+	_save.write_savegame()

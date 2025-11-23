@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://m4knkixyugn2"]
+
+[ext_resource type="Script" uid="uid://c4s3roxkgyep8" path="res://scripts/loading_screen.gd" id="1_ep5rh"]
+
+[sub_resource type="CanvasTexture" id="CanvasTexture_ep5rh"]
+specular_color = Color(0.227451, 0.901961, 0.533333, 1)
+
+[node name="loading_screen" type="Node2D"]
+script = ExtResource("1_ep5rh")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(195.75, 119.75)
+scale = Vector2(392.5, 240.5)
+texture = SubResource("CanvasTexture_ep5rh")

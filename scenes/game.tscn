@@ -1,17 +1,41 @@
-[gd_scene load_steps=5 format=3 uid="uid://c1othl8sw151g"]
+[gd_scene load_steps=6 format=3 uid="uid://c1othl8sw151g"]
 
 [ext_resource type="Script" uid="uid://dlmon0wdqcnnl" path="res://scripts/main_game.gd" id="1_lnu2h"]
 [ext_resource type="PackedScene" uid="uid://2yt1rem30pxh" path="res://scenes/player.tscn" id="1_obwjb"]
 [ext_resource type="PackedScene" uid="uid://bus31nsk52q8w" path="res://scenes/overworld_map_drawn.tscn" id="2_3ygxx"]
+[ext_resource type="PackedScene" uid="uid://bjhncns8a6cou" path="res://scenes/pause.tscn" id="5_iywne"]
 [ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/area_container.tscn" id="7_u5sy4"]
 
 [node name="Overworld" type="Node2D"]
 visibility_layer = 7
 script = ExtResource("1_lnu2h")
 
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="pause" parent="CanvasLayer" instance=ExtResource("5_iywne")]
+process_mode = 3
+visible = false
+position = Vector2(136, 288)
+
 [node name="Player" parent="." instance=ExtResource("1_obwjb")]
 z_index = 2
 position = Vector2(184, 344)
+
+[node name="CanvasLayer" type="CanvasLayer" parent="Player"]
+
+[node name="Control" type="Control" parent="Player/CanvasLayer"]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 431.0
+offset_top = 191.0
+offset_right = 463.0
+offset_bottom = 223.0
+
+[node name="pause_button" type="Button" parent="Player/CanvasLayer/Control"]
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 31.0
+text = "II"
 
 [node name="OverworldMap" parent="." instance=ExtResource("2_3ygxx")]
 settlements_list = Dictionary[Vector2i, String]({
@@ -19,3 +43,5 @@ Vector2i(13, 21): "res://scenes/town_1_new.tscn"
 })
 
 [node name="AreaContainer" parent="." instance=ExtResource("7_u5sy4")]
+
+[connection signal="pressed" from="Player/CanvasLayer/Control/pause_button" to="." method="_on_pause_button_pressed"]
