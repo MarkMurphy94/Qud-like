@@ -65,14 +65,14 @@ func create_or_load_save():
 		_save.player_position = player.global_position
 		_save.player_current_scene_path = get_tree().current_scene.scene_file_path
 		_save.write_savegame()
-	load_game()
+	load_game_data()
 
 func _on_pause_button_pressed() -> void:
 	get_tree().paused = true
 	pause.show()
 
 
-func load_game() -> void:
+func load_game_data() -> void:
 	player.global_position = _save.player_position
 	# player.current_scene = _save.player_current_scene_path
 
