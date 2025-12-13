@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AreaConfig" load_steps=64 format=3 uid="uid://h6wcob6b8yx7"]
+[gd_resource type="Resource" script_class="AreaConfig" load_steps=76 format=3 uid="uid://h6wcob6b8yx7"]
 
 [ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_0em7w"]
 [ext_resource type="Script" uid="uid://ct70kc27fm6x4" path="res://resources/area_config.gd" id="2_qebw0"]
@@ -552,6 +552,114 @@ ZONES = Array[Vector2i]([])
 INTERIOR_FEATURES = Array[String]([])
 SCRIPTED_CONTENT = null
 
+[sub_resource type="Resource" id="Resource_pjb3u"]
+script = ExtResource("1_0em7w")
+TYPE = 1
+POSITION = Vector2i(34, 23)
+INTERIOR_SIZE = Vector2i(6, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_5mi32"]
+script = ExtResource("1_0em7w")
+TYPE = 2
+POSITION = Vector2i(38, 38)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_2vde5"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(57, 38)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_ceyy3"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(49, 33)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_10c68"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(11, 48)
+INTERIOR_SIZE = Vector2i(2, 3)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_0a4iq"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(29, 57)
+INTERIOR_SIZE = Vector2i(2, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_82umq"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(21, 38)
+INTERIOR_SIZE = Vector2i(4, 2)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_c34l7"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(28, 44)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_swjjt"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(46, 54)
+INTERIOR_SIZE = Vector2i(2, 3)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_m6v0k"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(35, 58)
+INTERIOR_SIZE = Vector2i(3, 2)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_f3bln"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(51, 19)
+INTERIOR_SIZE = Vector2i(3, 3)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
+[sub_resource type="Resource" id="Resource_25bqb"]
+script = ExtResource("1_0em7w")
+TYPE = 0
+POSITION = Vector2i(65, 29)
+INTERIOR_SIZE = Vector2i(3, 4)
+ZONES = Array[Vector2i]([])
+INTERIOR_FEATURES = Array[String]([])
+SCRIPTED_CONTENT = null
+
 [resource]
 script = ExtResource("2_qebw0")
 noise_scale = 20.0
@@ -563,7 +671,7 @@ overworld_tile = Vector2i(13, 21)
 scene_path = ""
 SEED = 1605628986
 settlement_name = "town_1"
-buildings = Array[ExtResource("1_0em7w")]([SubResource("Resource_0em7w"), SubResource("Resource_r335a"), SubResource("Resource_7kfj0"), SubResource("Resource_cqnn2"), SubResource("Resource_if2hl"), SubResource("Resource_teypb"), SubResource("Resource_t3i0h"), SubResource("Resource_6c68e"), SubResource("Resource_o2as6"), SubResource("Resource_c40s3"), SubResource("Resource_hrhvv"), SubResource("Resource_c7beb"), SubResource("Resource_w7cs0"), SubResource("Resource_cqeks"), SubResource("Resource_p8c7h"), SubResource("Resource_xundp"), SubResource("Resource_s50wu"), SubResource("Resource_30myr"), SubResource("Resource_5hmim"), SubResource("Resource_3w7ec"), SubResource("Resource_6ihwp"), SubResource("Resource_j0vom"), SubResource("Resource_38hk7"), SubResource("Resource_ttae7"), SubResource("Resource_bico2"), SubResource("Resource_mkija"), SubResource("Resource_k3agu"), SubResource("Resource_tvr2w"), SubResource("Resource_06jpj"), SubResource("Resource_jwbqd"), SubResource("Resource_sx37g"), SubResource("Resource_2rtai"), SubResource("Resource_qns3w"), SubResource("Resource_mu5ey"), SubResource("Resource_mu0gn"), SubResource("Resource_hbr7q"), SubResource("Resource_bux5c"), SubResource("Resource_hnb4r"), SubResource("Resource_xqo5t"), SubResource("Resource_a4g1a"), SubResource("Resource_ho4qo"), SubResource("Resource_ho1xs"), SubResource("Resource_acpwm"), SubResource("Resource_668kd"), SubResource("Resource_kj8n8"), SubResource("Resource_xi2iq"), SubResource("Resource_b4pap"), SubResource("Resource_kwp0t"), SubResource("Resource_ajc46"), SubResource("Resource_0poah"), SubResource("Resource_vcdcv"), SubResource("Resource_h8c4e"), SubResource("Resource_8njq2"), SubResource("Resource_p5e21"), SubResource("Resource_4wr1i"), SubResource("Resource_2yjko"), SubResource("Resource_fr16w"), SubResource("Resource_hq0di"), SubResource("Resource_q2v8c"), SubResource("Resource_lmb1j"), SubResource("Resource_pxl0t")])
+buildings = Array[ExtResource("1_0em7w")]([SubResource("Resource_0em7w"), SubResource("Resource_r335a"), SubResource("Resource_7kfj0"), SubResource("Resource_cqnn2"), SubResource("Resource_if2hl"), SubResource("Resource_teypb"), SubResource("Resource_t3i0h"), SubResource("Resource_6c68e"), SubResource("Resource_o2as6"), SubResource("Resource_c40s3"), SubResource("Resource_hrhvv"), SubResource("Resource_c7beb"), SubResource("Resource_w7cs0"), SubResource("Resource_cqeks"), SubResource("Resource_p8c7h"), SubResource("Resource_xundp"), SubResource("Resource_s50wu"), SubResource("Resource_30myr"), SubResource("Resource_5hmim"), SubResource("Resource_3w7ec"), SubResource("Resource_6ihwp"), SubResource("Resource_j0vom"), SubResource("Resource_38hk7"), SubResource("Resource_ttae7"), SubResource("Resource_bico2"), SubResource("Resource_mkija"), SubResource("Resource_k3agu"), SubResource("Resource_tvr2w"), SubResource("Resource_06jpj"), SubResource("Resource_jwbqd"), SubResource("Resource_sx37g"), SubResource("Resource_2rtai"), SubResource("Resource_qns3w"), SubResource("Resource_mu5ey"), SubResource("Resource_mu0gn"), SubResource("Resource_hbr7q"), SubResource("Resource_bux5c"), SubResource("Resource_hnb4r"), SubResource("Resource_xqo5t"), SubResource("Resource_a4g1a"), SubResource("Resource_ho4qo"), SubResource("Resource_ho1xs"), SubResource("Resource_acpwm"), SubResource("Resource_668kd"), SubResource("Resource_kj8n8"), SubResource("Resource_xi2iq"), SubResource("Resource_b4pap"), SubResource("Resource_kwp0t"), SubResource("Resource_ajc46"), SubResource("Resource_0poah"), SubResource("Resource_vcdcv"), SubResource("Resource_h8c4e"), SubResource("Resource_8njq2"), SubResource("Resource_p5e21"), SubResource("Resource_4wr1i"), SubResource("Resource_2yjko"), SubResource("Resource_fr16w"), SubResource("Resource_hq0di"), SubResource("Resource_q2v8c"), SubResource("Resource_lmb1j"), SubResource("Resource_pxl0t"), SubResource("Resource_pjb3u"), SubResource("Resource_5mi32"), SubResource("Resource_2vde5"), SubResource("Resource_ceyy3"), SubResource("Resource_10c68"), SubResource("Resource_0a4iq"), SubResource("Resource_82umq"), SubResource("Resource_c34l7"), SubResource("Resource_swjjt"), SubResource("Resource_m6v0k"), SubResource("Resource_f3bln"), SubResource("Resource_25bqb")])
 area_type = 1
 climate = ""
 culture = ""

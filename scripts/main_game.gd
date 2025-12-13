@@ -2,6 +2,7 @@ extends Node
 @onready var overworld_map: Node2D = $OverworldMap
 @onready var player: CharacterBody2D = $Player
 @onready var pause: Node2D = $CanvasLayer/pause
+@onready var area_container: Node2D = $AreaContainer
 
 const SAVE_PATH := "user://save_game_file.tres"
 var _save := SaveGameResource.new()
@@ -71,15 +72,23 @@ func _on_pause_button_pressed() -> void:
 	get_tree().paused = true
 	pause.show()
 
+func show_or_hide_overworld_scene(scene_path: String, show: bool) -> void:
+	pass
+	# to easier use with save/load:
+	# if player.current_scene != overworld_map:
+		# overworld.hide()
+	# else:
+		# overworld.show()
+
+func load_or_generate_local_map():
+	# take code from player.descend_to_local_area() here
+	pass
+
 
 func load_game_data() -> void:
 	player.global_position = _save.player_position
 	# player.current_scene = _save.player_current_scene_path
-
-	# if ResourceLoader.exists(SAVE_PATH):
-	# 	_save = ResourceLoader.load(SAVE_PATH, "", ResourceLoader.CACHE_MODE_IGNORE)
-	# else:
-	# 	_save = SaveGameResource.new()
+	# TODO load in player current scene the same way player.descend_to_local_area does it
 
 func save_game() -> void:
 	_save.player_position = player.global_position
