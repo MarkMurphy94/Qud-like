@@ -10,11 +10,16 @@ var npc_spawner: Node2D
 
 # TODO: consolidate repeated code
 
-func set_local_area():
+func set_local_area(metadata: Dictionary = {}):
 	current_area = local_area_scene.instantiate()
+	current_area.auto_generate_on_ready = false
 	npc_spawner = npc_spawner_scene.instantiate()
-	npc_spawner.settlement_data = current_area.config
+	if "config" in current_area:
+		npc_spawner.settlement_data = current_area.config
 	area.add_child(current_area)
+	
+	current_area.generate_local_map(metadata)
+		
 	current_area.add_child(npc_spawner)
 	npc_spawner.spawn_wilderness_npcs()
 

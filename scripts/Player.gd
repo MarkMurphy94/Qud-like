@@ -17,7 +17,7 @@ var current_local_area: Node2D = null
 var map_rect = null
 var in_local_area: bool = false
 
-var overworld_tile: Vector2
+var overworld_tile: Vector2i
 var overworld_tile_pos: Vector2
 
 # Tile-based movement variables for overworld
@@ -71,7 +71,7 @@ func _move(dir: Vector2):
 	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
 
 func descend_to_local_area() -> void:
-	overworld_tile = overworld.world_to_map(global_position)
+	overworld_tile = Vector2i(overworld.world_to_map(global_position))
 	overworld_tile_pos = global_position
 	var tile_data = overworld.get_tile_data(overworld_tile)
 	
@@ -85,12 +85,22 @@ func descend_to_local_area() -> void:
 		area_container.set_settlement_scene(settlement_scene_path)
 	else:
 		# TODO: if no location already generated here, then:
-		area_container.set_local_area()
+		var main_game = get_parent()
+		var metadata = {}
+		# if main_game and "world_tile_data" in main_game:
+		if main_game.world_tile_data.has(overworld_tile):
+			metadata = main_game.world_tile_data[overworld_tile]
+		else:
+			print("Warning: No world data found for tile ", overworld_tile)
+			
+		area_container.set_local_area(metadata)
+		print("metatada: ", metadata)
 	
 	await get_tree().process_frame
 	map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
 	position = get_spawn_tile()
 	
+	# TODO: call show_or_hide_overworld_scene()
 	overworld.hide()
 	in_local_area = true
 	update_camera_limits()

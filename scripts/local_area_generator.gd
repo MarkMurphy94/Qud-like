@@ -1,4 +1,4 @@
-@tool
+# @tool
 extends LocationGenerator
 
 # Local-area focused wrapper around LocationGenerator.
@@ -9,6 +9,8 @@ extends LocationGenerator
 @export var world_position: Vector2i = Vector2i.ZERO
 @export var seed_value: int = 0
 @export var auto_generate_on_ready: bool = true
+
+var current_metadata: Dictionary = {}
 
 func _ready() -> void:
 	# Don't rely on the base _ready, as it triggers general setup that may generate settlements.
@@ -22,18 +24,93 @@ func _ready() -> void:
 	noise = FastNoiseLite.new()
 
 	if auto_generate_on_ready:
-		generate_local()
+		generate_local_map(current_metadata)
 
-# Public entry-point to (re)generate a local area using parent functions only.
-func generate_local(new_overworld_tile_type: int = overworld_tile_type, new_world_position: Vector2i = world_position, new_seed_value: int = seed_value) -> void:
-	# Ensure clean slate each time.
-	_clear_all_layers()
-	if noise == null:
-		noise = FastNoiseLite.new()
+func generate_local_map(metadata) -> void:
+	current_metadata = metadata
+	if metadata.has("coords"):
+		world_position = metadata["coords"]
 
-	# Delegate to LocationGenerator's local-only entry point.
-	# This computes a deterministic per-area seed from inputs and invokes generate_local_area().
-	setup_and_generate_local(new_overworld_tile_type, new_world_position, new_seed_value)
+	base_terrain = metadata.get("terrain", overworld_tile_type)
+	overworld_position = world_position
+	print("Generating local area at position: ", world_position, " with terrain type: ", base_terrain)
+	
+	# Set up noise and RNG with deterministic seed from metadata
+	var map_seed = metadata.get("seed", 0)
+	noise.seed = map_seed
+	noise.frequency = 1.0 / 50.0 # Default fallback
+	
+	# Initialize RNG with the seed for deterministic generation
+	# Store in parent's rng variable so all parent class methods use the same seeded RNG
+	if not rng:
+		rng = RandomNumberGenerator.new()
+	rng.seed = map_seed
+	
+	print("local area seed: ", map_seed, " for terrain: ", base_terrain)
+	
+	# Initialize terrain cells for each type
+	for terrain in terrain_cells:
+		terrain_cells[terrain].clear()
+	
+	# Generate base terrain using the same structure as LocationGenerator
+	var area_size = Vector2i(WIDTH, HEIGHT)
+	
+	# Set initial terrain and collect cells for each terrain type
+	for y in area_size.y:
+		for x in area_size.x:
+			var height = noise.get_noise_2d(x, y)
+			height = (height + 1) / 2 # Normalize to 0-1
+			
+			var ground_tile = get_ground_tile(x, y, height)
+			var terrain_type = GROUND_TERRAIN_MAP[ground_tile]
+			
+			terrain_cells[terrain_type].append(Vector2i(x, y))
+	
+	# Apply all terrains using terrain sets for proper transitions
+	for terrain in terrain_cells:
+		if not terrain_cells[terrain].is_empty():
+			tilemaps["GROUND"].set_cells_terrain_connect(
+				terrain_cells[terrain],
+				TERRAIN_SET_ID,
+				TERRAINS[terrain],
+				false
+			)
+	
+	# Add water features to appropriate terrains first
+	if base_terrain == OverworldTile.GRASS:
+		maybe_add_water_features(rng)
+	
+	# Seed the RNG again before foliage to ensure consistent flower placement
+	# rng.seed = map_seed
+	
+	# Add foliage and details on items layer
+	add_foliage()
+	
+	# Generate features based on metadata if available
+	if not current_metadata.is_empty():
+		if current_metadata.get("hamlet", false):
+			generate_hamlet("village", rng)
+		elif current_metadata.get("farm", false):
+			generate_hamlet("farm", rng)
+			
+		if current_metadata.get("camp", false):
+			# TODO: Implement camp generation
+			pass
+			
+		if current_metadata.get("dungeon_entrance", false):
+			# TODO: Implement dungeon entrance generation
+			pass
+	else:
+		# Fallback to random generation if no metadata
+		if base_terrain == OverworldTile.GRASS:
+			if rng.randf() < 0.3: # 30% chance for settlement
+				var hamlet_type = "village"
+				if rng.randf() < 0.3:
+					hamlet_type = "farm"
+				generate_hamlet(hamlet_type, rng)
+	
+	# Connect terrain for proper transitions
+	connect_terrain()
 
 # Minimal validation that required TileMapLayer nodes exist (mirrors base expectations).
 func _validate_layers() -> bool:

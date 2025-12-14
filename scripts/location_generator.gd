@@ -686,16 +686,17 @@ func add_foliage() -> void:
 				elif detail_value < local_tree_density + local_bush_density + local_rock_density:
 					tilemaps["ITEMS"].set_cell(pos, TILE_SOURCE_ID, FOLIAGE_COORDS[FoliageTile.ROCK])
 
-func maybe_add_water_features() -> void:
+func maybe_add_water_features(local_rng=null) -> void:
 	# 30% chance to add a water feature
-	if rng.randf() > 0.3:
-		return
-	
-	# Decide between lake or river
-	if rng.randf() > 0.5:
-		generate_lake()
-	else:
-		generate_river()
+	if not local_rng:
+		if rng.randf() > 0.3:
+			return
+		
+		# Decide between lake or river
+		if rng.randf() > 0.5:
+			generate_lake()
+		else:
+			generate_river()
 
 func generate_lake() -> void:
 	var center = Vector2i(
