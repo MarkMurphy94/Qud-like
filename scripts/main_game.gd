@@ -117,18 +117,26 @@ func generate_world_metadata() -> void:
 			var seed_val = _deterministic_seed(terrain, pos)
 			var rng = RandomNumberGenerator.new()
 			rng.seed = seed_val
-			
-			var entry = {
-				"seed": seed_val,
-				"terrain": terrain,
-				"climate": _get_climate(terrain, y),
-				"farm": rng.randf() < 0.05 and terrain == overworld_map.Terrain.GRASS,
-				"hamlet": rng.randf() < 0.02 and terrain == overworld_map.Terrain.GRASS,
-				"dungeon_entrance": rng.randf() < 0.03,
-				"camp": rng.randf() < 0.04,
-				"coords": pos
-			}
-			world_tile_data[pos] = entry
+
+			# Build TileMetadata Resource for non-settlement tiles
+			var meta := TileMetadata.new()
+			meta.coords = pos
+			meta.seed = seed_val
+			meta.terrain = terrain
+			meta.climate = _get_climate(terrain, y)
+			# Simple biome derivation from climate
+			# meta.biome = meta.climate == "temperate" ? "temperate_forest" : (meta.climate == "cold" ? "boreal" : (meta.climate == "arid" ? "steppe" : "unknown"))
+			meta.elevation = float(y) / float(height)
+			# Suggested features
+			meta.water_features = {"river": rng.randf() < 0.1, "lake": rng.randf() < 0.05, "spring": false, "marsh": false}
+			meta.dungeon_entrance = {"exists": rng.randf() < 0.03, "depth_hint": 1 + (rng.randi() % 3), "theme": "ruins"}
+			# meta.camp = {"exists": rng.randf() < 0.04, "owner": "", "size": (rng.randf() < 0.5 ? "small" : "medium"), "permanence": 0.25}
+			meta.farm_plot = {"exists": (terrain == overworld_map.Terrain.GRASS) and (rng.randf() < 0.05), "crop": "wheat", "size": 1 + (rng.randi() % 3), "owner": ""}
+			meta.feature_weights = {"lake": 0.2, "river": 0.1, "meadow": 0.6, "boulder_field": 0.3}
+			meta.foliage_profile = {"tree_density": 0.35, "bush_density": 0.25, "rock_density": 0.15}
+			meta.encounter_difficulty = 1 + (rng.randi() % 3)
+			meta.discovered = false
+			world_tile_data[pos] = meta
 	print("Created local maps for %d tiles" % world_tile_data.size())
 
 	# { "seed": 6904785133, "terrain": 1, "climate": "cold", "farm": false, "hamlet": false, "dungeon_entrance": false, "camp": false, "coords": (92, 10) }

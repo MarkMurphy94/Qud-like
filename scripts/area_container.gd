@@ -10,7 +10,7 @@ var npc_spawner: Node2D
 
 # TODO: consolidate repeated code
 
-func set_local_area(metadata: Dictionary = {}):
+func set_local_area(metadata: TileMetadata):
 	current_area = local_area_scene.instantiate()
 	current_area.auto_generate_on_ready = false
 	npc_spawner = npc_spawner_scene.instantiate()

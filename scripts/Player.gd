@@ -94,7 +94,7 @@ func descend_to_local_area() -> void:
 			print("Warning: No world data found for tile ", overworld_tile)
 			
 		area_container.set_local_area(metadata)
-		print("metatada: ", metadata)
+		print("metatada: ", metadata.to_dict())
 	
 	await get_tree().process_frame
 	map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()

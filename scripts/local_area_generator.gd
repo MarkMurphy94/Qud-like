@@ -27,16 +27,20 @@ func _ready() -> void:
 		generate_local_map(current_metadata)
 
 func generate_local_map(metadata) -> void:
-	current_metadata = metadata
-	if metadata.has("coords"):
-		world_position = metadata["coords"]
+	# Accept either Dictionary or TileMetadata Resource; normalize to Dictionary
+	if typeof(metadata) == TYPE_OBJECT and metadata is TileMetadata:
+		current_metadata = (metadata as TileMetadata).to_dict()
+	else:
+		current_metadata = metadata
+	if current_metadata.has("coords"):
+		world_position = current_metadata["coords"]
 
-	base_terrain = metadata.get("terrain", overworld_tile_type)
+	base_terrain = current_metadata.get("terrain", overworld_tile_type)
 	overworld_position = world_position
 	print("Generating local area at position: ", world_position, " with terrain type: ", base_terrain)
 	
 	# Set up noise and RNG with deterministic seed from metadata
-	var map_seed = metadata.get("seed", 0)
+	var map_seed = current_metadata.get("seed", 0)
 	noise.seed = map_seed
 	noise.frequency = 1.0 / 50.0 # Default fallback
 	
@@ -76,7 +80,7 @@ func generate_local_map(metadata) -> void:
 				false
 			)
 	
-	# Add water features to appropriate terrains first
+	# Add water features to appropriate terrains first. Use metadata feature weights when present.
 	if base_terrain == OverworldTile.GRASS:
 		maybe_add_water_features(rng)
 	
@@ -88,17 +92,26 @@ func generate_local_map(metadata) -> void:
 	
 	# Generate features based on metadata if available
 	if not current_metadata.is_empty():
+		# Backwards compatibility with previous boolean fields
 		if current_metadata.get("hamlet", false):
 			generate_hamlet("village", rng)
 		elif current_metadata.get("farm", false):
 			generate_hamlet("farm", rng)
 			
-		if current_metadata.get("camp", false):
+		# New structured fields if using TileMetadata
+		var camp_data = current_metadata.get("camp", null)
+		if camp_data is Dictionary and camp_data.get("exists", false):
 			# TODO: Implement camp generation
 			pass
-			
-		if current_metadata.get("dungeon_entrance", false):
+		elif current_metadata.get("camp", false):
+			# Legacy boolean support
+			pass
+
+		var dungeon_data = current_metadata.get("dungeon_entrance", null)
+		if dungeon_data is Dictionary and dungeon_data.get("exists", false):
 			# TODO: Implement dungeon entrance generation
+			pass
+		elif current_metadata.get("dungeon_entrance", false):
 			pass
 	else:
 		# Fallback to random generation if no metadata
