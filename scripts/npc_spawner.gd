@@ -60,9 +60,13 @@ func spawn_wilderness_npcs(count: int = 5):
 		npc.set_locations(pos)
 		spawned_npcs.append(npc)
 
-func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2) -> NPC:
+func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: String = "") -> NPC:
 	var inst: NPC = npc_scene.instantiate()
 	inst.npc_type = npc_type
+	# Set variant (use random if not specified)
+	if variant.is_empty():
+		variant = _get_random_variant_for_type(npc_type)
+	inst.npc_variant = variant
 	add_child(inst)
 	inst.global_position = world_pos
 	inst.apply_type_profile()
@@ -83,3 +87,39 @@ func _assign_seed(entry: Dictionary):
 		rng.seed = entry.seed
 	else:
 		rng.randomize()
+
+func _get_random_variant_for_type(npc_type: MainGameState.NpcType) -> String:
+	# Define available variants for each type
+	# This is a simplified version - could be loaded from data or pulled from NPC class
+	var variants_map = {
+		MainGameState.NpcType.SOLDIER: ["default", "archer", "knight", "heavy_knight", "crossbowman", "longswordsman", "fencer", "warrior_monk", "battlemage", "dwarf_warrior", "elven_archer"],
+		MainGameState.NpcType.PEASANT: ["default", "farmer", "baker", "blacksmith", "scholar", "crone", "hermit", "forester"],
+		MainGameState.NpcType.MERCHANT: ["default"],
+		MainGameState.NpcType.NOBLE: ["default", "priest", "cleric", "monk", "druid", "witch", "wizard", "warlock", "dwarf_wizard"],
+		MainGameState.NpcType.BANDIT: ["default", "thief", "elven_rogue", "barbarian", "heavy_barbarian", "hill_tribe_warrior", "dark_priest"],
+		MainGameState.NpcType.ANIMAL: ["default"],
+		MainGameState.NpcType.MONSTER: ["default"]
+	}
+	
+	var variants = variants_map.get(npc_type, ["default"])
+	return variants[rng.randi() % variants.size()]
+
+func _get_variant_for_role(npc_type: MainGameState.NpcType, role: String = "") -> String:
+	# Helper to select appropriate variants based on role/context
+	# You can expand this later with more sophisticated logic
+	match npc_type:
+		MainGameState.NpcType.SOLDIER:
+			if role == "guard":
+				return "default"
+			elif role == "elite":
+				return "knight"
+			else:
+				return _get_random_variant_for_type(npc_type)
+		MainGameState.NpcType.PEASANT:
+			if role == "worker":
+				var workers = ["farmer", "blacksmith", "baker"]
+				return workers[rng.randi() % workers.size()]
+			else:
+				return _get_random_variant_for_type(npc_type)
+		_:
+			return _get_random_variant_for_type(npc_type)

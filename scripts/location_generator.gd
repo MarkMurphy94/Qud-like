@@ -312,6 +312,8 @@ var noise: FastNoiseLite
 var rng = RandomNumberGenerator.new()
 var base_terrain: int = 1 # The overworld terrain type this area is based on, default = grass
 var overworld_position: Vector2i
+# Deterministic map seed to decouple sub-feature seeding from RNG consumption order
+var current_map_seed: int = 0
 
 # Using area_template.buildings (Array[Structure]) as the authoritative building list
 
@@ -649,7 +651,10 @@ func get_ground_tile(_x: int, _y: int, height: float) -> int:
 			
 func add_foliage() -> void:
 	var detail_noise = FastNoiseLite.new()
-	detail_noise.seed = rng.randi()
+	# Use a stable derived seed so foliage is independent from prior RNG consumption.
+	# Pick an arbitrary constant offset and mix in position and terrain for extra stability.
+	var derived_seed = int(current_map_seed) ^ (overworld_position.x * 73856093) ^ (overworld_position.y * 19349663) ^ int(base_terrain)
+	detail_noise.seed = derived_seed
 	detail_noise.frequency = 1.0 / (area_template.noise_scale * 0.5)
 	
 	for y in HEIGHT:

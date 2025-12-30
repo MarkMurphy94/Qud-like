@@ -41,11 +41,10 @@ func generate_local_map(metadata) -> void:
 	
 	# Set up noise and RNG with deterministic seed from metadata
 	var map_seed = current_metadata.get("seed", 0)
+	current_map_seed = map_seed
 	noise.seed = map_seed
 	noise.frequency = 1.0 / 50.0 # Default fallback
 	
-	# Initialize RNG with the seed for deterministic generation
-	# Store in parent's rng variable so all parent class methods use the same seeded RNG
 	if not rng:
 		rng = RandomNumberGenerator.new()
 	rng.seed = map_seed

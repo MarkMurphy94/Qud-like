@@ -1,7 +1,11 @@
-[gd_scene load_steps=4 format=3 uid="uid://di36j8ada143j"]
+[gd_scene load_steps=7 format=3 uid="uid://di36j8ada143j"]
 
 [ext_resource type="Script" uid="uid://bmvkc16om8fxj" path="res://scripts/npc.gd" id="1_425qo"]
 [ext_resource type="Texture2D" uid="uid://br0x1tgc8tpf0" path="res://assets/32rogues-0.5.0/32rogues/rogues.png" id="2_8k8i5"]
+[ext_resource type="Texture2D" uid="uid://bd2h6trbnd60u" path="res://assets/32rogues-0.5.0/32rogues/animals.png" id="3_rv78h"]
+[ext_resource type="Texture2D" uid="uid://yrpoc454feuw" path="res://assets/32rogues-0.5.0/32rogues/monsters.png" id="4_7n8xq"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_7n8xq"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1vbwm"]
 size = Vector2(8, 8)
@@ -10,33 +14,33 @@ size = Vector2(8, 8)
 z_index = 1
 script = ExtResource("1_425qo")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="interact_radius" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="interact_radius"]
+shape = SubResource("CircleShape2D_7n8xq")
+
+[node name="human_sprite" type="Sprite2D" parent="."]
 position = Vector2(-5.96046e-07, -2.68221e-07)
 scale = Vector2(0.5, 0.5)
 texture = ExtResource("2_8k8i5")
 region_enabled = true
 region_rect = Rect2(0, 160, 32, 32)
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Sprite2D"]
-offset_left = -67.0
-offset_top = -98.0
-offset_right = 130.0
-offset_bottom = -21.0
+[node name="animal_sprite" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(-5.96046e-07, -2.68221e-07)
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("3_rv78h")
+region_enabled = true
+region_rect = Rect2(0, 160, 32, 32)
 
-[node name="debug_text" type="RichTextLabel" parent="Sprite2D/VBoxContainer"]
-layout_mode = 2
-text = "debug"
-fit_content = true
-
-[node name="debug_text2" type="RichTextLabel" parent="Sprite2D/VBoxContainer"]
-layout_mode = 2
-text = "debug"
-fit_content = true
-
-[node name="debug_text3" type="RichTextLabel" parent="Sprite2D/VBoxContainer"]
-layout_mode = 2
-text = "debug"
-fit_content = true
+[node name="monster_sprite" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(-5.96046e-07, -2.68221e-07)
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("4_7n8xq")
+region_enabled = true
+region_rect = Rect2(0, 160, 32, 32)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_1vbwm")
@@ -60,3 +64,27 @@ hit_from_inside = true
 position = Vector2(8, 0)
 target_position = Vector2(8, 0)
 hit_from_inside = true
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+offset_left = -64.0
+offset_top = -96.0
+offset_right = 192.0
+offset_bottom = 64.0
+
+[node name="debug_text" type="RichTextLabel" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 9
+text = "debug"
+fit_content = true
+
+[node name="debug_text2" type="RichTextLabel" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 9
+text = "debug"
+fit_content = true
+
+[node name="debug_text3" type="RichTextLabel" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 9
+text = "debug"
+fit_content = true

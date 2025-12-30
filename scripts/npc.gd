@@ -9,6 +9,7 @@ class_name NPC
 @export var movement_threshold: float = 1.0 # Distance threshold for considering movement complete
 var sprite_node_pos_tween: Tween
 @export var npc_type: MainGameState.NpcType = MainGameState.NpcType.PEASANT
+@export var npc_variant: String = "default" # New variant property
 @export var vision_range: float = 8.0 # How many tiles the NPC can see
 @export var hearing_range: float = 5.0 # How many tiles the NPC can hear
 @export var max_health: int = 100
@@ -94,34 +95,131 @@ var dialogue_state: String = "ROOT"
 var can_trade: bool = false
 var store_inventory: Array = []
 var trade_prices: Dictionary = {"buy_multiplier": 1.0, "sell_multiplier": 0.5}
+var player_in_interact_range: bool = false
+var is_interacting: bool = false
 
-# NPC Type-specific properties
+# NPC Type-specific properties with variants
 var npc_properties = {
+	MainGameState.NpcType.SOLDIER: {
+		"default": {
+			"move_speed": 100.0,
+			"sprite_region_coords": Rect2i(64, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"archer": {
+			"move_speed": 90.0,
+			"sprite_region_coords": Rect2i(96, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 12, "charisma": 8}
+		},
+		"knight": {
+			"move_speed": 80.0,
+			"sprite_region_coords": Rect2i(0, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 16, "charisma": 10}
+		},
+		"heavy_knight": {
+			"move_speed": 70.0,
+			"sprite_region_coords": Rect2i(32, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 18, "agility": 6, "intelligence": 8, "endurance": 18, "charisma": 10}
+		},
+		"crossbowman": {
+			"move_speed": 85.0,
+			"sprite_region_coords": Rect2i(128, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 10, "agility": 14, "intelligence": 10, "endurance": 12, "charisma": 8}
+		},
+		"longswordsman": {
+			"move_speed": 95.0,
+			"sprite_region_coords": Rect2i(160, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"fencer": {
+			"move_speed": 110.0,
+			"sprite_region_coords": Rect2i(192, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 10, "charisma": 12}
+		},
+		"warrior_monk": {
+			"move_speed": 105.0,
+			"sprite_region_coords": Rect2i(224, 32, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 12, "endurance": 14, "charisma": 10}
+		},
+		"battlemage": {
+			"move_speed": 90.0,
+			"sprite_region_coords": Rect2i(0, 64, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 10, "agility": 10, "intelligence": 16, "endurance": 12, "charisma": 10}
+		},
+		"dwarf_warrior": {
+			"move_speed": 85.0,
+			"sprite_region_coords": Rect2i(32, 64, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 18, "charisma": 8}
+		},
+		"elven_archer": {
+			"move_speed": 100.0,
+			"sprite_region_coords": Rect2i(64, 64, 32, 32),
+			"faction": "GUARD",
+			"stats": {"strength": 8, "agility": 18, "intelligence": 12, "endurance": 10, "charisma": 12}
+		}
+	},
 	MainGameState.NpcType.PEASANT: {
+		"default": {
 		"move_speed": 80.0,
-		"move_interval": 0.5,
-		"wander_radius": 5.0,
 		"sprite_region_coords": Rect2i(0, 160, 32, 32),
-		"behavior": "wander_near_home",
 		"faction": "CIVILIAN",
-		"dialogue": "peasant_dialogue",
-		"inventory_template": "peasant_items",
-		"can_trade": false,
 		"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 	},
-	MainGameState.NpcType.SOLDIER: {
-		"move_speed": 100.0,
-		"move_interval": 0.4,
-		"wander_radius": 8.0,
-		"sprite_region_coords": Rect2i(64, 32, 32, 32),
-		"behavior": "patrol",
-		"faction": "GUARD",
-		"dialogue": "guard_dialogue",
-		"inventory_template": "guard_items",
-		"can_trade": false,
-		"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		"farmer": {
+			"move_speed": 75.0,
+			"sprite_region_coords": Rect2i(0, 224, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 8, "endurance": 12, "charisma": 6}
+		},
+		"baker": {
+			"move_speed": 70.0,
+			"sprite_region_coords": Rect2i(32, 160, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 10, "agility": 8, "intelligence": 10, "endurance": 10, "charisma": 10}
+		},
+		"blacksmith": {
+			"move_speed": 75.0,
+			"sprite_region_coords": Rect2i(64, 160, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 16, "agility": 8, "intelligence": 10, "endurance": 14, "charisma": 8}
+		},
+		"scholar": {
+			"move_speed": 70.0,
+			"sprite_region_coords": Rect2i(128, 160, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 6, "agility": 8, "intelligence": 16, "endurance": 8, "charisma": 12}
+		},
+		"crone": {
+			"move_speed": 60.0,
+			"sprite_region_coords": Rect2i(192, 160, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 6, "agility": 6, "intelligence": 14, "endurance": 8, "charisma": 10}
+		},
+		"hermit": {
+			"move_speed": 65.0,
+			"sprite_region_coords": Rect2i(224, 160, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 10, "charisma": 6}
+		},
+		"forester": {
+			"move_speed": 85.0,
+			"sprite_region_coords": Rect2i(0, 192, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 12, "agility": 12, "intelligence": 10, "endurance": 12, "charisma": 8}
+		}
 	},
 	MainGameState.NpcType.MERCHANT: {
+		"default": {
 		"move_speed": 70.0,
 		"move_interval": 0.6,
 		"wander_radius": 3.0,
@@ -133,8 +231,10 @@ var npc_properties = {
 		"can_trade": true,
 		"trade_prices": {"buy_multiplier": 1.2, "sell_multiplier": 0.4},
 		"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 8, "charisma": 14}
+		}
 	},
 	MainGameState.NpcType.NOBLE: {
+		"default": {
 		"move_speed": 60.0,
 		"move_interval": 0.7,
 		"wander_radius": 4.0,
@@ -146,11 +246,61 @@ var npc_properties = {
 		"can_trade": false,
 		"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 	},
+		"priest": {
+			"move_speed": 70.0,
+			"sprite_region_coords": Rect2i(32, 192, 32, 32),
+			"faction": "CLERGY",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
+		},
+		"cleric": {
+			"move_speed": 75.0,
+			"sprite_region_coords": Rect2i(64, 192, 32, 32),
+			"faction": "CLERGY",
+			"stats": {"strength": 10, "agility": 8, "intelligence": 14, "endurance": 12, "charisma": 12}
+		},
+		"monk": {
+			"move_speed": 85.0,
+			"sprite_region_coords": Rect2i(96, 192, 32, 32),
+			"faction": "CLERGY",
+			"stats": {"strength": 10, "agility": 12, "intelligence": 12, "endurance": 12, "charisma": 10}
+		},
+		"druid": {
+			"move_speed": 80.0,
+			"sprite_region_coords": Rect2i(128, 192, 32, 32),
+			"faction": "DRUID",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 12}
+		},
+		"witch": {
+			"move_speed": 75.0,
+			"sprite_region_coords": Rect2i(160, 192, 32, 32),
+			"faction": "NEUTRAL",
+			"stats": {"strength": 6, "agility": 10, "intelligence": 16, "endurance": 8, "charisma": 10}
+		},
+		"wizard": {
+			"move_speed": 70.0,
+			"sprite_region_coords": Rect2i(192, 192, 32, 32),
+			"faction": "MAGE",
+			"stats": {"strength": 6, "agility": 8, "intelligence": 18, "endurance": 8, "charisma": 12}
+		},
+		"warlock": {
+			"move_speed": 75.0,
+			"sprite_region_coords": Rect2i(224, 192, 32, 32),
+			"faction": "NEUTRAL",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
+		},
+		"dwarf_wizard": {
+			"move_speed": 65.0,
+			"sprite_region_coords": Rect2i(0, 224, 32, 32),
+			"faction": "MAGE",
+			"stats": {"strength": 10, "agility": 6, "intelligence": 16, "endurance": 14, "charisma": 10}
+		}
+	},
 	MainGameState.NpcType.BANDIT: {
+		"default": {
 		"move_speed": 120.0,
 		"move_interval": 0.3,
 		"wander_radius": 10.0,
-		"sprite_region_coords": Rect2i(19, 0, 32, 32),
+			"sprite_region_coords": Rect2i(0, 0, 32, 32),
 		"behavior": "aggressive",
 		"faction": "OUTLAW",
 		"dialogue": "bandit_dialogue",
@@ -158,7 +308,45 @@ var npc_properties = {
 		"can_trade": false,
 		"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
 	},
+		"thief": {
+			"move_speed": 130.0,
+			"sprite_region_coords": Rect2i(32, 0, 32, 32),
+			"faction": "OUTLAW",
+			"stats": {"strength": 8, "agility": 16, "intelligence": 12, "endurance": 8, "charisma": 10}
+		},
+		"elven_rogue": {
+			"move_speed": 135.0,
+			"sprite_region_coords": Rect2i(64, 0, 32, 32),
+			"faction": "OUTLAW",
+			"stats": {"strength": 8, "agility": 18, "intelligence": 14, "endurance": 8, "charisma": 12}
+		},
+		"barbarian": {
+			"move_speed": 115.0,
+			"sprite_region_coords": Rect2i(96, 0, 32, 32),
+			"faction": "TRIBAL",
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 16, "charisma": 6}
+		},
+		"heavy_barbarian": {
+			"move_speed": 105.0,
+			"sprite_region_coords": Rect2i(128, 0, 32, 32),
+			"faction": "TRIBAL",
+			"stats": {"strength": 18, "agility": 10, "intelligence": 6, "endurance": 18, "charisma": 6}
+		},
+		"hill_tribe_warrior": {
+			"move_speed": 110.0,
+			"sprite_region_coords": Rect2i(160, 0, 32, 32),
+			"faction": "TRIBAL",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 6}
+		},
+		"dark_priest": {
+			"move_speed": 85.0,
+			"sprite_region_coords": Rect2i(192, 0, 32, 32),
+			"faction": "CULTIST",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
+		}
+	},
 	MainGameState.NpcType.ANIMAL: {
+		"default": {
 		"move_speed": 90.0,
 		"move_interval": 0.4,
 		"wander_radius": 6.0,
@@ -169,8 +357,10 @@ var npc_properties = {
 		"inventory_template": "animal_items",
 		"can_trade": false,
 		"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
+		}
 	},
 	MainGameState.NpcType.MONSTER: {
+		"default": {
 		"move_speed": 110.0,
 		"move_interval": 0.3,
 		"wander_radius": 12.0,
@@ -183,11 +373,16 @@ var npc_properties = {
 		"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
 	}
 }
+}
 
-@onready var debug_1: RichTextLabel = $Sprite2D/VBoxContainer/debug_text
-@onready var debug_2: RichTextLabel = $Sprite2D/VBoxContainer/debug_text2
-@onready var debug_3: RichTextLabel = $Sprite2D/VBoxContainer/debug_text3
+@onready var debug_1: RichTextLabel = $VBoxContainer/debug_text
+@onready var debug_2: RichTextLabel = $VBoxContainer/debug_text2
+@onready var debug_3: RichTextLabel = $VBoxContainer/debug_text3
 
+@onready var human_sprite: Sprite2D = $human_sprite
+@onready var animal_sprite: Sprite2D = $animal_sprite
+@onready var monster_sprite: Sprite2D = $monster_sprite
+@onready var interact_radius: Area2D = $interact_radius
 
 # === SIGNALS ===
 signal npc_dialogue_started(npc)
@@ -197,22 +392,8 @@ signal npc_died(npc)
 signal npc_attacked(npc, target)
 signal npc_item_given(npc, item, target)
 signal npc_item_received(npc, item, source)
-
-func apply_type_profile():
-	var profile = npc_properties.get(npc_type, null)
-	if profile:
-		move_speed = profile.move_speed if profile.has("move_speed") else move_speed
-		move_interval = profile.move_interval if profile.has("move_interval") else move_interval
-		wander_radius = profile.wander_radius if profile.has("wander_radius") else wander_radius
-		faction = profile.faction
-		stats = profile.stats
-		can_trade = profile.get("can_trade", false)
-		if profile.has("trade_prices"):
-			trade_prices = profile.trade_prices
-# Simple helper to set home/work
-func set_locations(home: Vector2, work: Vector2 = Vector2.ZERO):
-	home_position = home
-	work_position = work if work != Vector2.ZERO else home
+signal npc_interaction_available(npc)
+signal npc_interaction_unavailable(npc)
 
 # =============================
 # NEW AI IMPLEMENTATION SECTION
@@ -235,6 +416,7 @@ var show_debug: bool = true
 
 func _ready():
 	apply_type_profile()
+	set_sprite()
 	# Attempt to locate player for reference (optional)
 	if not player_reference:
 		player_reference = _find_player()
@@ -260,6 +442,31 @@ func _physics_process(delta: float) -> void:
 	_execute_state(delta)
 	_update_debug()
 
+func apply_type_profile():
+	var type_data = npc_properties.get(npc_type, null)
+	if not type_data:
+		push_warning("No properties found for NPC type %s" % npc_type)
+		return
+	
+	var profile = type_data.get(npc_variant, type_data.get("default", null))
+	if not profile:
+		push_warning("No variant '%s' found for NPC type %s" % [npc_variant, npc_type])
+		return
+	
+	move_speed = profile.get("move_speed", move_speed)
+	move_interval = profile.get("move_interval", move_interval)
+	wander_radius = profile.get("wander_radius", wander_radius)
+	faction = profile.get("faction", faction)
+	stats = profile.get("stats", stats)
+	can_trade = profile.get("can_trade", false)
+	if profile.has("trade_prices"):
+		trade_prices = profile.trade_prices
+
+# Simple helper to set home/work
+func set_locations(home: Vector2, work: Vector2 = Vector2.ZERO):
+	home_position = home
+	work_position = work if work != Vector2.ZERO else home
+
 func set_state(new_state: NPCState, data: Dictionary = {}):
 	if state == new_state:
 		return
@@ -271,6 +478,50 @@ func set_state(new_state: NPCState, data: Dictionary = {}):
 	state_timer = 0.0
 	_enter_state(new_state)
 	emit_signal("npc_state_changed", self, old, new_state)
+
+func set_sprite():
+	# Hide all sprites first
+	human_sprite.visible = false
+	animal_sprite.visible = false
+	monster_sprite.visible = false
+	
+	# Get the type data first
+	var type_data = npc_properties.get(npc_type, null)
+	if not type_data:
+		push_warning("No properties found for NPC type %s" % npc_type)
+		return
+	
+	# Get the variant profile from the type data
+	var profile = type_data.get(npc_variant, type_data.get("default", null))
+	if not profile:
+		push_warning("No variant '%s' found for NPC type %s" % [npc_variant, npc_type])
+		return
+	
+	# Get the sprite region from the variant profile
+	if not profile.has("sprite_region_coords"):
+		push_warning("NPC type %s variant '%s' has no sprite_region_coords defined" % [npc_type, npc_variant])
+		return
+	
+	var region: Rect2i = profile.sprite_region_coords
+	
+	# Determine which sprite to use based on NPC type
+	var active_sprite: Sprite2D = null
+	match npc_type:
+		MainGameState.NpcType.PEASANT, MainGameState.NpcType.SOLDIER, MainGameState.NpcType.MERCHANT, MainGameState.NpcType.NOBLE, MainGameState.NpcType.BANDIT:
+			active_sprite = human_sprite
+		MainGameState.NpcType.ANIMAL:
+			active_sprite = animal_sprite
+		MainGameState.NpcType.MONSTER:
+			active_sprite = monster_sprite
+	
+	# Configure the sprite
+	if active_sprite:
+		active_sprite.visible = true
+		active_sprite.region_enabled = true
+		active_sprite.region_rect = region
+		sprite = active_sprite
+	else:
+		push_warning("Could not determine sprite for NPC type %s" % npc_type)
 
 func _enter_state(s: int):
 	match s:
@@ -607,10 +858,10 @@ func _grid_step(dir: Vector2) -> void:
 	global_position += dir * tile_size
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()
-	$Sprite2D.global_position -= dir * tile_size
+	sprite.global_position -= dir * tile_size
 	sprite_node_pos_tween = create_tween()
 	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+	sprite_node_pos_tween.tween_property(sprite, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
 	sprite_node_pos_tween.finished.connect(_on_move_tween_finished)
 	is_moving = false
 
