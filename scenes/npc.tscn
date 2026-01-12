@@ -6,6 +6,7 @@
 [ext_resource type="Texture2D" uid="uid://yrpoc454feuw" path="res://assets/32rogues-0.5.0/32rogues/monsters.png" id="4_7n8xq"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_7n8xq"]
+radius = 24.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1vbwm"]
 size = Vector2(8, 8)
@@ -88,3 +89,6 @@ layout_mode = 2
 theme_override_font_sizes/normal_font_size = 9
 text = "debug"
 fit_content = true
+
+[connection signal="area_entered" from="interact_radius" to="." method="_on_interact_radius_body_entered"]
+[connection signal="area_exited" from="interact_radius" to="." method="_on_interact_radius_body_exited"]

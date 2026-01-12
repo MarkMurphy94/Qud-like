@@ -16,6 +16,7 @@ func clear():
 	for n in spawned_npcs:
 		if is_instance_valid(n):
 			n.queue_free()
+			n.remove_from_group("NPCs")
 	spawned_npcs.clear()
 
 func spawn_settlement_npcs():
@@ -70,6 +71,7 @@ func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: St
 	add_child(inst)
 	inst.global_position = world_pos
 	inst.apply_type_profile()
+	inst.add_to_group("NPCs")
 	return inst
 
 func _extract_building_positions(buildings: Array) -> Array:

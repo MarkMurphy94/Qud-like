@@ -25,11 +25,16 @@ var overworld_tile_pos: Vector2
 var is_moving: bool = false
 var movement_threshold: float = 1.0
 
+# NPC Interaction
+var available_npcs: Array = []
+var current_interacting_npc: NPC = null
+
 func _ready() -> void:
 	# Set up player collision layers
 	# collision_layer = 2 # Player is on layer 2
 	# collision_mask = 1 # Player can collide with NPCs and walls (layer 1)
 	# target_position = global_position
+	add_to_group("Player")
 	update_camera_limits()
 
 func _process(_delta: float) -> void:
@@ -39,6 +44,10 @@ func _process(_delta: float) -> void:
 			return_to_overworld()
 		else:
 			descend_to_local_area()
+	
+	# Handle NPC interaction
+	if Input.is_action_just_pressed("ui_interact"):
+		_try_interact_with_npc()
 
 func _physics_process(_delta: float) -> void:
 	# if not in_local_area:
@@ -99,6 +108,7 @@ func descend_to_local_area() -> void:
 	await get_tree().process_frame
 	map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
 	position = get_spawn_tile()
+	_connect_to_existing_npcs()
 	
 	# TODO: call show_or_hide_overworld_scene()
 	overworld.hide()
@@ -194,3 +204,166 @@ func update_camera_limits() -> void:
 		camera.limit_right = overworld.WIDTH * tile_size
 		camera.limit_top = 0
 		camera.limit_bottom = overworld.HEIGHT * tile_size
+
+# =============================
+# NPC INTERACTION SYSTEM
+# =============================
+
+func _connect_to_existing_npcs() -> void:
+	"""Connect to all NPCs already in the scene"""
+	var npcs = get_tree().get_nodes_in_group("NPCs")
+	print("npcs found: ", npcs.size())
+	for npc in npcs:
+		if npc.has_signal("npc_interaction_available"):
+			print("Player entered interaction range of NPC")
+			if not npc.npc_interaction_available.is_connected(_on_npc_interaction_available):
+				npc.npc_interaction_available.connect(_on_npc_interaction_available)
+		if npc.has_signal("npc_interaction_unavailable"):
+			if not npc.npc_interaction_unavailable.is_connected(_on_npc_interaction_unavailable):
+				npc.npc_interaction_unavailable.connect(_on_npc_interaction_unavailable)
+
+func _on_npc_interaction_available(npc: NPC) -> void:
+	"""Called when an NPC becomes available for interaction"""
+	if npc not in available_npcs:
+		available_npcs.append(npc)
+		print("NPC available for interaction: %s" % npc.npc_name if npc.npc_name else "Unnamed NPC")
+
+func _on_npc_interaction_unavailable(npc: NPC) -> void:
+	"""Called when an NPC is no longer available for interaction"""
+	if npc in available_npcs:
+		available_npcs.erase(npc)
+		print("NPC no longer in range")
+
+func _try_interact_with_npc() -> void:
+	"""Attempt to interact with the closest available NPC"""
+	# Don't interact if already in dialogue
+	if Dialogic.current_timeline != null:
+		return
+	
+	if current_interacting_npc:
+		return
+	
+	if available_npcs.is_empty():
+		print("No NPCs in range")
+		return
+	
+	# Find the closest NPC
+	var closest_npc: NPC = null
+	var min_priority = INF
+	
+	for npc in available_npcs:
+		if not is_instance_valid(npc):
+			continue
+		
+		if not npc.can_interact():
+			continue
+		
+		var priority = npc.get_interaction_priority()
+		if priority < min_priority:
+			min_priority = priority
+			closest_npc = npc
+	
+	if closest_npc:
+		_interact_with_npc(closest_npc)
+	else:
+		print("No valid NPCs to interact with")
+
+func _interact_with_npc(npc: NPC) -> void:
+	"""Start interaction with a specific NPC"""
+	if not npc or not is_instance_valid(npc):
+		return
+	
+	var success = npc.start_interaction(self)
+	
+	if success:
+		current_interacting_npc = npc
+		
+		# Connect to dialogue signals
+		if not npc.npc_dialogue_ended.is_connected(_on_npc_dialogue_ended):
+			npc.npc_dialogue_ended.connect(_on_npc_dialogue_ended)
+		
+		# Start Dialogic timeline
+		_start_dialogic_conversation(npc)
+	else:
+		print("Failed to start interaction with NPC")
+
+func _start_dialogic_conversation(npc: NPC) -> void:
+	"""Start a Dialogic timeline based on NPC properties"""
+	# Determine which timeline to use based on NPC type, faction, or name
+	var timeline_name = _get_timeline_for_npc(npc)
+	
+	if timeline_name == "":
+		print("No dialogue timeline found for this NPC")
+		timeline_name = "test_dialogic_timeline"
+		# _end_npc_interaction()
+		# return
+	
+	# Set Dialogic variables that can be used in the timeline
+	# Dialogic.VAR.npc_name = npc.npc_name if npc.npc_name else "Stranger"
+	# Dialogic.VAR.npc_faction = npc.faction
+	# Dialogic.VAR.can_trade = npc.can_trade
+	
+	# Start the timeline
+	Dialogic.start(timeline_name)
+	
+	# Connect to timeline end signal
+	Dialogic.timeline_ended.connect(_on_dialogic_timeline_ended)
+
+func _get_timeline_for_npc(npc: NPC) -> String:
+	"""Determine which Dialogic timeline to use for this NPC"""
+	# Priority: specific NPC name > NPC variant > NPC type > faction > default
+	
+	# Check if NPC has a custom timeline specified
+	if npc.dialogue_tree.has("timeline"):
+		return npc.dialogue_tree["timeline"]
+	
+	# Check by NPC name (if set)
+	if npc.npc_name != "":
+		var name_timeline = "npc_" + npc.npc_name.to_lower().replace(" ", "_")
+		if _dialogic_timeline_exists(name_timeline):
+			return name_timeline
+	
+	# Check by NPC variant
+	if npc.npc_variant != "default":
+		var variant_timeline = "npc_" + npc.npc_variant
+		if _dialogic_timeline_exists(variant_timeline):
+			return variant_timeline
+	
+	# Check by NPC type
+	var type_name = MainGameState.NpcType.keys()[npc.npc_type].to_lower()
+	var type_timeline = "npc_" + type_name
+	if _dialogic_timeline_exists(type_timeline):
+		return type_timeline
+	
+	# Check by faction
+	var faction_timeline = "faction_" + npc.faction.to_lower()
+	if _dialogic_timeline_exists(faction_timeline):
+		return faction_timeline
+	
+	# Default generic timeline
+	if _dialogic_timeline_exists("npc_default"):
+		return "npc_default"
+	
+	return ""
+
+func _dialogic_timeline_exists(timeline_name: String) -> bool:
+	"""Check if a Dialogic timeline exists"""
+	# Try to check if the timeline exists in Dialogic
+	var timeline_path = "res://dialogic/timelines/" + timeline_name + ".dtl"
+	return FileAccess.file_exists(timeline_path)
+
+func _on_dialogic_timeline_ended() -> void:
+	"""Called when Dialogic timeline finishes"""
+	Dialogic.timeline_ended.disconnect(_on_dialogic_timeline_ended)
+	_end_npc_interaction()
+
+func _on_npc_dialogue_ended(npc: NPC) -> void:
+	"""Called when NPC dialogue ends"""
+	if npc.npc_dialogue_ended.is_connected(_on_npc_dialogue_ended):
+		npc.npc_dialogue_ended.disconnect(_on_npc_dialogue_ended)
+
+func _end_npc_interaction() -> void:
+	"""Clean up after NPC interaction ends"""
+	if current_interacting_npc and is_instance_valid(current_interacting_npc):
+		current_interacting_npc.end_interaction()
+		current_interacting_npc = null

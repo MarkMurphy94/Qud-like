@@ -14,6 +14,7 @@ var world_tile_data: Dictionary = {}
 func _ready() -> void:
 	# If you already know MainGameState.settlements at launch, call:
 	create_or_load_save()
+	#Dialogic.start("test_dialogic_timeline")
 
 func _deterministic_seed(settlement_type: int, pos: Vector2i) -> int:
 	var v := int(settlement_type) * 83492791 ^ (pos.x * 73856093) ^ (pos.y * 19349663)

@@ -170,11 +170,11 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.PEASANT: {
 		"default": {
-		"move_speed": 80.0,
-		"sprite_region_coords": Rect2i(0, 160, 32, 32),
-		"faction": "CIVILIAN",
-		"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
-	},
+			"move_speed": 80.0,
+			"sprite_region_coords": Rect2i(0, 160, 32, 32),
+			"faction": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
 		"farmer": {
 			"move_speed": 75.0,
 			"sprite_region_coords": Rect2i(0, 224, 32, 32),
@@ -220,32 +220,32 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.MERCHANT: {
 		"default": {
-		"move_speed": 70.0,
-		"move_interval": 0.6,
-		"wander_radius": 3.0,
-		"sprite_region_coords": Rect2i(96, 160, 32, 32),
-		"behavior": "stay_near_shop",
-		"faction": "MERCHANT",
-		"dialogue": "merchant_dialogue",
-		"inventory_template": "merchant_items",
-		"can_trade": true,
-		"trade_prices": {"buy_multiplier": 1.2, "sell_multiplier": 0.4},
-		"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 8, "charisma": 14}
+			"move_speed": 70.0,
+			"move_interval": 0.6,
+			"wander_radius": 3.0,
+			"sprite_region_coords": Rect2i(96, 160, 32, 32),
+			"behavior": "stay_near_shop",
+			"faction": "MERCHANT",
+			"dialogue": "merchant_dialogue",
+			"inventory_template": "merchant_items",
+			"can_trade": true,
+			"trade_prices": {"buy_multiplier": 1.2, "sell_multiplier": 0.4},
+			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 8, "charisma": 14}
 		}
 	},
 	MainGameState.NpcType.NOBLE: {
 		"default": {
-		"move_speed": 60.0,
-		"move_interval": 0.7,
-		"wander_radius": 4.0,
-		"sprite_region_coords": Rect2i(160, 160, 32, 32),
-		"behavior": "stay_in_manor",
-		"faction": "NOBLE",
-		"dialogue": "noble_dialogue",
-		"inventory_template": "noble_items",
-		"can_trade": false,
-		"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
-	},
+			"move_speed": 60.0,
+			"move_interval": 0.7,
+			"wander_radius": 4.0,
+			"sprite_region_coords": Rect2i(160, 160, 32, 32),
+			"behavior": "stay_in_manor",
+			"faction": "NOBLE",
+			"dialogue": "noble_dialogue",
+			"inventory_template": "noble_items",
+			"can_trade": false,
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
+		},
 		"priest": {
 			"move_speed": 70.0,
 			"sprite_region_coords": Rect2i(32, 192, 32, 32),
@@ -297,17 +297,17 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.BANDIT: {
 		"default": {
-		"move_speed": 120.0,
-		"move_interval": 0.3,
-		"wander_radius": 10.0,
+			"move_speed": 120.0,
+			"move_interval": 0.3,
+			"wander_radius": 10.0,
 			"sprite_region_coords": Rect2i(0, 0, 32, 32),
-		"behavior": "aggressive",
-		"faction": "OUTLAW",
-		"dialogue": "bandit_dialogue",
-		"inventory_template": "bandit_items",
-		"can_trade": false,
-		"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
-	},
+			"behavior": "aggressive",
+			"faction": "OUTLAW",
+			"dialogue": "bandit_dialogue",
+			"inventory_template": "bandit_items",
+			"can_trade": false,
+			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
+		},
 		"thief": {
 			"move_speed": 130.0,
 			"sprite_region_coords": Rect2i(32, 0, 32, 32),
@@ -347,32 +347,32 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.ANIMAL: {
 		"default": {
-		"move_speed": 90.0,
-		"move_interval": 0.4,
-		"wander_radius": 6.0,
-		"sprite_region_coords": Rect2i(128, 96, 32, 32),
-		"behavior": "flee_on_approach",
-		"faction": "WILDLIFE",
-		"dialogue": "none",
-		"inventory_template": "animal_items",
-		"can_trade": false,
-		"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
+			"move_speed": 90.0,
+			"move_interval": 0.4,
+			"wander_radius": 6.0,
+			"sprite_region_coords": Rect2i(128, 96, 32, 32),
+			"behavior": "flee_on_approach",
+			"faction": "WILDLIFE",
+			"dialogue": "none",
+			"inventory_template": "animal_items",
+			"can_trade": false,
+			"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
 		}
 	},
 	MainGameState.NpcType.MONSTER: {
 		"default": {
-		"move_speed": 110.0,
-		"move_interval": 0.3,
-		"wander_radius": 12.0,
-		"sprite_region_coords": Rect2i(128, 32, 32, 32),
-		"behavior": "hunt",
-		"faction": "MONSTER",
-		"dialogue": "none",
-		"inventory_template": "monster_items",
-		"can_trade": false,
-		"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+			"move_speed": 110.0,
+			"move_interval": 0.3,
+			"wander_radius": 12.0,
+			"sprite_region_coords": Rect2i(128, 32, 32, 32),
+			"behavior": "hunt",
+			"faction": "MONSTER",
+			"dialogue": "none",
+			"inventory_template": "monster_items",
+			"can_trade": false,
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+		}
 	}
-}
 }
 
 @onready var debug_1: RichTextLabel = $VBoxContainer/debug_text
@@ -413,7 +413,7 @@ var hear_event_cooldown: float = 0.0
 
 # --- DEBUG OPTIONS ---
 var show_debug: bool = true
-
+	
 func _ready():
 	apply_type_profile()
 	set_sprite()
@@ -422,6 +422,10 @@ func _ready():
 		player_reference = _find_player()
 	# Initialize schedule to nearest state
 	_update_schedule(true)
+	# Connect interaction signals
+	if interact_radius:
+		interact_radius.body_entered.connect(_on_interact_radius_body_entered)
+		interact_radius.body_exited.connect(_on_interact_radius_body_exited)
 	set_process(true)
 	set_physics_process(true)
 
@@ -879,3 +883,148 @@ func _orthogonal_dirs(dir: Vector2) -> Array:
 		return [Vector2.UP, Vector2.DOWN]
 	else:
 		return [Vector2.LEFT, Vector2.RIGHT]
+
+# =============================
+# INTERACTION SYSTEM
+# =============================
+
+func _on_interact_radius_body_entered(body: Node2D) -> void:
+	if body.is_in_group("Player"):
+		player_in_interact_range = true
+		emit_signal("npc_interaction_available", self)
+
+func _on_interact_radius_body_exited(body: Node2D) -> void:
+	if body.is_in_group("Player"):
+		player_in_interact_range = false
+		if is_interacting:
+			end_interaction()
+		emit_signal("npc_interaction_unavailable", self)
+
+func can_interact() -> bool:
+	"""Check if this NPC can currently be interacted with"""
+	return player_in_interact_range and state != NPCState.DEAD and not is_interacting
+
+func get_interaction_priority() -> float:
+	"""Returns a priority value for interaction selection (lower is higher priority)
+	Used when multiple NPCs are in range - closest NPC gets priority"""
+	if not player_reference or not is_instance_valid(player_reference):
+		return 9999.0
+	return global_position.distance_to(player_reference.global_position)
+
+func start_interaction(interactor: Node2D) -> bool:
+	"""Called when player initiates interaction with this NPC
+	Returns true if interaction was successful"""
+	if not can_interact():
+		return false
+	
+	if state == NPCState.DEAD:
+		return false
+	
+	is_interacting = true
+	
+	# Set NPC to interact state
+	set_state(NPCState.INTERACT, {"interactor": interactor})
+	
+	# Face the interactor
+	var dir_to_interactor = (interactor.global_position - global_position).normalized()
+	last_direction = dir_to_interactor
+	
+	# Start dialogue
+	emit_signal("npc_dialogue_started", self)
+	
+	# Handle different interaction types
+	if can_trade:
+		_start_trade_interaction(interactor)
+	else:
+		_start_dialogue_interaction(interactor)
+	
+	return true
+
+func end_interaction() -> void:
+	"""End the current interaction"""
+	if not is_interacting:
+		return
+	
+	is_interacting = false
+	emit_signal("npc_dialogue_ended", self)
+	
+	# Return to previous state or default to wander
+	if previous_state != NPCState.INTERACT:
+		set_state(previous_state)
+	else:
+		set_state(NPCState.WANDER)
+
+func _start_dialogue_interaction(interactor: Node2D) -> void:
+	"""Handle dialogue-based interaction"""
+	print("%s: Hello there!" % npc_name if npc_name else "NPC says hello!")
+	# TODO: Implement actual dialogue system integration
+	# For now, just print a message based on NPC type and faction
+	var greeting = _get_greeting_message()
+	print(greeting)
+
+func _start_trade_interaction(interactor: Node2D) -> void:
+	"""Handle trade-based interaction"""
+	print("%s: Would you like to see my wares?" % npc_name if npc_name else "Merchant opens shop")
+	# TODO: Implement actual trade system
+	# For now, just print available items
+	if store_inventory.size() > 0:
+		print("Available items: %s" % store_inventory)
+	else:
+		print("Shop inventory is empty")
+
+func _get_greeting_message() -> String:
+	"""Generate a greeting based on NPC type and faction"""
+	var greeting = ""
+	
+	match faction:
+		"GUARD":
+			greeting = "Halt! State your business."
+		"CIVILIAN":
+			greeting = "Good day to you, traveler."
+		"MERCHANT":
+			greeting = "Welcome! Looking to buy or sell?"
+		"NOBLE":
+			greeting = "Greetings. What brings you here?"
+		"OUTLAW":
+			greeting = "What do you want?"
+		"MONSTER":
+			greeting = "*Growls menacingly*"
+		"WILDLIFE":
+			greeting = "*Animal noises*"
+		_:
+			greeting = "..."
+	
+	return greeting
+
+func interact_give_item(item: Dictionary) -> bool:
+	"""Player gives an item to this NPC
+	Returns true if NPC accepts the item"""
+	if not is_interacting:
+		return false
+	
+	# Check if NPC wants this item (quest logic, etc.)
+	var accepts_item = _should_accept_item(item)
+	
+	if accepts_item:
+		inventory.append(item)
+		emit_signal("npc_item_received", self, item, state_data.get("interactor"))
+		print("%s accepts the %s" % [npc_name if npc_name else "NPC", item.get("name", "item")])
+		return true
+	else:
+		print("%s doesn't want that." % [npc_name if npc_name else "NPC"])
+		return false
+
+func _should_accept_item(item: Dictionary) -> bool:
+	"""Determine if NPC should accept the given item"""
+	# TODO: Implement quest item checking, faction preferences, etc.
+	# For now, merchants accept everything, others are selective
+	if can_trade:
+		return true
+	
+	# Check quest flags for specific item requests
+	if quest_flags.has("wants_item"):
+		var wanted_item = quest_flags["wants_item"]
+		if item.get("id") == wanted_item:
+			return true
+	
+	return false
