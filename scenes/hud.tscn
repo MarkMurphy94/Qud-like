@@ -1,0 +1,97 @@
+[gd_scene load_steps=2 format=3 uid="uid://cduxhurofnhgh"]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="TopContainer" type="HBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+alignment = 3
+
+[node name="BarsContainer" type="VBoxContainer" parent="MarginContainer/TopContainer"]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 4
+
+[node name="HPContainer" type="HBoxContainer" parent="MarginContainer/TopContainer/BarsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HPLabel" type="Label" parent="MarginContainer/TopContainer/BarsContainer/HPContainer"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+text = "HP"
+
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/TopContainer/BarsContainer/HPContainer"]
+custom_minimum_size = Vector2(150, 20)
+layout_mode = 2
+step = 1.0
+value = 100.0
+show_percentage = false
+
+[node name="HPValue" type="Label" parent="MarginContainer/TopContainer/BarsContainer/HPContainer"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "100/100"
+
+[node name="MPContainer" type="HBoxContainer" parent="MarginContainer/TopContainer/BarsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MPLabel" type="Label" parent="MarginContainer/TopContainer/BarsContainer/MPContainer"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+text = "MP"
+
+[node name="MPBar" type="ProgressBar" parent="MarginContainer/TopContainer/BarsContainer/MPContainer"]
+custom_minimum_size = Vector2(150, 20)
+layout_mode = 2
+step = 1.0
+value = 100.0
+show_percentage = false
+
+[node name="MPValue" type="Label" parent="MarginContainer/TopContainer/BarsContainer/MPContainer"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "100/100"
+
+[node name="SPContainer" type="HBoxContainer" parent="MarginContainer/TopContainer/BarsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SPLabel" type="Label" parent="MarginContainer/TopContainer/BarsContainer/SPContainer"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+text = "SP"
+
+[node name="SPBar" type="ProgressBar" parent="MarginContainer/TopContainer/BarsContainer/SPContainer"]
+custom_minimum_size = Vector2(150, 20)
+layout_mode = 2
+step = 1.0
+value = 100.0
+show_percentage = false
+
+[node name="SPValue" type="Label" parent="MarginContainer/TopContainer/BarsContainer/SPContainer"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "100/100"
+
+[node name="Spacer" type="Control" parent="MarginContainer/TopContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PauseButton" type="Button" parent="MarginContainer/TopContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+text = "II"

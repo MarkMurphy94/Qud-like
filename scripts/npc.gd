@@ -2,10 +2,11 @@ extends CharacterBody2D
 class_name NPC
 
 # === EXPORTS AND CONFIGURATION ===
-@export var move_speed: float = 80.0
+@export var move_speed: float = 50.0
 @export var tile_size: int = 16
 @export var grid_size: int = 16
-@export var move_interval: float = 0.5 # seconds between moves
+@export var move_interval: float = 1.5 # seconds between moves
+@export var move_interval_variance: float = 0.5 # random variance added to move_interval
 @export var movement_threshold: float = 1.0 # Distance threshold for considering movement complete
 var sprite_node_pos_tween: Tween
 @export var npc_type: MainGameState.NpcType = MainGameState.NpcType.PEASANT
@@ -62,7 +63,7 @@ var environment: Node2D # Local area map only
 var rng = RandomNumberGenerator.new()
 var target_position: Vector2
 var is_moving: bool = false
-var move_timer: float = 7.0
+var move_timer: float = 0.0
 var last_direction: Vector2 = Vector2.ZERO
 var path: Array = [] # For pathfinding
 var sprite: Sprite2D
@@ -102,67 +103,67 @@ var is_interacting: bool = false
 var npc_properties = {
 	MainGameState.NpcType.SOLDIER: {
 		"default": {
-			"move_speed": 100.0,
+			"move_speed": 60.0,
 			"sprite_region_coords": Rect2i(64, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
 		},
 		"archer": {
-			"move_speed": 90.0,
+			"move_speed": 55.0,
 			"sprite_region_coords": Rect2i(96, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 12, "charisma": 8}
 		},
 		"knight": {
-			"move_speed": 80.0,
+			"move_speed": 50.0,
 			"sprite_region_coords": Rect2i(0, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 16, "charisma": 10}
 		},
 		"heavy_knight": {
-			"move_speed": 70.0,
+			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(32, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 18, "agility": 6, "intelligence": 8, "endurance": 18, "charisma": 10}
 		},
 		"crossbowman": {
-			"move_speed": 85.0,
+			"move_speed": 52.0,
 			"sprite_region_coords": Rect2i(128, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 10, "agility": 14, "intelligence": 10, "endurance": 12, "charisma": 8}
 		},
 		"longswordsman": {
-			"move_speed": 95.0,
+			"move_speed": 58.0,
 			"sprite_region_coords": Rect2i(160, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
 		},
 		"fencer": {
-			"move_speed": 110.0,
+			"move_speed": 65.0,
 			"sprite_region_coords": Rect2i(192, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 10, "charisma": 12}
 		},
 		"warrior_monk": {
-			"move_speed": 105.0,
+			"move_speed": 62.0,
 			"sprite_region_coords": Rect2i(224, 32, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 14, "agility": 14, "intelligence": 12, "endurance": 14, "charisma": 10}
 		},
 		"battlemage": {
-			"move_speed": 90.0,
+			"move_speed": 55.0,
 			"sprite_region_coords": Rect2i(0, 64, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 10, "agility": 10, "intelligence": 16, "endurance": 12, "charisma": 10}
 		},
 		"dwarf_warrior": {
-			"move_speed": 85.0,
+			"move_speed": 52.0,
 			"sprite_region_coords": Rect2i(32, 64, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 18, "charisma": 8}
 		},
 		"elven_archer": {
-			"move_speed": 100.0,
+			"move_speed": 60.0,
 			"sprite_region_coords": Rect2i(64, 64, 32, 32),
 			"faction": "GUARD",
 			"stats": {"strength": 8, "agility": 18, "intelligence": 12, "endurance": 10, "charisma": 12}
@@ -170,49 +171,49 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.PEASANT: {
 		"default": {
-			"move_speed": 80.0,
+			"move_speed": 50.0,
 			"sprite_region_coords": Rect2i(0, 160, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 		},
 		"farmer": {
-			"move_speed": 75.0,
+			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(0, 224, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 8, "intelligence": 8, "endurance": 12, "charisma": 6}
 		},
 		"baker": {
-			"move_speed": 70.0,
+			"move_speed": 42.0,
 			"sprite_region_coords": Rect2i(32, 160, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 10, "agility": 8, "intelligence": 10, "endurance": 10, "charisma": 10}
 		},
 		"blacksmith": {
-			"move_speed": 75.0,
+			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(64, 160, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 10, "endurance": 14, "charisma": 8}
 		},
 		"scholar": {
-			"move_speed": 70.0,
+			"move_speed": 42.0,
 			"sprite_region_coords": Rect2i(128, 160, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 8, "intelligence": 16, "endurance": 8, "charisma": 12}
 		},
 		"crone": {
-			"move_speed": 60.0,
+			"move_speed": 36.0,
 			"sprite_region_coords": Rect2i(192, 160, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 6, "intelligence": 14, "endurance": 8, "charisma": 10}
 		},
 		"hermit": {
-			"move_speed": 65.0,
+			"move_speed": 40.0,
 			"sprite_region_coords": Rect2i(224, 160, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 10, "charisma": 6}
 		},
 		"forester": {
-			"move_speed": 85.0,
+			"move_speed": 52.0,
 			"sprite_region_coords": Rect2i(0, 192, 32, 32),
 			"faction": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 12, "intelligence": 10, "endurance": 12, "charisma": 8}
@@ -220,7 +221,7 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.MERCHANT: {
 		"default": {
-			"move_speed": 70.0,
+			"move_speed": 42.0,
 			"move_interval": 0.6,
 			"wander_radius": 3.0,
 			"sprite_region_coords": Rect2i(96, 160, 32, 32),
@@ -235,7 +236,7 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.NOBLE: {
 		"default": {
-			"move_speed": 60.0,
+			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
 			"sprite_region_coords": Rect2i(160, 160, 32, 32),
@@ -247,49 +248,49 @@ var npc_properties = {
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 		},
 		"priest": {
-			"move_speed": 70.0,
+			"move_speed": 42.0,
 			"sprite_region_coords": Rect2i(32, 192, 32, 32),
 			"faction": "CLERGY",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
 		},
 		"cleric": {
-			"move_speed": 75.0,
+			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(64, 192, 32, 32),
 			"faction": "CLERGY",
 			"stats": {"strength": 10, "agility": 8, "intelligence": 14, "endurance": 12, "charisma": 12}
 		},
 		"monk": {
-			"move_speed": 85.0,
+			"move_speed": 52.0,
 			"sprite_region_coords": Rect2i(96, 192, 32, 32),
 			"faction": "CLERGY",
 			"stats": {"strength": 10, "agility": 12, "intelligence": 12, "endurance": 12, "charisma": 10}
 		},
 		"druid": {
-			"move_speed": 80.0,
+			"move_speed": 48.0,
 			"sprite_region_coords": Rect2i(128, 192, 32, 32),
 			"faction": "DRUID",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 12}
 		},
 		"witch": {
-			"move_speed": 75.0,
+			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(160, 192, 32, 32),
 			"faction": "NEUTRAL",
 			"stats": {"strength": 6, "agility": 10, "intelligence": 16, "endurance": 8, "charisma": 10}
 		},
 		"wizard": {
-			"move_speed": 70.0,
+			"move_speed": 42.0,
 			"sprite_region_coords": Rect2i(192, 192, 32, 32),
 			"faction": "MAGE",
 			"stats": {"strength": 6, "agility": 8, "intelligence": 18, "endurance": 8, "charisma": 12}
 		},
 		"warlock": {
-			"move_speed": 75.0,
+			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(224, 192, 32, 32),
 			"faction": "NEUTRAL",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
 		},
 		"dwarf_wizard": {
-			"move_speed": 65.0,
+			"move_speed": 40.0,
 			"sprite_region_coords": Rect2i(0, 224, 32, 32),
 			"faction": "MAGE",
 			"stats": {"strength": 10, "agility": 6, "intelligence": 16, "endurance": 14, "charisma": 10}
@@ -297,7 +298,7 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.BANDIT: {
 		"default": {
-			"move_speed": 120.0,
+			"move_speed": 72.0,
 			"move_interval": 0.3,
 			"wander_radius": 10.0,
 			"sprite_region_coords": Rect2i(0, 0, 32, 32),
@@ -309,37 +310,37 @@ var npc_properties = {
 			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
 		},
 		"thief": {
-			"move_speed": 130.0,
+			"move_speed": 78.0,
 			"sprite_region_coords": Rect2i(32, 0, 32, 32),
 			"faction": "OUTLAW",
 			"stats": {"strength": 8, "agility": 16, "intelligence": 12, "endurance": 8, "charisma": 10}
 		},
 		"elven_rogue": {
-			"move_speed": 135.0,
+			"move_speed": 80.0,
 			"sprite_region_coords": Rect2i(64, 0, 32, 32),
 			"faction": "OUTLAW",
 			"stats": {"strength": 8, "agility": 18, "intelligence": 14, "endurance": 8, "charisma": 12}
 		},
 		"barbarian": {
-			"move_speed": 115.0,
+			"move_speed": 70.0,
 			"sprite_region_coords": Rect2i(96, 0, 32, 32),
 			"faction": "TRIBAL",
 			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 16, "charisma": 6}
 		},
 		"heavy_barbarian": {
-			"move_speed": 105.0,
+			"move_speed": 65.0,
 			"sprite_region_coords": Rect2i(128, 0, 32, 32),
 			"faction": "TRIBAL",
 			"stats": {"strength": 18, "agility": 10, "intelligence": 6, "endurance": 18, "charisma": 6}
 		},
 		"hill_tribe_warrior": {
-			"move_speed": 110.0,
+			"move_speed": 68.0,
 			"sprite_region_coords": Rect2i(160, 0, 32, 32),
 			"faction": "TRIBAL",
 			"stats": {"strength": 14, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 6}
 		},
 		"dark_priest": {
-			"move_speed": 85.0,
+			"move_speed": 52.0,
 			"sprite_region_coords": Rect2i(192, 0, 32, 32),
 			"faction": "CULTIST",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
@@ -347,7 +348,7 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.ANIMAL: {
 		"default": {
-			"move_speed": 90.0,
+			"move_speed": 55.0,
 			"move_interval": 0.4,
 			"wander_radius": 6.0,
 			"sprite_region_coords": Rect2i(128, 96, 32, 32),
@@ -361,7 +362,7 @@ var npc_properties = {
 	},
 	MainGameState.NpcType.MONSTER: {
 		"default": {
-			"move_speed": 110.0,
+			"move_speed": 65.0,
 			"move_interval": 0.3,
 			"wander_radius": 12.0,
 			"sprite_region_coords": Rect2i(128, 32, 32, 32),
@@ -375,9 +376,11 @@ var npc_properties = {
 	}
 }
 
-@onready var debug_1: RichTextLabel = $VBoxContainer/debug_text
-@onready var debug_2: RichTextLabel = $VBoxContainer/debug_text2
-@onready var debug_3: RichTextLabel = $VBoxContainer/debug_text3
+@onready var debug_container: VBoxContainer = $CanvasLayer/VBoxContainer
+@onready var debug_1: RichTextLabel = $CanvasLayer/VBoxContainer/debug_text
+@onready var debug_2: RichTextLabel = $CanvasLayer/VBoxContainer/debug_text2
+@onready var debug_3: RichTextLabel = $CanvasLayer/VBoxContainer/debug_text3
+
 
 @onready var human_sprite: Sprite2D = $human_sprite
 @onready var animal_sprite: Sprite2D = $animal_sprite
@@ -415,8 +418,11 @@ var hear_event_cooldown: float = 0.0
 var show_debug: bool = true
 	
 func _ready():
+	rng.randomize()
 	apply_type_profile()
 	set_sprite()
+	# Randomize initial move timer to desync NPC movement
+	move_timer = rng.randf_range(0.0, move_interval + move_interval_variance)
 	# Attempt to locate player for reference (optional)
 	if not player_reference:
 		player_reference = _find_player()
@@ -649,7 +655,9 @@ func _execute_state(delta: float):
 func _move_towards_target(_delta: float, arrive_idle: bool = false):
 	if target_position == Vector2.ZERO:
 		return
-	if move_timer < move_interval:
+	# Add variance to movement timing
+	var effective_interval = move_interval + rng.randf_range(-move_interval_variance, move_interval_variance)
+	if move_timer < effective_interval:
 		return
 	if is_moving:
 		return
@@ -768,7 +776,18 @@ func record_event(event: Dictionary):
 
 func _update_debug():
 	if not show_debug:
+		if debug_container:
+			debug_container.visible = false
 		return
+	
+	# Update debug container position to follow NPC in screen space
+	if debug_container:
+		debug_container.visible = true
+		var camera = get_viewport().get_camera_2d()
+		if camera:
+			var screen_pos = get_global_transform_with_canvas().origin
+			debug_container.position = screen_pos + Vector2(-64, -48)
+	
 	if debug_1:
 		debug_1.text = "State: %s  HP:%d/%d" % [_state_name(state), current_health, max_health]
 	if debug_2:

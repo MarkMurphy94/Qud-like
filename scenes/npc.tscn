@@ -15,6 +15,32 @@ size = Vector2(8, 8)
 z_index = 1
 script = ExtResource("1_425qo")
 
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer"]
+offset_left = -64.0
+offset_top = -96.0
+offset_right = 336.0
+offset_bottom = -10.0
+
+[node name="debug_text" type="RichTextLabel" parent="CanvasLayer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 18
+text = "debug"
+fit_content = true
+
+[node name="debug_text2" type="RichTextLabel" parent="CanvasLayer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 18
+text = "debug"
+fit_content = true
+
+[node name="debug_text3" type="RichTextLabel" parent="CanvasLayer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 18
+text = "debug"
+fit_content = true
+
 [node name="interact_radius" type="Area2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="interact_radius"]
@@ -65,30 +91,6 @@ hit_from_inside = true
 position = Vector2(8, 0)
 target_position = Vector2(8, 0)
 hit_from_inside = true
-
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
-offset_left = -64.0
-offset_top = -96.0
-offset_right = 192.0
-offset_bottom = 64.0
-
-[node name="debug_text" type="RichTextLabel" parent="VBoxContainer"]
-layout_mode = 2
-theme_override_font_sizes/normal_font_size = 9
-text = "debug"
-fit_content = true
-
-[node name="debug_text2" type="RichTextLabel" parent="VBoxContainer"]
-layout_mode = 2
-theme_override_font_sizes/normal_font_size = 9
-text = "debug"
-fit_content = true
-
-[node name="debug_text3" type="RichTextLabel" parent="VBoxContainer"]
-layout_mode = 2
-theme_override_font_sizes/normal_font_size = 9
-text = "debug"
-fit_content = true
 
 [connection signal="area_entered" from="interact_radius" to="." method="_on_interact_radius_body_entered"]
 [connection signal="area_exited" from="interact_radius" to="." method="_on_interact_radius_body_exited"]

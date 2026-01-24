@@ -11,6 +11,7 @@ var sprite_node_pos_tween: Tween
 @onready var overworld = $"../OverworldMap"
 @onready var camera = $Camera2D
 @onready var area_container: Node2D = $"../AreaContainer"
+@onready var hud = $HUD
 
 var local_area_scene = preload("res://scenes/local_area_generator.tscn")
 var current_local_area: Node2D = null
@@ -36,6 +37,11 @@ func _ready() -> void:
 	# target_position = global_position
 	add_to_group("Player")
 	update_camera_limits()
+	hud.pause_requested.connect(_on_pause_requested)
+	# Initialize with starting values
+	hud.update_hp(100, 100)
+	hud.update_mp(50, 50)
+	hud.update_sp(100, 100)
 
 func _process(_delta: float) -> void:
 	# Handle input for entering/exiting areas
@@ -367,3 +373,6 @@ func _end_npc_interaction() -> void:
 	if current_interacting_npc and is_instance_valid(current_interacting_npc):
 		current_interacting_npc.end_interaction()
 		current_interacting_npc = null
+
+func _on_pause_requested() -> void:
+	get_tree().paused = !get_tree().paused
