@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="ItemConsumable" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/items/item_consumable.gd" id="1_health_potion"]
+
+[resource]
+script = ExtResource("1_health_potion")
+id = "health_potion"
+display_name = "Health Potion"
+description = "A red potion that restores health."
+item_type = 2
+rarity = 0
+sprite_region = Rect2i(32, 608, 32, 32)
+sprite_index = Vector2i(0, 0)
+tile_size = Vector2i(16, 16)
+stackable = true
+max_stack = 20
+weight = 0.5
+base_value = 10
+is_quest_item = false
+is_unique = false
+can_drop = true
+can_sell = true
+modifiers = {}
+effect_type = 0
+effect_value = 25
+duration = 0.0
+hunger_restore = 0
+thirst_restore = 0
+spell_id = ""

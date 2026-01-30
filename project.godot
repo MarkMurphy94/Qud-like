@@ -19,6 +19,8 @@ config/icon="res://icon.svg"
 
 MainGameState="*res://scripts/main_game_state.gd"
 Dialogic="*res://addons/dialogic/Core/DialogicGameHandler.gd"
+ItemDatabase="*res://scripts/item_database.gd"
+ItemGenerator="*res://scripts/item_generator.gd"
 
 [dialogic]
 

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="Item" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/items/item.gd" id="1_ancient_amulet"]
+
+[resource]
+script = ExtResource("1_ancient_amulet")
+id = "ancient_amulet"
+display_name = "Ancient Amulet"
+description = "A mysterious amulet humming with otherworldly power. Its origins are unknown, but legends speak of its connection to the old gods."
+item_type = 4
+rarity = 5
+stackable = false
+max_stack = 1
+weight = 0.2
+base_value = 0
+is_quest_item = true
+is_unique = true
+can_drop = false
+can_sell = false
+modifiers = {}

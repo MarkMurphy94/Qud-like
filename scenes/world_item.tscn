@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://c884d0nqudvsi"]
+
+[ext_resource type="Script" path="res://scripts/world_item.gd" id="1_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pickup"]
+size = Vector2(14, 14)
+
+[node name="WorldItem" type="Area2D"]
+collision_layer = 4
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_pickup")

@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://bv0mbb5131eop"]
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_263hw"]
+load_path = "res://.godot/imported/items.png-e7d287f6b877aef0bf3b6f81690b17ca.ctex"
+
+[node name="item" type="Node2D"]
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = SubResource("CompressedTexture2D_263hw")
+region_enabled = true
+region_rect = Rect2(32, 800, 32, 32)

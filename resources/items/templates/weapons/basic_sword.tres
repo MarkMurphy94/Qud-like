@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="ItemWeapon" load_steps=2 format=3 uid="uid://2ml1geofo1id"]
+
+[ext_resource type="Script" uid="uid://dsji76vaut8i5" path="res://resources/items/item_weapon.gd" id="1_sword"]
+
+[resource]
+script = ExtResource("1_sword")
+weapon_type = 0
+damage_type = 0
+base_damage = 8
+damage_variance = 2
+attack_speed = 1.0
+range_tiles = 1
+crit_chance = 5.0
+crit_multiplier = 1.5
+two_handed = false
+id = "basic_sword"
+display_name = "Sword"
+description = "A standard iron sword. Reliable and well-balanced."
+item_type = 0
+rarity = 0
+sprite_region = Rect2i(32, 0, 32, 32)
+sprite_index = Vector2i(0, 0)
+tile_size = Vector2i(16, 16)
+stackable = false
+max_stack = 1
+weight = 3.0
+base_value = 25
+is_quest_item = false
+is_unique = false
+can_drop = true
+can_sell = true
+modifiers = {}
+
+
+; Rect2i(x: int, y: int, width: int, height: int)

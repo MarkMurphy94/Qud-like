@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ItemWeapon" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/items/item_weapon.gd" id="1_blade_of_dawn"]
+
+[resource]
+script = ExtResource("1_blade_of_dawn")
+id = "blade_of_dawn"
+display_name = "Blade of Dawn"
+description = "A legendary sword forged in the first light of creation. It burns with holy fire against the undead."
+item_type = 0
+rarity = 5
+sprite_region = Rect2i(256, 0, 32, 32)
+sprite_index = Vector2i(0, 0)
+tile_size = Vector2i(16, 16)
+stackable = false
+max_stack = 1
+weight = 3.5
+base_value = 500
+is_quest_item = false
+is_unique = true
+can_drop = true
+can_sell = false
+modifiers = {"fire_damage": 10, "special": "smite_undead"}
+weapon_type = 0
+damage_type = 1
+base_damage = 15
+damage_variance = 3
+attack_speed = 1.1
+range_tiles = 1
+crit_chance = 10.0
+crit_multiplier = 2.0
+two_handed = false
