@@ -1,0 +1,134 @@
+[gd_scene load_steps=2 format=3 uid="uid://dqmded0qrgga8"]
+
+[ext_resource type="Script" uid="uid://cwmqols8ylyy0" path="res://scripts/inventory_screen.gd" id="1_inventory_screen"]
+
+[node name="InventoryScreen" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_inventory_screen")
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 200.0
+offset_top = 100.0
+offset_right = -200.0
+offset_bottom = -100.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleBar" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer/TitleBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Inventory"
+
+[node name="CloseButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/TitleBar"]
+layout_mode = 2
+text = "Close [ESC]"
+
+[node name="TopBar" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="SortLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer/TopBar"]
+layout_mode = 2
+text = "Sort by:"
+
+[node name="SortOption" type="OptionButton" parent="Panel/MarginContainer/VBoxContainer/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WeightLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer/TopBar"]
+layout_mode = 2
+text = "Weight: 0.0 / 100.0 kg"
+
+[node name="ValueLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer/TopBar"]
+layout_mode = 2
+text = "Value: 0 gold"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ItemGrid" type="GridContainer" parent="Panel/MarginContainer/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 6
+
+[node name="BottomPanel" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="ItemDetails" type="Panel" parent="Panel/MarginContainer/VBoxContainer/BottomPanel"]
+custom_minimum_size = Vector2(400, 150)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ItemDetails"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 5
+
+[node name="ItemNameLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ItemDetails/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "No item selected"
+
+[node name="ItemDescLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ItemDetails/VBoxContainer"]
+layout_mode = 2
+text = " "
+autowrap_mode = 3
+
+[node name="ItemStatsLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ItemDetails/VBoxContainer"]
+layout_mode = 2
+text = " "
+
+[node name="ActionButtons" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer/BottomPanel"]
+layout_mode = 2
+size_flags_horizontal = 8
+theme_override_constants/separation = 10
+
+[node name="UseButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons"]
+custom_minimum_size = Vector2(100, 40)
+layout_mode = 2
+disabled = true
+text = "Use"
+
+[node name="DropButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons"]
+custom_minimum_size = Vector2(100, 40)
+layout_mode = 2
+disabled = true
+text = "Drop"
+
+[node name="DropAmount" type="SpinBox" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons"]
+visible = false
+layout_mode = 2
+min_value = 1.0
+value = 1.0

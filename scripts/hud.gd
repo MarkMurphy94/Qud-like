@@ -7,11 +7,18 @@ extends CanvasLayer
 @onready var mp_value: Label = $MarginContainer/TopContainer/BarsContainer/MPContainer/MPValue
 @onready var sp_value: Label = $MarginContainer/TopContainer/BarsContainer/SPContainer/SPValue
 @onready var pause_button: Button = $MarginContainer/TopContainer/PauseButton
+@onready var inventory: Button = $MarginContainer/TopContainer/inventory
+
+var player_inventory = null
+var inventory_screen_scene = load("res://scenes/inventory_screen.tscn")
+var inventory_screen_instance = null
 
 signal pause_requested
 
 func _ready() -> void:
 	pause_button.pressed.connect(_on_pause_button_pressed)
+	inventory.pressed.connect(_on_inventory_pressed)
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_style_bars()
 
 func _style_bars() -> void:
@@ -54,3 +61,33 @@ func update_sp(current: int, max_value: int) -> void:
 
 func _on_pause_button_pressed() -> void:
 	emit_signal("pause_requested")
+
+func _on_inventory_pressed() -> void:
+	# Check if inventory screen already exists
+	if inventory_screen_instance and is_instance_valid(inventory_screen_instance):
+		# If it's already visible, toggle it closed
+		if inventory_screen_instance.visible:
+			inventory_screen_instance.close_inventory()
+			return
+		else:
+			# If it exists but is hidden, show it again
+			player_inventory = get_parent().inventory
+			if player_inventory:
+				inventory_screen_instance.open_inventory(player_inventory)
+			return
+	
+	# Create new inventory screen instance
+	inventory_screen_instance = inventory_screen_scene.instantiate()
+	add_child(inventory_screen_instance)
+	
+	# Connect to closed signal to clean up reference
+	inventory_screen_instance.inventory_closed.connect(_on_inventory_screen_closed)
+	
+	# Open with player's inventory
+	player_inventory = get_parent().inventory
+	if player_inventory:
+		inventory_screen_instance.open_inventory(player_inventory)
+
+func _on_inventory_screen_closed() -> void:
+	# Keep the instance around for reuse, just hide it
+	pass

@@ -30,18 +30,40 @@ var movement_threshold: float = 1.0
 var available_npcs: Array = []
 var current_interacting_npc: NPC = null
 
+# Player Stats and Inventory
+var max_health: int = 100
+var current_health: int = 100
+var max_mana: int = 50
+var current_mana: int = 50
+var max_stamina: int = 100
+var current_stamina: int = 100
+var gold: int = 0
+
+# Inventory system
+var inventory: Inventory = null
+@export var inventory_slots: int = 20
+@export var max_carry_weight: float = 100.0
+
 func _ready() -> void:
 	# Set up player collision layers
 	# collision_layer = 2 # Player is on layer 2
 	# collision_mask = 1 # Player can collide with NPCs and walls (layer 1)
 	# target_position = global_position
 	add_to_group("Player")
+	add_to_group("player")  # Lowercase for WorldItem detection
 	update_camera_limits()
 	hud.pause_requested.connect(_on_pause_requested)
+	
+	# Initialize inventory
+	_initialize_inventory()
+	
+	# Setup inventory screen
+	_setup_inventory_screen()
+	
 	# Initialize with starting values
-	hud.update_hp(100, 100)
-	hud.update_mp(50, 50)
-	hud.update_sp(100, 100)
+	hud.update_hp(current_health, max_health)
+	hud.update_mp(current_mana, max_mana)
+	hud.update_sp(current_stamina, max_stamina)
 
 func _process(_delta: float) -> void:
 	# Handle input for entering/exiting areas
@@ -50,6 +72,10 @@ func _process(_delta: float) -> void:
 			return_to_overworld()
 		else:
 			descend_to_local_area()
+	
+	# Handle inventory screen toggle
+	if Input.is_action_just_pressed("ui_inventory"):
+		_toggle_inventory_screen()
 	
 	# Handle NPC interaction
 	if Input.is_action_just_pressed("ui_interact"):
@@ -376,3 +402,136 @@ func _end_npc_interaction() -> void:
 
 func _on_pause_requested() -> void:
 	get_tree().paused = !get_tree().paused
+
+# =============================
+# INVENTORY SYSTEM
+# =============================
+
+func _initialize_inventory() -> void:
+	"""Set up the player's inventory"""
+	if not inventory:
+		inventory = Inventory.new()
+		inventory.max_slots = inventory_slots
+		inventory.max_weight = max_carry_weight
+		add_child(inventory)
+		
+		# Connect to inventory signals
+		inventory.inventory_changed.connect(_on_inventory_changed)
+		inventory.inventory_full.connect(_on_inventory_full)
+		inventory.item_added.connect(_on_item_added)
+		inventory.item_removed.connect(_on_item_removed)
+
+func add_item_to_inventory(item: Item, quantity: int = 1) -> bool:
+	"""Add an item to the player's inventory. Returns true if successful."""
+	if not inventory:
+		_initialize_inventory()
+	
+	return inventory.add_item(item, quantity)
+
+func remove_item_from_inventory(item_id: String, quantity: int = 1) -> int:
+	"""Remove an item from inventory. Returns the actual quantity removed."""
+	if not inventory:
+		return 0
+	
+	return inventory.remove_item(item_id, quantity)
+
+func has_item(item_id: String, quantity: int = 1) -> bool:
+	"""Check if player has a specific item"""
+	if not inventory:
+		return false
+	
+	return inventory.has_item(item_id, quantity)
+
+func pickup_item(item: Item, quantity: int = 1) -> bool:
+	"""Alternative method name for compatibility with WorldItem"""
+	return add_item_to_inventory(item, quantity)
+
+func drop_item(item_id: String, quantity: int = 1) -> bool:
+	"""Drop an item from inventory and spawn it in the world"""
+	if not inventory:
+		return false
+	
+	var item = inventory.get_item_by_id(item_id)
+	if not item:
+		return false
+	
+	var removed = inventory.remove_item(item_id, quantity)
+	if removed > 0:
+		_spawn_world_item(item, removed)
+		return true
+	
+	return false
+
+func _spawn_world_item(item: Item, quantity: int) -> void:
+	"""Spawn an item in the world at the player's position"""
+	var world_item_scene = preload("res://scenes/world_item.tscn")
+	var world_item = world_item_scene.instantiate()
+	world_item.item_resource = item
+	world_item.quantity = quantity
+	
+	# Spawn slightly in front of the player
+	var spawn_offset = Vector2(0, tile_size)
+	world_item.global_position = global_position + spawn_offset
+	
+	# Add to the current scene
+	if in_local_area and area_container.current_area:
+		area_container.current_area.add_child(world_item)
+	else:
+		get_parent().add_child(world_item)
+	
+	print("Dropped %d x %s" % [quantity, item.get_display_name()])
+
+# Inventory signal handlers
+func _on_inventory_changed() -> void:
+	"""Called when inventory contents change"""
+	# Update UI if needed
+	pass
+
+func _on_inventory_full() -> void:
+	"""Called when trying to add to a full inventory"""
+	print("Inventory is full!")
+	# TODO: Show UI notification
+
+func _on_item_added(item: Item, quantity: int) -> void:
+	"""Called when an item is successfully added"""
+	print("Added %d x %s to inventory" % [quantity, item.get_display_name()])
+	# TODO: Show UI notification
+
+func _on_item_removed(item: Item, quantity: int) -> void:
+	"""Called when an item is removed"""
+	print("Removed %d x %s from inventory" % [quantity, item.get_display_name()])
+	# TODO: Show UI notification
+
+func get_inventory() -> Inventory:
+	"""Get the player's inventory for external access"""
+	return inventory
+
+# =============================
+# INVENTORY SCREEN
+# =============================
+
+var inventory_screen = null
+
+func _setup_inventory_screen():
+	"""Load and setup the inventory screen"""
+	var inventory_screen_scene = load("res://scenes/inventory_screen.tscn")
+	if inventory_screen_scene:
+		inventory_screen = inventory_screen_scene.instantiate()
+		add_child(inventory_screen)
+		inventory_screen.inventory_closed.connect(_on_inventory_screen_closed)
+	else:
+		push_error("Failed to load inventory_screen.tscn")
+
+func _toggle_inventory_screen():
+	"""Open or close the inventory screen"""
+	if not inventory_screen:
+		return
+	
+	if inventory_screen.visible:
+		inventory_screen.close_inventory()
+	else:
+		inventory_screen.open_inventory(inventory)
+
+func _on_inventory_screen_closed():
+	"""Called when inventory screen is closed"""
+	pass

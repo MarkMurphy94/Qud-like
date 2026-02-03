@@ -32,7 +32,7 @@ var stats: Dictionary = {
 	"endurance": 10,
 	"charisma": 10
 }
-var inventory: Array = []
+var inventory: Inventory = null  # Proper inventory system with stacking
 var equipped_items: Dictionary = {}
 var quest_flags: Dictionary = {}
 var current_health: int = max_health
@@ -432,6 +432,10 @@ func _ready():
 	if interact_radius:
 		interact_radius.body_entered.connect(_on_interact_radius_body_entered)
 		interact_radius.body_exited.connect(_on_interact_radius_body_exited)
+	
+	# Initialize inventory
+	_initialize_inventory()
+	
 	set_process(true)
 	set_physics_process(true)
 
@@ -1015,25 +1019,31 @@ func _get_greeting_message() -> String:
 	
 	return greeting
 
-func interact_give_item(item: Dictionary) -> bool:
+func interact_give_item(item: Item, quantity: int = 1) -> bool:
 	"""Player gives an item to this NPC
 	Returns true if NPC accepts the item"""
 	if not is_interacting:
 		return false
 	
+	if not inventory:
+		_initialize_inventory()
+	
 	# Check if NPC wants this item (quest logic, etc.)
 	var accepts_item = _should_accept_item(item)
 	
 	if accepts_item:
-		inventory.append(item)
-		emit_signal("npc_item_received", self, item, state_data.get("interactor"))
-		print("%s accepts the %s" % [npc_name if npc_name else "NPC", item.get("name", "item")])
-		return true
+		if inventory.add_item(item, quantity):
+			emit_signal("npc_item_received", self, item, state_data.get("interactor"))
+			print("%s accepts the %s" % [npc_name if npc_name else "NPC", item.get_display_name()])
+			return true
+		else:
+			print("%s's inventory is full" % [npc_name if npc_name else "NPC"])
+			return false
 	else:
 		print("%s doesn't want that." % [npc_name if npc_name else "NPC"])
 		return false
 
-func _should_accept_item(item: Dictionary) -> bool:
+func _should_accept_item(item: Item) -> bool:
 	"""Determine if NPC should accept the given item"""
 	# TODO: Implement quest item checking, faction preferences, etc.
 	# For now, merchants accept everything, others are selective
@@ -1043,7 +1053,97 @@ func _should_accept_item(item: Dictionary) -> bool:
 	# Check quest flags for specific item requests
 	if quest_flags.has("wants_item"):
 		var wanted_item = quest_flags["wants_item"]
-		if item.get("id") == wanted_item:
+		if item.id == wanted_item:
 			return true
 	
 	return false
+
+# =============================
+# INVENTORY SYSTEM
+# =============================
+
+func _initialize_inventory() -> void:
+	"""Set up the NPC's inventory"""
+	if not inventory:
+		inventory = Inventory.new()
+		# NPCs typically have smaller inventories than player
+		inventory.max_slots = 10
+		inventory.max_weight = 50.0
+		add_child(inventory)
+		
+		# Merchants have larger inventories
+		if can_trade:
+			inventory.max_slots = 30
+			inventory.max_weight = 200.0
+		
+		# Connect to inventory signals
+		inventory.inventory_changed.connect(_on_inventory_changed)
+		inventory.inventory_full.connect(_on_inventory_full)
+
+func add_item_to_inventory(item: Item, quantity: int = 1) -> bool:
+	"""Add an item to the NPC's inventory. Returns true if successful."""
+	if not inventory:
+		_initialize_inventory()
+	
+	return inventory.add_item(item, quantity)
+
+func remove_item_from_inventory(item_id: String, quantity: int = 1) -> int:
+	"""Remove an item from inventory. Returns the actual quantity removed."""
+	if not inventory:
+		return 0
+	
+	return inventory.remove_item(item_id, quantity)
+
+func has_item(item_id: String, quantity: int = 1) -> bool:
+	"""Check if NPC has a specific item"""
+	if not inventory:
+		return false
+	
+	return inventory.has_item(item_id, quantity)
+
+func get_inventory() -> Inventory:
+	"""Get the NPC's inventory for external access"""
+	return inventory
+
+func drop_item(item_id: String, quantity: int = 1) -> bool:
+	"""Drop an item from inventory and spawn it in the world"""
+	if not inventory:
+		return false
+	
+	var item = inventory.get_item_by_id(item_id)
+	if not item:
+		return false
+	
+	var removed = inventory.remove_item(item_id, quantity)
+	if removed > 0:
+		_spawn_world_item(item, removed)
+		return true
+	
+	return false
+
+func _spawn_world_item(item: Item, quantity: int) -> void:
+	"""Spawn an item in the world at the NPC's position"""
+	var world_item_scene = preload("res://scenes/world_item.tscn")
+	var world_item = world_item_scene.instantiate()
+	world_item.item_resource = item
+	world_item.quantity = quantity
+	
+	# Spawn slightly in front of the NPC
+	var spawn_offset = Vector2(0, tile_size)
+	world_item.global_position = global_position + spawn_offset
+	
+	# Add to the current scene
+	get_parent().add_child(world_item)
+	
+	print("%s dropped %d x %s" % [npc_name if npc_name else "NPC", quantity, item.get_display_name()])
+
+# Inventory signal handlers
+func _on_inventory_changed() -> void:
+	"""Called when inventory contents change"""
+	# Update any UI or AI logic that depends on inventory
+	pass
+
+func _on_inventory_full() -> void:
+	"""Called when trying to add to a full inventory"""
+	if show_debug:
+		print("%s's inventory is full!" % [npc_name if npc_name else "NPC"])
