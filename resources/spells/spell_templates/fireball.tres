@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="Spell" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spells/spell.gd" id="1_spell"]
+
+[resource]
+script = ExtResource("1_spell")
+id = "fireball"
+display_name = "Fireball"
+description = "Hurl a blazing sphere of fire at your enemies, dealing explosive damage to all creatures in the blast radius."
+spell_type = 0
+rarity = 1
+mana_cost = 25
+cast_time = 1.5
+cooldown = 3.0
+spell_range = 8.0
+target_type = 5
+can_move_while_casting = false
+damage = 45
+healing = 0
+aoe_radius = 2.5
+status_effects = []
+duration = 0.0
+projectile_speed = 15.0
+required_level = 5
+required_skill = "pyromancy"
+required_skill_level = 2
+sprite_region = Rect2i(0, 0, 16, 16)
+sprite_index = Vector2i(0, 0)
+tile_size = Vector2i(16, 16)
+animation = "fireball_cast"
+spell_color = Color(1, 0.4, 0, 1)
+modifiers = {}

@@ -9,6 +9,7 @@ enum ItemType {
     WEAPON,
     ARMOR,
     CONSUMABLE,
+    BOOK,
     MATERIAL,
     QUEST,
     KEY,
