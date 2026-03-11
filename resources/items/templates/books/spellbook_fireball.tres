@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="ItemBook" load_steps=2 format=3 uid="uid://bkt706i3won0k"]
+
+[ext_resource type="Script" uid="uid://bepyiyt41jf6i" path="res://resources/items/item_book.gd" id="1_book"]
+
+[resource]
+script = ExtResource("1_book")
+book_type = 2
+full_text = "In the ancient tongue of fire elementals, we learn to channel the raw power of flame into a devastating sphere of destruction. Focus your mana, visualize the burning sphere, and unleash its fury upon your foes."
+skill_id = ""
+spell_id = "fireball"
+recipe_id = ""
+read_once = true
+id = "spellbook_fireball"
+display_name = "Tome of Fireball"
+description = "An ancient grimoire containing the secrets of pyromancy. Reading this book will teach you the Fireball spell."
+item_type = 3
+rarity = 2
+sprite_region = Rect2i(160, 672, 32, 32)
+sprite_index = Vector2i(0, 0)
+tile_size = Vector2i(16, 16)
+stackable = false
+max_stack = 1
+weight = 2.0
+base_value = 250
+is_quest_item = false
+is_unique = false
+can_drop = true
+can_sell = true
+modifiers = {}

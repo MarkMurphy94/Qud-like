@@ -44,6 +44,10 @@ var inventory: Inventory = null
 @export var inventory_slots: int = 20
 @export var max_carry_weight: float = 100.0
 
+# Spell system
+var learned_spells: Array[Spell] = []  ## Array of learned Spell resources
+var spell_cooldowns: Dictionary = {}  ## spell_id -> cooldown_remaining
+
 func _ready() -> void:
 	# Set up player collision layers
 	# collision_layer = 2 # Player is on layer 2
@@ -66,6 +70,9 @@ func _ready() -> void:
 	hud.update_sp(current_stamina, max_stamina)
 
 func _process(_delta: float) -> void:
+	# Update spell cooldowns
+	_update_spell_cooldowns(_delta)
+	
 	# Handle input for entering/exiting areas
 	if Input.is_action_just_pressed("ui_accept"):
 		if in_local_area:
@@ -511,6 +518,7 @@ func get_inventory() -> Inventory:
 # =============================
 
 var inventory_screen = null
+var spell_book_screen = null
 
 func _setup_inventory_screen():
 	"""Load and setup the inventory screen"""
@@ -521,6 +529,16 @@ func _setup_inventory_screen():
 		inventory_screen.inventory_closed.connect(_on_inventory_screen_closed)
 	else:
 		push_error("Failed to load inventory_screen.tscn")
+	
+	# Setup spell book screen
+	var spell_book_scene = load("res://scenes/spell_book_screen.tscn")
+	if spell_book_scene:
+		spell_book_screen = spell_book_scene.instantiate()
+		add_child(spell_book_screen)
+		spell_book_screen.spell_book_closed.connect(_on_spell_book_closed)
+		spell_book_screen.spell_cast_requested.connect(_on_spell_cast_requested)
+	else:
+		push_error("Failed to load spell_book_screen.tscn")
 
 func _toggle_inventory_screen():
 	"""Open or close the inventory screen"""
@@ -535,3 +553,120 @@ func _toggle_inventory_screen():
 func _on_inventory_screen_closed():
 	"""Called when inventory screen is closed"""
 	pass
+
+
+func open_spell_book():
+	"""Open the spell book screen"""
+	if not spell_book_screen:
+		return
+	
+	if spell_book_screen.visible:
+		spell_book_screen.close_spell_book()
+	else:
+		spell_book_screen.open_spell_book(self)
+
+
+func _on_spell_book_closed():
+	"""Called when spell book is closed"""
+	pass
+
+
+func _on_spell_cast_requested(spell: Spell):
+	"""Called when player wants to cast a spell from spell book"""
+	if not spell:
+		return
+	
+	# Check if spell can be cast
+	if not spell.can_cast(self):
+		print("Cannot cast %s" % spell.get_display_name())
+		return
+	
+	# Consume mana
+	current_mana -= spell.get_mana_cost()
+	if current_mana < 0:
+		current_mana = 0
+	hud.update_mp(current_mana, max_mana)
+	
+	# Start cooldown
+	start_spell_cooldown(spell.id, spell.cooldown)
+	
+	# TODO: Actually cast the spell (create effects, deal damage, etc.)
+	print("Cast %s for %d mana!" % [spell.get_display_name(), spell.get_mana_cost()])
+	
+	# TODO: Implement spell effects based on spell type
+
+
+# =============================
+# SPELL SYSTEM
+# =============================
+
+func learn_spell(spell: Spell) -> bool:
+	"""Learn a new spell if not already known. Returns true if learned."""
+	if not spell:
+		return false
+	
+	# Check if already learned
+	if has_spell(spell.id):
+		print("You already know %s" % spell.get_display_name())
+		return false
+	
+	# Check if requirements are met
+	if not _meets_spell_requirements(spell):
+		print("You don't meet the requirements to learn %s" % spell.get_display_name())
+		return false
+	
+	# Learn the spell
+	learned_spells.append(spell)
+	print("Learned spell: %s" % spell.get_display_name())
+	return true
+
+func has_spell(spell_id: String) -> bool:
+	"""Check if player has learned a specific spell"""
+	for spell in learned_spells:
+		if spell.id == spell_id:
+			return true
+	return false
+
+func get_spell_by_id(spell_id: String) -> Spell:
+	"""Get a learned spell by its ID"""
+	for spell in learned_spells:
+		if spell.id == spell_id:
+			return spell
+	return null
+
+func get_learned_spells() -> Array[Spell]:
+	"""Get all learned spells"""
+	return learned_spells
+
+func _meets_spell_requirements(_spell: Spell) -> bool:
+	"""Check if player meets the requirements to learn a spell"""
+	# For now, just return true - can be extended later
+	# Could check: level, skill requirements, etc.
+	return true
+
+func get_current_mana() -> int:
+	"""Get current mana value"""
+	return current_mana
+
+func get_level() -> int:
+	"""Get player level - placeholder for now"""
+	return 1  # TODO: Implement proper leveling system
+
+func get_skill_level(_skill: String) -> int:
+	"""Get skill level - placeholder for now"""
+	return 1  # TODO: Implement proper skill system
+
+func is_spell_on_cooldown(spell_id: String) -> bool:
+	"""Check if a spell is currently on cooldown"""
+	return spell_cooldowns.has(spell_id) and spell_cooldowns[spell_id] > 0.0
+
+func start_spell_cooldown(spell_id: String, cooldown: float) -> void:
+	"""Start cooldown timer for a spell"""
+	spell_cooldowns[spell_id] = cooldown
+
+func _update_spell_cooldowns(delta: float) -> void:
+	"""Update all spell cooldowns (should be called in _process)"""
+	for spell_id in spell_cooldowns.keys():
+		spell_cooldowns[spell_id] -= delta
+		if spell_cooldowns[spell_id] <= 0.0:
+			spell_cooldowns.erase(spell_id)

@@ -8,4 +8,4 @@ load_path = "res://.godot/imported/items.png-e7d287f6b877aef0bf3b6f81690b17ca.ct
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = SubResource("CompressedTexture2D_263hw")
 region_enabled = true
-region_rect = Rect2(32, 800, 32, 32)
+region_rect = Rect2(160, 672, 32, 32)

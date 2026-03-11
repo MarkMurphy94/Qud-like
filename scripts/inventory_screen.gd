@@ -8,6 +8,7 @@ signal inventory_closed
 
 @onready var panel: Panel = $Panel
 @onready var title_label: Label = $Panel/MarginContainer/VBoxContainer/TitleBar/TitleLabel
+@onready var spell_book_button: Button = $Panel/MarginContainer/VBoxContainer/TitleBar/SpellBookButton
 @onready var close_button: Button = $Panel/MarginContainer/VBoxContainer/TitleBar/CloseButton
 @onready var sort_option: OptionButton = $Panel/MarginContainer/VBoxContainer/TopBar/SortOption
 @onready var weight_label: Label = $Panel/MarginContainer/VBoxContainer/TopBar/WeightLabel
@@ -45,6 +46,7 @@ func _ready():
 	
 	# Connect signals
 	close_button.pressed.connect(_on_close_button_pressed)
+	spell_book_button.pressed.connect(_on_spell_book_button_pressed)
 	use_button.pressed.connect(_on_use_button_pressed)
 	drop_button.pressed.connect(_on_drop_button_pressed)
 	sort_option.item_selected.connect(_on_sort_option_selected)
@@ -301,8 +303,8 @@ func _update_item_details(item: Item, quantity: int):
 
 func _can_use_item(item: Item) -> bool:
 	"""Check if an item can be used"""
-	# For now, only consumables can be used
-	return item.item_type == Item.ItemType.CONSUMABLE
+	# Books and consumables can be used
+	return item.item_type == Item.ItemType.CONSUMABLE or item.item_type == Item.ItemType.BOOK
 
 
 func _create_item_slot_scene():
@@ -315,6 +317,18 @@ func _create_item_slot_scene():
 
 func _on_close_button_pressed():
 	close_inventory()
+
+
+func _on_spell_book_button_pressed():
+	"""Called when Spell Book button is clicked"""
+	var player = get_tree().get_first_node_in_group("Player")
+	if player and player.has_method("open_spell_book"):
+		# Close inventory first
+		close_inventory()
+		# Open spell book
+		player.open_spell_book()
+	else:
+		print("Player or spell book not available")
 
 
 func _on_item_slot_pressed(index: int):
@@ -343,13 +357,42 @@ func _on_use_button_pressed():
 	
 	var item = slot.item
 	
-	# TODO: Implement actual item usage (consume potion, equip weapon, etc.)
-	print("Using item: %s" % item.get_display_name())
+	# Get player reference
+	var player = get_tree().get_first_node_in_group("Player")
+	if not player:
+		return
 	
-	# For consumables, remove one from inventory
-	if item.item_type == Item.ItemType.CONSUMABLE:
+	# Handle book usage (spell learning)
+	if item.item_type == Item.ItemType.BOOK:
+		var book = item as ItemBook
+		if book and book.book_type == ItemBook.BookType.SPELL and book.spell_id != "":
+			# Load the spell resource
+			var spell_path = "res://resources/spells/spell_templates/%s.tres" % book.spell_id
+			if ResourceLoader.exists(spell_path):
+				var spell = load(spell_path) as Spell
+				if spell and player.has_method("learn_spell"):
+					if player.learn_spell(spell):
+						print("Learned spell: %s" % spell.get_display_name())
+						# Remove book if it's single-use
+						if book.read_once:
+							inventory.remove_item_at_slot(selected_slot_index, 1)
+					else:
+						print("You already know this spell or can't learn it")
+				else:
+					print("Failed to load spell or player can't learn spells")
+			else:
+				print("Spell not found: %s" % book.spell_id)
+		else:
+			print("Reading: %s" % item.get_display_name())
+			# TODO: Show book text in a dialog
+	
+	# Handle consumable usage
+	elif item.item_type == Item.ItemType.CONSUMABLE:
+		print("Using item: %s" % item.get_display_name())
 		inventory.remove_item_at_slot(selected_slot_index, 1)
-		# The inventory_changed signal will trigger refresh
+		# TODO: Apply consumable effects
+	
+	# The inventory_changed signal will trigger refresh
 
 
 func _on_drop_button_pressed():
