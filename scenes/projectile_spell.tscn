@@ -1,0 +1,42 @@
+[gd_scene load_steps=7 format=3 uid="uid://c6y23h7w7ta8x"]
+
+[ext_resource type="Script" uid="uid://b2dtuwvo4s5g6" path="res://scripts/projectile_spell.gd" id="1_udihb"]
+
+[sub_resource type="Gradient" id="Gradient_ejm5d"]
+offsets = PackedFloat32Array(0, 0.341808, 0.960452)
+colors = PackedColorArray(30.9373, 0.905882, 0.121569, 1, 0.901961, 0.521569, 0, 1, 0.712494, 0.231631, 0.243605, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_udihb"]
+gradient = SubResource("Gradient_ejm5d")
+
+[sub_resource type="Curve" id="Curve_2126a"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.99999, 0), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_ng2p5"]
+curve = SubResource("Curve_2126a")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ejm5d"]
+lifetime_randomness = 0.09
+particle_flag_disable_z = true
+spread = 180.0
+initial_velocity_min = 38.28
+initial_velocity_max = 119.62
+gravity = Vector3(0, -200, 0)
+linear_accel_min = -100.0
+linear_accel_max = -92.34
+radial_accel_min = -100.0
+radial_accel_max = -95.21
+scale_min = 0.0
+scale_max = 19.13
+scale_curve = SubResource("CurveTexture_ng2p5")
+color_ramp = SubResource("GradientTexture1D_udihb")
+
+[node name="Node2D" type="Node2D"]
+script = ExtResource("1_udihb")
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+amount = 50
+lifetime = 0.72
+trail_sections = 3
+process_material = SubResource("ParticleProcessMaterial_ejm5d")

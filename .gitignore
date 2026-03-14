@@ -5,3 +5,4 @@ addons/
 *.zip
 .vscode/
 *.uid
+assets/

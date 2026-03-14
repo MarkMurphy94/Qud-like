@@ -793,13 +793,13 @@ func _update_debug():
 			debug_container.position = screen_pos + Vector2(-64, -48)
 	
 	if debug_1:
-		debug_1.text = "State: %s  HP:%d/%d" % [_state_name(state), current_health, max_health]
+		debug_1.text = "State: %s \n HP:%d/%d" % [_state_name(state), current_health, max_health]
 	if debug_2:
 		var hour = last_schedule_hour
-		debug_2.text = "Hour:%02d Target:%s" % [hour, Vector2i(target_position)]
+		debug_2.text = "Hour:%02d \n Target:%s" % [hour, Vector2i(target_position)]
 	if debug_3:
 		var tgt = current_target if current_target else null
-		debug_3.text = "Faction:%s Hostile:%s Target:%s" % [faction, str(_is_hostile_to_player()), (tgt and tgt.name) if tgt else "None"]
+		debug_3.text = "Hostile:%s \n Target:%s" % [str(_is_hostile_to_player()), (tgt and tgt.name) if tgt else "None"]
 
 func _state_name(s: int) -> String:
 	match s:
