@@ -48,6 +48,12 @@ var inventory: Inventory = null
 var learned_spells: Array[Spell] = []  ## Array of learned Spell resources
 var spell_cooldowns: Dictionary = {}  ## spell_id -> cooldown_remaining
 
+# Targeting / aiming state (set when a spell needs a mouse-click target)
+var _is_aiming: bool = false
+var _pending_spell: Spell = null
+var _targeting_label: Label = null
+var _reticle: Node2D = null
+
 func _ready() -> void:
 	# Set up player collision layers
 	# collision_layer = 2 # Player is on layer 2
@@ -68,6 +74,12 @@ func _ready() -> void:
 	hud.update_hp(current_health, max_health)
 	hud.update_mp(current_mana, max_mana)
 	hud.update_sp(current_stamina, max_stamina)
+
+	# --- DEBUG: learn fireball at startup ---
+	var _fireball: Spell = load("res://resources/spells/spell_templates/fireball_test.tres")
+	if _fireball:
+		learn_spell(_fireball)
+	# ----------------------------------------
 
 func _process(_delta: float) -> void:
 	# Update spell cooldowns
@@ -106,6 +118,26 @@ func _physics_process(_delta: float) -> void:
 	
 	# Update roof visibility
 	_update_roof_visibility()
+
+
+func _input(event: InputEvent) -> void:
+	if not _is_aiming:
+		return
+
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_fire_pending_spell(get_global_mouse_position())
+			_exit_targeting_mode()
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			print("Spell targeting cancelled")
+			_exit_targeting_mode()
+			get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_cancel"):
+		print("Spell targeting cancelled")
+		_exit_targeting_mode()
+		get_viewport().set_input_as_handled()
+
 
 func _move(dir: Vector2):
 	global_position += dir * tile_size
@@ -254,7 +286,7 @@ func _connect_to_existing_npcs() -> void:
 	print("npcs found: ", npcs.size())
 	for npc in npcs:
 		if npc.has_signal("npc_interaction_available"):
-			print("Player entered interaction range of NPC")
+			print("Player entered interaction range of %s" % (npc.npc_name if npc.npc_name else "an unnamed NPC"))
 			if not npc.npc_interaction_available.is_connected(_on_npc_interaction_available):
 				npc.npc_interaction_available.connect(_on_npc_interaction_available)
 		if npc.has_signal("npc_interaction_unavailable"):
@@ -575,25 +607,99 @@ func _on_spell_cast_requested(spell: Spell):
 	"""Called when player wants to cast a spell from spell book"""
 	if not spell:
 		return
-	
-	# Check if spell can be cast
+
 	if not spell.can_cast(self):
 		print("Cannot cast %s" % spell.get_display_name())
 		return
-	
-	# Consume mana
-	current_mana -= spell.get_mana_cost()
-	if current_mana < 0:
-		current_mana = 0
+
+	# Enter aiming/targeting mode — the spell fires on the next left-click
+	_pending_spell = spell
+	_is_aiming = true
+	_show_targeting_label("[TARGETING] %s  |  Left-click to aim & fire  |  Right-click / ESC to cancel" \
+		% spell.get_display_name())
+	_spawn_reticle(spell)
+
+
+func _show_targeting_label(text: String) -> void:
+	"""Create (or reuse) a HUD label that tells the player they are in targeting mode."""
+	if not _targeting_label:
+		_targeting_label = Label.new()
+		_targeting_label.add_theme_font_size_override("font_size", 13)
+		_targeting_label.add_theme_color_override("font_color", Color.YELLOW)
+		_targeting_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+		_targeting_label.add_theme_constant_override("shadow_offset_x", 1)
+		_targeting_label.add_theme_constant_override("shadow_offset_y", 1)
+		# Anchor to bottom-left of the viewport via the HUD CanvasLayer
+		_targeting_label.anchor_top    = 1.0
+		_targeting_label.anchor_bottom = 1.0
+		_targeting_label.anchor_left   = 0.0
+		_targeting_label.anchor_right  = 1.0
+		_targeting_label.offset_top    = -50
+		_targeting_label.offset_bottom = -20
+		_targeting_label.offset_left   = 10
+		_targeting_label.offset_right  = -10
+		hud.add_child(_targeting_label)
+	_targeting_label.text = text
+	_targeting_label.show()
+
+
+func _exit_targeting_mode() -> void:
+	"""Leave targeting mode and hide the indicator."""
+	_is_aiming = false
+	_pending_spell = null
+	if _targeting_label:
+		_targeting_label.hide()
+	if _reticle and is_instance_valid(_reticle):
+		_reticle.queue_free()
+		_reticle = null
+
+
+func _spawn_reticle(p_spell: Spell) -> void:
+	"""Instantiate the targeting reticle and attach it to this node."""
+	if _reticle and is_instance_valid(_reticle):
+		_reticle.queue_free()
+	var reticle_script: GDScript = load("res://scripts/spell_target_reticle.gd")
+	_reticle = Node2D.new()
+	_reticle.set_script(reticle_script)
+	add_child(_reticle)
+	_reticle.call("setup", p_spell)
+
+
+func _fire_pending_spell(world_target: Vector2) -> void:
+	"""Spawn a ProjectileSpell aimed at world_target and deduct mana/start cooldown."""
+	if not _pending_spell:
+		return
+
+	var spell: Spell = _pending_spell
+
+	# Consume mana and start cooldown now that we are actually firing
+	current_mana = max(0, current_mana - spell.get_mana_cost())
 	hud.update_mp(current_mana, max_mana)
-	
-	# Start cooldown
 	start_spell_cooldown(spell.id, spell.cooldown)
-	
-	# TODO: Actually cast the spell (create effects, deal damage, etc.)
-	print("Cast %s for %d mana!" % [spell.get_display_name(), spell.get_mana_cost()])
-	
-	# TODO: Implement spell effects based on spell type
+
+	# Determine which scene node should own the projectile
+	var scene_parent: Node
+	if in_local_area and area_container and area_container.current_area:
+		scene_parent = area_container.current_area
+	else:
+		scene_parent = get_parent()
+
+	# Instantiate and position the projectile
+	var projectile_scene: PackedScene = preload("res://scenes/projectile_spell.tscn")
+	var projectile: Node2D = projectile_scene.instantiate()
+	scene_parent.add_child(projectile)
+	projectile.global_position = global_position
+
+	# Aim and initialise — clamp click distance to the spell's max range
+	var to_target: Vector2 = world_target - global_position
+	var max_range_px: float = spell.spell_range * 16.0
+	var stop_px: float = minf(to_target.length(), max_range_px)
+	var dir: Vector2 = to_target.normalized()
+	projectile.setup(spell, self, dir, stop_px)
+
+	print("Cast %s toward %s (damage: %d, AOE radius: %.0f px)" \
+		% [spell.get_display_name(), world_target, spell.get_damage(), spell.aoe_radius * 16.0])
+
 
 
 # =============================
