@@ -2,8 +2,10 @@
 
 [ext_resource type="Script" uid="uid://cgf187nq3fjrd" path="res://scripts/pause.gd" id="1_f1d2v"]
 
-[node name="pause" type="Node2D"]
+[node name="pause" type="Control"]
 top_level = true
+layout_mode = 3
+anchors_preset = 0
 script = ExtResource("1_f1d2v")
 
 [node name="ButtonManager" type="Control" parent="."]

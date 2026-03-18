@@ -101,4 +101,5 @@ layout_mode = 2
 size_flags_vertical = 0
 text = "Inventory"
 
+[connection signal="pressed" from="MarginContainer/TopContainer/PauseButton" to="." method="_on_pause_button_pressed"]
 [connection signal="pressed" from="MarginContainer/TopContainer/inventory" to="." method="_on_inventory_pressed"]

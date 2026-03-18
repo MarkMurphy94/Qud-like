@@ -12,6 +12,7 @@ var sprite_node_pos_tween: Tween
 @onready var camera = $Camera2D
 @onready var area_container: Node2D = $"../AreaContainer"
 @onready var hud = $HUD
+@onready var pause_menu: Control = $"../CanvasLayer/pause"
 
 var local_area_scene = preload("res://scenes/local_area_generator.tscn")
 var current_local_area: Node2D = null
@@ -440,7 +441,13 @@ func _end_npc_interaction() -> void:
 		current_interacting_npc = null
 
 func _on_pause_requested() -> void:
-	get_tree().paused = !get_tree().paused
+	var pausing := !get_tree().paused
+	get_tree().paused = pausing
+	if pause_menu:
+		if pausing:
+			pause_menu.show()
+		else:
+			pause_menu.hide()
 
 # =============================
 # INVENTORY SYSTEM
