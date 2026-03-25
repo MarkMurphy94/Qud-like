@@ -71,7 +71,6 @@ enum TreeDensity {
 	SPARSE,
 	FOREST,
 }
-# (12, 49), (31, 59), (37, 59), (59, 37), (47, 55), (30, 46), (83, 29), (29, 83), (49, 12), (59, 31), (59, 37), (37, 59)
 @export_group("Technical Properties")
 @export var noise_scale: float = 20.0
 @export var overworld_tile: Vector2i
