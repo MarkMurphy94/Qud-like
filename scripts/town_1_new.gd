@@ -1,6 +1,6 @@
 extends Node2D
 
-@export var config: AreaConfig
+@export var config: MapConfig
 @export var important_npcs: Array[NPC]
 
 @onready var tilemaps = {

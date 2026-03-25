@@ -4,7 +4,14 @@
 [ext_resource type="PackedScene" uid="uid://2yt1rem30pxh" path="res://scenes/player.tscn" id="1_obwjb"]
 [ext_resource type="PackedScene" uid="uid://bus31nsk52q8w" path="res://scenes/overworld_map_drawn.tscn" id="2_3ygxx"]
 [ext_resource type="PackedScene" uid="uid://bjhncns8a6cou" path="res://scenes/pause.tscn" id="5_iywne"]
+[ext_resource type="PackedScene" uid="uid://b0bncv4868ufp" path="res://scenes/local_map_tile.tscn" id="6_p57ef"]
+[ext_resource type="Script" uid="uid://dex54ja7a1in3" path="res://scripts/TileMetadata.gd" id="7_gee14"]
 [ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/area_container.tscn" id="7_u5sy4"]
+
+[sub_resource type="Resource" id="Resource_0tnpc"]
+script = ExtResource("7_gee14")
+coords = Vector2i(13, 21)
+metadata/_custom_type_script = "uid://dex54ja7a1in3"
 
 [node name="Overworld" type="Node2D" unique_id=2098715570]
 visibility_layer = 7
@@ -18,6 +25,10 @@ layer = 10
 [node name="Player" parent="." unique_id=1738736863 instance=ExtResource("1_obwjb")]
 z_index = 2
 position = Vector2(184, 344)
+move_speed = null
+tile_size = null
+inventory_slots = null
+max_carry_weight = null
 
 [node name="OverworldMap" parent="." unique_id=868024379 instance=ExtResource("2_3ygxx")]
 settlements_list = Dictionary[Vector2i, String]({
@@ -25,3 +36,10 @@ Vector2i(13, 21): "res://scenes/town_1_new.tscn"
 })
 
 [node name="AreaContainer" parent="." unique_id=476275943 instance=ExtResource("7_u5sy4")]
+
+[node name="town_tiles" type="Node2D" parent="." unique_id=1715855552]
+
+[node name="town_1_tile" parent="town_tiles" unique_id=1767324013 instance=ExtResource("6_p57ef")]
+position = Vector2(216, 344)
+scene_path = "res://scenes/town_1_new.tscn"
+tile_metadata = SubResource("Resource_0tnpc")

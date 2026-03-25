@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://b0bncv4868ufp"]
+
+[ext_resource type="Script" uid="uid://p72uiofqdvr0" path="res://scripts/local_map_tile.gd" id="1_6erwk"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_uqpol"]
+size = Vector2(16, 16)
+
+[node name="local_map_tile" type="Area2D" unique_id=1767324013]
+script = ExtResource("1_6erwk")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1302114678]
+shape = SubResource("RectangleShape2D_uqpol")
+disabled = true
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="area_exited" from="." to="." method="_on_area_exited"]

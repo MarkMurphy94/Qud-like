@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="AreaConfig" load_steps=16 format=3 uid="uid://cjoig2hnu5fcd"]
+[gd_resource type="Resource" script_class="MapConfig" load_steps=16 format=3 uid="uid://cjoig2hnu5fcd"]
 
 [ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_ndkx0"]
-[ext_resource type="Script" uid="uid://ct70kc27fm6x4" path="res://resources/area_config.gd" id="2_qebw0"]
+[ext_resource type="Script" uid="uid://ct70kc27fm6x4" path="res://resources/map_config.gd" id="2_qebw0"]
 [ext_resource type="Resource" uid="uid://5d86wamrkax5" path="res://resources/house.tres" id="2_twx0x"]
 
 [sub_resource type="Resource" id="Resource_twx0x"]
@@ -122,8 +122,8 @@ water_level = 0.4
 overworld_tile = Vector2i(17, 18)
 scene_path = ""
 SEED = 3167523846
-settlement_name = "town_1"
+map_name = "town_1"
 buildings = Array[ExtResource("1_ndkx0")]([ExtResource("2_twx0x"), SubResource("Resource_twx0x"), SubResource("Resource_panks"), SubResource("Resource_aw2va"), SubResource("Resource_5ve7d"), SubResource("Resource_2pfma"), SubResource("Resource_jct2f"), SubResource("Resource_esjf3"), SubResource("Resource_uie3h"), SubResource("Resource_gs52s"), SubResource("Resource_bipbo"), SubResource("Resource_54gt6"), SubResource("Resource_je6bc")])
-area_type = 1
+map_type = 1
 climate = ""
 culture = ""

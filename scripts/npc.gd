@@ -2,6 +2,8 @@ extends CharacterBody2D
 class_name NPC
 
 # === EXPORTS AND CONFIGURATION ===
+@export var config: NPCConfig
+@export_group("Basic Properties")
 @export var move_speed: float = 50.0
 @export var tile_size: int = 16
 @export var grid_size: int = 16
@@ -15,28 +17,29 @@ var sprite_node_pos_tween: Tween
 @export var hearing_range: float = 5.0 # How many tiles the NPC can hear
 @export var max_health: int = 100
 
-@onready var up: RayCast2D = $up
-@onready var down: RayCast2D = $down
-@onready var left: RayCast2D = $left
-@onready var right: RayCast2D = $right
-
 # === IDENTITY AND PERSISTENCE ===
-var npc_id: String = "" # Unique identifier
-var npc_name: String = ""
-var faction: String = "NEUTRAL" # Group this NPC belongs to
-var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
-var stats: Dictionary = {
+@export_group("NPC stats and behavior")
+@export var npc_id: String = "" # Unique identifier
+@export var npc_name: String = ""
+@export var faction: String = "NEUTRAL" # Group this NPC belongs to
+@export var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
+@export var stats: Dictionary = {
 	"strength": 10,
 	"agility": 10,
 	"intelligence": 10,
 	"endurance": 10,
 	"charisma": 10
 }
-var inventory: Inventory = null  # Proper inventory system with stacking
-var equipped_items: Dictionary = {}
-var quest_flags: Dictionary = {}
-var current_health: int = max_health
-var gold: int = 0
+@export var inventory: Inventory = null  # Proper inventory system with stacking
+@export var equipped_items: Dictionary = {}
+@export var quest_flags: Dictionary = {}
+@export var current_health: int = max_health
+@export var gold: int = 0
+
+@onready var up: RayCast2D = $up
+@onready var down: RayCast2D = $down
+@onready var left: RayCast2D = $left
+@onready var right: RayCast2D = $right
 
 # === STATE MACHINE ===
 enum NPCState {

@@ -81,6 +81,11 @@ class_name TileMetadata
 @export var feature_weights := {"lake": 0.0, "river": 0.0, "meadow": 0.0, "boulder_field": 0.0}
 @export var foliage_profile := {"tree_density": 0.0, "bush_density": 0.0, "rock_density": 0.0}
 @export var encounter_difficulty: int = 1
+## Bitmask of active road exits (MapConfig.RoadExit: NORTH=1, EAST=2, SOUTH=4, WEST=8).
+## Set by the world generator so that neighbouring tiles always have matching exits.
+@export var road_exits: int = 0
+## Terrain used to paint the road surface ("dirt" or "stone").
+@export var road_terrain: String = "dirt"
 
 static func from_dict(d: Dictionary) -> TileMetadata:
 	var t := TileMetadata.new()
@@ -125,6 +130,8 @@ static func from_dict(d: Dictionary) -> TileMetadata:
 	t.feature_weights = d.get("feature_weights", t.feature_weights)
 	t.foliage_profile = d.get("foliage_profile", t.foliage_profile)
 	t.encounter_difficulty = d.get("encounter_difficulty", t.encounter_difficulty)
+	t.road_exits = d.get("road_exits", 0)
+	t.road_terrain = d.get("road_terrain", "dirt")
 	return t
 
 func to_dict() -> Dictionary:
@@ -168,5 +175,7 @@ func to_dict() -> Dictionary:
 		"flags": flags,
 		"feature_weights": feature_weights,
 		"foliage_profile": foliage_profile,
-		"encounter_difficulty": encounter_difficulty
+		"encounter_difficulty": encounter_difficulty,
+		"road_exits": road_exits,
+		"road_terrain": road_terrain
 	}

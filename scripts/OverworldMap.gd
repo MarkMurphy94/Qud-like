@@ -42,7 +42,7 @@ class CustomTileData:
 @onready var mountains: TileMapLayer = $Mountains
 @onready var settlements: TileMapLayer = $settlements
 
-#@export var settlements_list: Array[AreaConfig] = []
+#@export var settlements_list: Array[MapConfig] = []
 @export var settlements_list: Dictionary[Vector2i, String]
 
 var map_data: Array[Array] = []

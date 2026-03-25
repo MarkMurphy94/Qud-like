@@ -6,6 +6,7 @@ enum StructureType {
 	HOUSE,
 	TAVERN,
 	SHOP,
+	CHURCH,
 	WALL,
 	MANOR,
 	BARRACKS,
@@ -13,6 +14,8 @@ enum StructureType {
 }
 
 @export var TYPE: StructureType
+@export var BUILDING_NAME: String
+@export var DESCRIPTION: String
 @export var POSITION: Vector2i
 @export var INTERIOR_SIZE: Vector2i
 @export var ZONES: Array[Vector2i]

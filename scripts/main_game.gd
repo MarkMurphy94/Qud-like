@@ -47,26 +47,26 @@ func get_all_settlements() -> Array:
 	return out
 
 func create_new_settlement_config():
-	var config := AreaConfig.new()
+	var config := MapConfig.new()
 	# Decide a filename using your existing key maker
 	var pos := Vector2i(13, 21)
-	var stype := MainGameState.SettlementType.TOWN
-	var key := MainGameState.make_settlement_key(stype, pos) # scripts/main_game_state.gd
+	var stype := MapConfig.MapType.SETTLEMENT
+	var key := MainGameState.make_settlement_key(stype, pos) # MapConfig.MapType value
 	var path := "res://resources/settlements/%s.tres" % key
 
 	# Create and save
-	var result := AreaConfig.create_and_save(path, {
-		"area_type": AreaConfig.AreaType.TOWN,
-		"settlement_name": "Ravenford",
+	var result := MapConfig.create_and_save(path, {
+		"map_type": MapConfig.MapType.SETTLEMENT,
+		"map_name": "Ravenford",
 		"climate": "temperate",
 		"culture": "midlands"
 	})
 	if result.error == OK:
 		print("Saved: ", path)
-		var cfg := load(path) as AreaConfig
-		print("Loaded settlement name: ", cfg.settlement_name)
+		var cfg := load(path) as MapConfig
+		print("Loaded settlement name: ", cfg.map_name)
 	else:
-		push_error("Failed to save AreaConfig: %s" % result.error)
+		push_error("Failed to save MapConfig: %s" % result.error)
 	return config
 
 func create_or_load_save():
@@ -139,13 +139,14 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 
 	# ── Local-area bookmark (so we can re-enter on load) ───────
 	if player.in_local_area and area_container.current_area:
-		var settlement_path = overworld_map.settlement_at_tile(player.overworld_tile)
-		if settlement_path != "":
-			_save.local_area_settlement_path = settlement_path
-			_save.local_area_metadata = {}
-		elif world_tile_data.has(player.overworld_tile):
-			_save.local_area_settlement_path = ""
-			_save.local_area_metadata = (world_tile_data[player.overworld_tile] as TileMetadata).to_dict()
+		if player.current_tile:
+			_save.local_area_settlement_path = player.current_tile.scene_path
+			var meta: TileMetadata = player.current_tile.tile_metadata
+			_save.local_area_metadata = meta.to_dict() if meta else {}
+		else:
+			_save.local_area_settlement_path = overworld_map.settlement_at_tile(player.overworld_tile)
+			var meta: TileMetadata = world_tile_data.get(player.overworld_tile)
+			_save.local_area_metadata = meta.to_dict() if meta else {}
 	else:
 		_save.local_area_settlement_path = ""
 		_save.local_area_metadata = {}
@@ -218,12 +219,11 @@ func load_game_from_slot(slot: int) -> bool:
 		player.global_position = _save.player_overworld_position
 		player.overworld_tile = _save.player_overworld_tile
 		player.overworld_tile_pos = _save.player_overworld_position
-		# Re-enter the local area
-		if _save.local_area_settlement_path != "":
-			area_container.set_settlement_scene(_save.local_area_settlement_path)
-		elif not _save.local_area_metadata.is_empty():
-			var meta := TileMetadata.from_dict(_save.local_area_metadata)
-			area_container.set_local_area(meta)
+		# Re-enter the local area from saved data
+		var meta: TileMetadata = null
+		if not _save.local_area_metadata.is_empty():
+			meta = TileMetadata.from_dict(_save.local_area_metadata)
+		area_container.load_area(_save.local_area_settlement_path, meta)
 		await get_tree().process_frame
 		player.map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
 		player.global_position = _save.player_local_position
@@ -233,7 +233,7 @@ func load_game_from_slot(slot: int) -> bool:
 	else:
 		# Overworld
 		if player.in_local_area:
-			area_container.clear_local_area_scene()
+			area_container.clear()
 			overworld_map.show()
 			player.in_local_area = false
 		player.global_position = _save.player_overworld_position
@@ -295,11 +295,17 @@ func generate_world_metadata() -> void:
 			# meta.camp = {"exists": rng.randf() < 0.04, "owner": "", "size": (rng.randf() < 0.5 ? "small" : "medium"), "permanence": 0.25}
 			meta.farm_plot = {"exists": (terrain == overworld_map.Terrain.GRASS) and (rng.randf() < 0.05), "crop": "wheat", "size": 1 + (rng.randi() % 3), "owner": ""}
 			meta.feature_weights = {"lake": 0.2, "river": 0.1, "meadow": 0.6, "boulder_field": 0.3}
-			meta.foliage_profile = {"tree_density": 0.35, "bush_density": 0.25, "rock_density": 0.15}
+			meta.foliage_profile = _get_foliage_profile(terrain, meta.climate, rng)
 			meta.encounter_difficulty = 1 + (rng.randi() % 3)
 			meta.discovered = false
 			world_tile_data[pos] = meta
 	print("Created local maps for %d tiles" % world_tile_data.size())
+
+	# Second pass: assign road exits so that adjacent tiles always have matching
+	# exits (e.g. tile A EAST ↔ tile B WEST).  Each shared edge is evaluated once
+	# using a deterministic hash of the "left/upper" tile's position so the result
+	# is the same no matter which side triggers the query.
+	_assign_road_exits()
 
 	# { "seed": 6904785133, "terrain": 1, "climate": "cold", "farm": false, "hamlet": false, "dungeon_entrance": false, "camp": false, "coords": (92, 10) }
 
@@ -313,3 +319,80 @@ func _get_climate(terrain: int, y: int) -> String:
 		return "arid"
 	else:
 		return "temperate"
+
+## Returns a foliage_profile Dictionary appropriate for the given terrain and climate.
+## Values are kept deliberately low so that open plains feel open.
+func _get_foliage_profile(terrain: int, climate: String, tile_rng: RandomNumberGenerator) -> Dictionary:
+	match terrain:
+		overworld_map.Terrain.GRASS:
+			match climate:
+				"cold":
+					return {
+						"tree_density": tile_rng.randf_range(0.02, 0.10),
+						"bush_density": tile_rng.randf_range(0.02, 0.06),
+						"rock_density": tile_rng.randf_range(0.03, 0.07)
+					}
+				"arid":
+					return {
+						"tree_density": tile_rng.randf_range(0.0, 0.04),
+						"bush_density": tile_rng.randf_range(0.02, 0.05),
+						"rock_density": tile_rng.randf_range(0.06, 0.14)
+					}
+				_: # temperate
+					return {
+						"tree_density": tile_rng.randf_range(0.03, 0.15),
+						"bush_density": tile_rng.randf_range(0.04, 0.10),
+						"rock_density": tile_rng.randf_range(0.02, 0.05)
+					}
+		overworld_map.Terrain.MOUNTAIN:
+			return {
+				"tree_density": tile_rng.randf_range(0.0, 0.06),
+				"bush_density": tile_rng.randf_range(0.01, 0.04),
+				"rock_density": tile_rng.randf_range(0.18, 0.30)
+			}
+		_:
+			return {"tree_density": 0.0, "bush_density": 0.0, "rock_density": 0.0}
+
+# ═══════════════════════════════════════════════════════════════════════
+#  ROAD EXIT ASSIGNMENT
+# ═══════════════════════════════════════════════════════════════════════
+
+## Probability (0–100) that a shared edge between two non-settlement tiles
+## gets a road.  Roughly 18 % of edges, tunable here.
+const ROAD_EDGE_PROBABILITY := 18
+
+## Deterministic hash for a single shared edge.
+## 'canonical' is always the left (east-check) or upper (south-check) tile.
+## 'axis' 0 = east edge, 1 = south edge.
+func _edge_has_road(canonical: Vector2i, axis: int) -> bool:
+	var h: int = abs(canonical.x * 73856093 ^ canonical.y * 19349663 ^ axis * 16777619)
+	return (h % 100) < ROAD_EDGE_PROBABILITY
+
+## Iterate all generated tiles and assign their road_exits bitmask so that
+## every pair of adjacent tiles has matching exits on their shared edge.
+func _assign_road_exits() -> void:
+	for pos: Vector2i in world_tile_data:
+		var meta: TileMetadata = world_tile_data[pos]
+		var exits := 0
+
+		# East edge — canonical tile is the current one (left of the pair)
+		var east := pos + Vector2i(1, 0)
+		if world_tile_data.has(east) and _edge_has_road(pos, 0):
+			exits |= MapConfig.RoadExit.EAST
+
+		# South edge — canonical tile is the current one (upper of the pair)
+		var south := pos + Vector2i(0, 1)
+		if world_tile_data.has(south) and _edge_has_road(pos, 1):
+			exits |= MapConfig.RoadExit.SOUTH
+
+		# West edge — canonical tile is the neighbour to the left
+		var west := pos + Vector2i(-1, 0)
+		if world_tile_data.has(west) and _edge_has_road(west, 0):
+			exits |= MapConfig.RoadExit.WEST
+
+		# North edge — canonical tile is the neighbour above
+		var north := pos + Vector2i(0, -1)
+		if world_tile_data.has(north) and _edge_has_road(north, 1):
+			exits |= MapConfig.RoadExit.NORTH
+
+		meta.road_exits = exits

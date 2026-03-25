@@ -2,14 +2,23 @@
 
 [ext_resource type="TileSet" uid="uid://bjibwwb63qoxr" path="res://resources/Roguelike_extended_walls.tres" id="1_75fje"]
 [ext_resource type="Script" uid="uid://mw201smsmec3" path="res://scripts/town_1_new.gd" id="1_ecscq"]
-[ext_resource type="Resource" uid="uid://h6wcob6b8yx7" path="res://resources/town_1.tres" id="2_wwhup"]
+[ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="2_yjpt4"]
+[ext_resource type="Script" uid="uid://dmxba4w6hdk8e" path="res://resources/npc_config.gd" id="3_2r78l"]
 [ext_resource type="PackedScene" uid="uid://c884d0nqudvsi" path="res://scenes/world_item.tscn" id="4_58i1x"]
+[ext_resource type="Script" uid="uid://ena8k3p3ftwd" path="res://resources/map_config.gd" id="4_h6wc6"]
 [ext_resource type="Resource" uid="uid://2ml1geofo1id" path="res://resources/items/templates/weapons/basic_sword.tres" id="5_kvjk8"]
 [ext_resource type="Resource" path="res://resources/items/templates/consumables/spellbook_fireball.tres" id="6_s81oj"]
 
+[sub_resource type="Resource" id="Resource_5vcqy"]
+script = ExtResource("4_h6wc6")
+map_name = "First town"
+building_density = 3
+map_type = 1
+metadata/_custom_type_script = "uid://ena8k3p3ftwd"
+
 [node name="town_1_new" type="Node2D" unique_id=162288257]
 script = ExtResource("1_ecscq")
-config = ExtResource("2_wwhup")
+config = SubResource("Resource_5vcqy")
 
 [node name="ground" type="TileMapLayer" parent="." unique_id=1601799342]
 use_parent_material = true

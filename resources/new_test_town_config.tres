@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MapConfig" format=3 uid="uid://bd6tk8jcgtalk"]
+
+[ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_emymx"]
+[ext_resource type="Script" uid="uid://dmxba4w6hdk8e" path="res://resources/npc_config.gd" id="2_qmaxy"]
+[ext_resource type="Script" uid="uid://ena8k3p3ftwd" path="res://resources/map_config.gd" id="3_wikd0"]
+
+[resource]
+script = ExtResource("3_wikd0")
+SEED = 2339332397
+map_name = "Second Town"
+building_density = 4
+map_type = 1
+culture = 2
+road_terrain = "stone"
+metadata/_custom_type_script = "uid://ena8k3p3ftwd"
