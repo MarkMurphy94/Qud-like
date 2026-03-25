@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ItemBook" load_steps=2 format=3 uid="uid://bkt706i3won0k"]
+[gd_resource type="Resource" script_class="ItemBook" format=3 uid="uid://bkt706i3won0k"]
 
 [ext_resource type="Script" uid="uid://bepyiyt41jf6i" path="res://resources/items/item_book.gd" id="1_book"]
 

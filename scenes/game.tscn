@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://c1othl8sw151g"]
+[gd_scene format=3 uid="uid://c1othl8sw151g"]
 
 [ext_resource type="Script" uid="uid://dlmon0wdqcnnl" path="res://scripts/main_game.gd" id="1_lnu2h"]
 [ext_resource type="PackedScene" uid="uid://2yt1rem30pxh" path="res://scenes/player.tscn" id="1_obwjb"]
@@ -6,22 +6,22 @@
 [ext_resource type="PackedScene" uid="uid://bjhncns8a6cou" path="res://scenes/pause.tscn" id="5_iywne"]
 [ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/area_container.tscn" id="7_u5sy4"]
 
-[node name="Overworld" type="Node2D"]
+[node name="Overworld" type="Node2D" unique_id=2098715570]
 visibility_layer = 7
 script = ExtResource("1_lnu2h")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=856348279]
 layer = 10
 
-[node name="pause" parent="CanvasLayer" instance=ExtResource("5_iywne")]
+[node name="pause" parent="CanvasLayer" unique_id=1467729943 instance=ExtResource("5_iywne")]
 
-[node name="Player" parent="." instance=ExtResource("1_obwjb")]
+[node name="Player" parent="." unique_id=1738736863 instance=ExtResource("1_obwjb")]
 z_index = 2
 position = Vector2(184, 344)
 
-[node name="OverworldMap" parent="." instance=ExtResource("2_3ygxx")]
+[node name="OverworldMap" parent="." unique_id=868024379 instance=ExtResource("2_3ygxx")]
 settlements_list = Dictionary[Vector2i, String]({
 Vector2i(13, 21): "res://scenes/town_1_new.tscn"
 })
 
-[node name="AreaContainer" parent="." instance=ExtResource("7_u5sy4")]
+[node name="AreaContainer" parent="." unique_id=476275943 instance=ExtResource("7_u5sy4")]

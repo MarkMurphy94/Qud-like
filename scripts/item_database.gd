@@ -41,16 +41,16 @@ func _ready():
 
 func _load_templates():
 	## Load weapon templates
-	_load_folder_into_dict(ITEM_PATHS["templates"] + "weapons/", weapon_templates)
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "weapons/", weapon_templates, true)
 	
 	## Load armor templates
-	_load_folder_into_dict(ITEM_PATHS["templates"] + "armor/", armor_templates)
-	
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "armor/", armor_templates, true)
+
 	## Load consumable templates
-	_load_folder_into_dict(ITEM_PATHS["templates"] + "consumables/", consumable_templates)
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "consumables/", consumable_templates, true)
 	
 	## Load material templates
-	_load_folder_into_dict(ITEM_PATHS["templates"] + "materials/", material_templates)
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "materials/", material_templates, true)
 
 
 func _load_unique_items():

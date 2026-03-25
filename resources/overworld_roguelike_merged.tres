@@ -1,4 +1,4 @@
-[gd_resource type="TileSet" load_steps=3 format=3 uid="uid://brx8ehphe1wp8"]
+[gd_resource type="TileSet" format=3 uid="uid://brx8ehphe1wp8"]
 
 [ext_resource type="Texture2D" uid="uid://cwqkdbgonx4el" path="res://assets/overworld_roguelike_merged.png" id="1_un56k"]
 
