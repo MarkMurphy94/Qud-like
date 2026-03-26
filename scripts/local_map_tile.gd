@@ -7,13 +7,15 @@ class_name LocalMapTile
 @export var scene_path: String = ""
 @export var tile_metadata: TileMetadata
 
-func _on_area_entered(area: Area2D) -> void:
-	var player = area.get_parent()
-	if player and player.is_in_group("Player"):
-		player.current_tile = self
 
+func _on_body_entered(body: Node2D) -> void:
+	if body.is_in_group("Player"):
+		if tile_metadata:
+			print("Player entered tile at position: ", tile_metadata.coords)
+		body.current_tile = self
 
-func _on_area_exited(area: Area2D) -> void:
-	var player = area.get_parent()
-	if player and player.is_in_group("Player"):
-		player.current_tile = null
+func _on_body_exited(body: Node2D) -> void:
+	if body.is_in_group("Player"):
+		if tile_metadata:
+			print("Player exited tile at position: ", tile_metadata.coords)
+		body.current_tile = null

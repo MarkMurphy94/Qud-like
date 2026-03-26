@@ -7,8 +7,8 @@
 [resource]
 script = ExtResource("3_wikd0")
 SEED = 2339332397
-map_name = "Second Town"
-building_density = 4
+map_name = "First City"
+building_density = 5
 map_type = 1
 culture = 2
 road_terrain = "stone"

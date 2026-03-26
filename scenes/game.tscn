@@ -13,6 +13,11 @@ script = ExtResource("7_gee14")
 coords = Vector2i(13, 21)
 metadata/_custom_type_script = "uid://dex54ja7a1in3"
 
+[sub_resource type="Resource" id="Resource_u5sy4"]
+script = ExtResource("7_gee14")
+coords = Vector2i(7, 22)
+metadata/_custom_type_script = "uid://dex54ja7a1in3"
+
 [node name="Overworld" type="Node2D" unique_id=2098715570]
 visibility_layer = 7
 script = ExtResource("1_lnu2h")
@@ -25,10 +30,6 @@ layer = 10
 [node name="Player" parent="." unique_id=1738736863 instance=ExtResource("1_obwjb")]
 z_index = 2
 position = Vector2(184, 344)
-move_speed = null
-tile_size = null
-inventory_slots = null
-max_carry_weight = null
 
 [node name="OverworldMap" parent="." unique_id=868024379 instance=ExtResource("2_3ygxx")]
 settlements_list = Dictionary[Vector2i, String]({
@@ -43,3 +44,10 @@ Vector2i(13, 21): "res://scenes/town_1_new.tscn"
 position = Vector2(216, 344)
 scene_path = "res://scenes/town_1_new.tscn"
 tile_metadata = SubResource("Resource_0tnpc")
+
+[node name="city_tiles" type="Node2D" parent="." unique_id=111666021]
+
+[node name="city_1" parent="city_tiles" unique_id=64096099 instance=ExtResource("6_p57ef")]
+position = Vector2(120, 360)
+scene_path = "res://scenes/city_1.tscn"
+tile_metadata = SubResource("Resource_u5sy4")

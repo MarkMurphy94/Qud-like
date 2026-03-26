@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MapConfig" format=3 uid="uid://by1w00v7e6bof"]
+
+[ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_ilnte"]
+[ext_resource type="Script" uid="uid://dmxba4w6hdk8e" path="res://resources/npc_config.gd" id="2_hiblp"]
+[ext_resource type="Script" uid="uid://ena8k3p3ftwd" path="res://resources/map_config.gd" id="3_4616j"]
+
+[resource]
+script = ExtResource("3_4616j")
+SEED = 2339332397
+map_name = "First City"
+building_density = 5
+map_type = 1
+culture = 2
+road_terrain = "stone"
+metadata/_custom_type_script = "uid://ena8k3p3ftwd"
