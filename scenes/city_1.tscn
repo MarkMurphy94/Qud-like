@@ -2,9 +2,20 @@
 
 [ext_resource type="TileSet" uid="uid://bjibwwb63qoxr" path="res://resources/Roguelike_extended_walls.tres" id="1_lnxj7"]
 [ext_resource type="Script" uid="uid://d2lit2uipjtm0" path="res://scripts/city_1.gd" id="1_yvrdr"]
+[ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="2_5ivuf"]
+[ext_resource type="Script" uid="uid://dmxba4w6hdk8e" path="res://resources/npc_config.gd" id="3_03x07"]
+[ext_resource type="Script" uid="uid://ena8k3p3ftwd" path="res://resources/map_config.gd" id="4_u4hm6"]
+
+[sub_resource type="Resource" id="Resource_tr40u"]
+script = ExtResource("4_u4hm6")
+map_name = "First city"
+building_density = 5
+map_type = 1
+metadata/_custom_type_script = "uid://ena8k3p3ftwd"
 
 [node name="city_1" type="Node2D" unique_id=1584381058]
 script = ExtResource("1_yvrdr")
+config = SubResource("Resource_tr40u")
 
 [node name="ground" type="TileMapLayer" parent="." unique_id=2127992557]
 use_parent_material = true
