@@ -50,6 +50,12 @@ const MAX_SLOTS := 10
 @export var local_area_metadata: Dictionary = {}
 @export var local_area_settlement_path: String = ""
 
+# ─── Item pickup records — prevents already-collected WorldItems from  ─
+# ─── respawning when the player re-enters an area or loads a save.     ─
+## Key = area identifier (scene path for settlements, "x,y" for procedural tiles).
+## Value = Array of item-key strings produced by main_game._make_item_key().
+@export var area_picked_up_items: Dictionary = {}
+
 # ═══════════════════════════════════════════════════════════════════════
 #  SLOT HELPERS
 # ═══════════════════════════════════════════════════════════════════════

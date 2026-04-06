@@ -6,6 +6,9 @@ extends Node
 
 var _save := SaveGameResource.new()
 var world_tile_data: Dictionary = {}
+## Key = area identifier (scene path or "x,y").  Value = Array of item-key strings.
+## Populated at runtime and persisted through save/load to prevent re-spawning.
+var area_picked_up_items: Dictionary = {}
 var _play_timer: float = 0.0        ## Accumulated play-time for the current session
 var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = none)
 
@@ -14,6 +17,7 @@ var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = n
 # ═══════════════════════════════════════════════════════════════════════
 
 func _ready() -> void:
+	area_container.area_loaded.connect(_on_area_loaded)
 	create_or_load_save()
 	# Check if the main menu requested we load a specific slot
 	if MainGameState.has_meta("pending_load_slot"):
@@ -76,6 +80,7 @@ func create_or_load_save():
 	_save = SaveGameResource.new()
 	_save.player_overworld_position = player.global_position
 	_save.player_current_scene_path = get_tree().current_scene.scene_file_path
+	area_picked_up_items.clear()  # fresh world — nothing picked up yet
 	generate_world_metadata()
 
 func show_or_hide_overworld_scene(_scene_path: String, _show: bool) -> void:
@@ -137,6 +142,9 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 	# ── Settlements ────────────────────────────────────────────
 	_save.settlements_data = MainGameState.settlements.duplicate(true)
 
+	# ── Item pickup records ─────────────────────────────────────
+	_save.area_picked_up_items = area_picked_up_items.duplicate(true)
+
 	# ── Local-area bookmark (so we can re-enter on load) ───────
 	if player.in_local_area and area_container.current_area:
 		if player.current_tile:
@@ -173,6 +181,9 @@ func load_game_from_slot(slot: int) -> bool:
 	# ── Settlements ────────────────────────────────────────────
 	if not _save.settlements_data.is_empty():
 		MainGameState.settlements = _save.settlements_data.duplicate(true)
+
+	# ── Item pickup records ─────────────────────────────────────
+	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
 
 	# ── World metadata ─────────────────────────────────────────
 	generate_world_metadata()
@@ -396,3 +407,53 @@ func _assign_road_exits() -> void:
 			exits |= MapConfig.RoadExit.NORTH
 
 		meta.road_exits = exits
+
+# ═══════════════════════════════════════════════════════════════════════
+#  WORLD ITEM PICKUP TRACKING
+# ═══════════════════════════════════════════════════════════════════════
+
+## Called by AreaContainer after every local-area load.
+## Connects WorldItem pickup signals so future pickups are recorded,
+## and immediately removes any WorldItems the player already collected.
+func _on_area_loaded(area_key: String) -> void:
+	if area_key == "" or not is_instance_valid(area_container.current_area):
+		return
+
+	var recorded: Array = area_picked_up_items.get(area_key, [])
+
+	for wi: WorldItem in area_container.current_area.find_children("*", "WorldItem", true, false):
+		if not is_instance_valid(wi) or not wi.item_resource:
+			continue
+
+		var key := _make_item_key(wi.item_resource, wi.global_position)
+		if key in recorded:
+			# Previously collected — remove silently without emitting any signal
+			wi.queue_free()
+		else:
+			# Not yet collected — wire up so this run's pickup gets recorded
+			wi.picked_up.connect(
+				func(_item: Item, _qty: int, pos: Vector2) -> void:
+					_record_item_pickup(_item, pos, area_key)
+			)
+
+## Appends an item key to the pickup record for the given area.
+func _record_item_pickup(item: Item, pos: Vector2, area_key: String) -> void:
+	var key := _make_item_key(item, pos)
+	if not area_picked_up_items.has(area_key):
+		area_picked_up_items[area_key] = []
+	if key not in area_picked_up_items[area_key]:
+		area_picked_up_items[area_key].append(key)
+
+## Builds a stable string key for a WorldItem from its item id and tile position.
+## Format: "item_id@tile_x,tile_y"  (tile coords = world pixels / 16)
+func _make_item_key(item: Item, pos: Vector2) -> String:
+	var item_id: String
+	if item.id != "":
+		item_id = item.id
+	elif item.resource_path != "":
+		item_id = item.resource_path.get_file().get_basename()
+	else:
+		item_id = item.display_name.to_lower().replace(" ", "_")
+	var tile_x := int(round(pos.x / 16.0))
+	var tile_y := int(round(pos.y / 16.0))
+	return "%s@%d,%d" % [item_id, tile_x, tile_y]

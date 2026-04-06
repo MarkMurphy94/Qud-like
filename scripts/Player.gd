@@ -473,7 +473,7 @@ func add_item_to_inventory(item: Item, quantity: int = 1) -> bool:
 	"""Add an item to the player's inventory. Returns true if successful."""
 	if not inventory:
 		_initialize_inventory()
-	
+	# TODO: save map state + save game- item should not respawn when map loads again
 	return inventory.add_item(item, quantity)
 
 func remove_item_from_inventory(item_id: String, quantity: int = 1) -> int:

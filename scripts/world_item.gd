@@ -27,8 +27,10 @@ class_name WorldItem
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var collision: CollisionShape2D = $CollisionShape2D
 
-## Emitted when the item is picked up
-signal picked_up(item: Item, qty: int)
+## Emitted when the item is picked up.
+## spawn_position is the WorldItem's global position at the moment of pickup
+## and is used by the save system to prevent the item from respawning.
+signal picked_up(item: Item, qty: int, spawn_position: Vector2)
 
 ## Animation variables
 var _bob_time: float = 0.0
@@ -106,7 +108,8 @@ func try_pickup(picker: Node2D) -> bool:
 
 
 func _on_picked_up():
-	picked_up.emit(item_resource, quantity)
+	var spawn_pos := global_position  # capture before freeing
+	picked_up.emit(item_resource, quantity, spawn_pos)
 	queue_free()
 
 

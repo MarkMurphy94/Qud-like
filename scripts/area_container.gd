@@ -9,21 +9,28 @@ var _npc_spawner_packed: PackedScene = preload("res://scenes/npc_spawner.tscn")
 var current_area: Node2D = null
 var npc_spawner: NPCSpawner = null
 
+## Emitted after a local area is fully set up.
+## area_key is the scene path (settlements) or "x,y" coords (procedural tiles).
+signal area_loaded(area_key: String)
+
 # ─── Public API ────────────────────────────────────────────────────────────────
 
 ## Core entry point. Pass a scene_path for hand-crafted settlements,
 ## or a TileMetadata for procedurally-generated wilderness areas (or both).
 func load_area(scene_path: String = "", metadata: TileMetadata = null) -> void:
 	clear()
+	var area_key := ""
 	if scene_path != "":
 		var packed: PackedScene = load(scene_path)
 		if packed == null:
 			push_error("AreaContainer: could not load scene '%s'" % scene_path)
 			return
+		area_key = scene_path
 		current_area = packed.instantiate()
 		area.add_child(current_area)
 		_attach_npc_spawner(true)
 	elif metadata != null:
+		area_key = "%d,%d" % [metadata.coords.x, metadata.coords.y]
 		current_area = _local_area_packed.instantiate()
 		current_area.auto_generate_on_ready = false
 		area.add_child(current_area)
@@ -31,6 +38,8 @@ func load_area(scene_path: String = "", metadata: TileMetadata = null) -> void:
 		_attach_npc_spawner(false, metadata)
 	else:
 		push_warning("AreaContainer.load_area: no scene_path or metadata provided.")
+		return
+	area_loaded.emit(area_key)
 
 ## Convenience wrapper — reads fields from a LocalMapTile node.
 func load_from_tile(tile: LocalMapTile) -> void:
