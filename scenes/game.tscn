@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://b0bncv4868ufp" path="res://scenes/local_map_tile.tscn" id="6_p57ef"]
 [ext_resource type="Script" uid="uid://dex54ja7a1in3" path="res://scripts/TileMetadata.gd" id="7_gee14"]
 [ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/area_container.tscn" id="7_u5sy4"]
+[ext_resource type="PackedScene" uid="uid://0ow0juc2fpg5" path="res://scenes/point_and_click_path.tscn" id="8_navov"]
 
 [sub_resource type="Resource" id="Resource_0tnpc"]
 script = ExtResource("7_gee14")
@@ -37,6 +38,9 @@ Vector2i(13, 21): "res://scenes/town_1_new.tscn"
 })
 
 [node name="AreaContainer" parent="." unique_id=476275943 instance=ExtResource("7_u5sy4")]
+
+[node name="PointAndClickPath" parent="." unique_id=312846721 instance=ExtResource("8_navov")]
+z_index = 1
 
 [node name="town_tiles" type="Node2D" parent="." unique_id=1715855552]
 

@@ -56,6 +56,11 @@ var _pending_spell: Spell = null
 var _targeting_label: Label = null
 var _reticle: Node2D = null
 
+# Point-and-click navigation
+var path_overlay: Node2D = null          ## Reference to PointAndClickPath node
+var _nav_path: Array[Vector2i] = []     ## Remaining tiles to walk
+var _nav_active: bool = false
+
 func _ready() -> void:
 	# Set up player collision layers
 	# collision_layer = 2 # Player is on layer 2
@@ -65,6 +70,11 @@ func _ready() -> void:
 	add_to_group("player")  # Lowercase for WorldItem detection
 	update_camera_limits()
 	hud.pause_requested.connect(_on_pause_requested)
+	# Connect point-and-click nav overlay (scene sibling; gracefully absent)
+	path_overlay = get_node_or_null("../PointAndClickPath")
+	if path_overlay:
+		# Defer so OverworldMap._ready() (which populates map_data) runs first
+		_rebuild_nav_grid.call_deferred()
 	
 	# Initialize inventory
 	_initialize_inventory()
@@ -86,7 +96,16 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	# Update spell cooldowns
 	_update_spell_cooldowns(_delta)
-	
+
+	# Update path-overlay hover preview (skip while aiming or a UI screen is open)
+	if path_overlay and not _is_aiming:
+		var ui_open: bool = (inventory_screen and inventory_screen.visible) or \
+					  (spell_book_screen and spell_book_screen.visible)
+		if not ui_open:
+			path_overlay.update_preview(global_position, get_global_mouse_position())
+		else:
+			path_overlay.clear_preview()
+
 	# Handle input for entering/exiting areas
 	if Input.is_action_just_pressed("ui_accept"):
 		if in_local_area:
@@ -106,6 +125,17 @@ func _physics_process(_delta: float) -> void:
 	# if not in_local_area:
 	# 	if not overworld.is_walkable(new_grid_pos):
 	# 		return
+
+	# Any keyboard input cancels point-and-click navigation
+	var kb_pressed := (
+		Input.is_action_just_pressed("ui_right") or
+		Input.is_action_just_pressed("ui_left")  or
+		Input.is_action_just_pressed("ui_up")    or
+		Input.is_action_just_pressed("ui_down")
+	)
+	if kb_pressed and _nav_active:
+		_nav_cancel()
+
 	if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
 		_move(Vector2.RIGHT)
 	if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
@@ -114,28 +144,38 @@ func _physics_process(_delta: float) -> void:
 		_move(Vector2.UP)
 	if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
 		_move(Vector2.DOWN)
-	
+
+	# Advance point-and-click path one tile at a time (wait for sprite tween)
+	if _nav_active and _nav_path.size() > 0:
+		if sprite_node_pos_tween == null or not sprite_node_pos_tween.is_running():
+			_nav_step()
+
 	# Use Godot's built-in physics with collision detection
 	move_and_slide()
-	
+
 	# Update roof visibility
 	_update_roof_visibility()
 
 
 func _input(event: InputEvent) -> void:
-	if not _is_aiming:
-		return
-
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			_fire_pending_spell(get_global_mouse_position())
-			_exit_targeting_mode()
+			if _is_aiming:
+				# Spell targeting: fire toward click
+				_fire_pending_spell(get_global_mouse_position())
+				_exit_targeting_mode()
+			else:
+				# Point-and-click navigation
+				_on_nav_click(get_global_mouse_position())
 			get_viewport().set_input_as_handled()
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			return
+		elif event.button_index == MOUSE_BUTTON_RIGHT and _is_aiming:
 			print("Spell targeting cancelled")
 			_exit_targeting_mode()
 			get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_cancel"):
+			return
+
+	if _is_aiming and event.is_action_pressed("ui_cancel"):
 		print("Spell targeting cancelled")
 		_exit_targeting_mode()
 		get_viewport().set_input_as_handled()
@@ -152,6 +192,111 @@ func _move(dir: Vector2):
 	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
 
+# =============================
+# POINT-AND-CLICK NAVIGATION
+# =============================
+
+func _on_nav_click(world_pos: Vector2) -> void:
+	"""Handle a left-click: compute a path and start walking it."""
+	if not path_overlay:
+		return
+	# Don't navigate while a UI screen is open
+	var ui_open: bool = (inventory_screen and inventory_screen.visible) or \
+					   (spell_book_screen and spell_book_screen.visible)
+	if ui_open:
+		return
+	var path: Array[Vector2i] = path_overlay.get_tile_path(global_position, world_pos)
+	if path.size() > 1:
+		_nav_path = path.slice(1)  # Skip the tile the player is already on
+		_nav_active = true
+		path_overlay.set_nav_destination(world_pos)
+	else:
+		_nav_cancel()
+
+
+func _nav_step() -> void:
+	"""Advance one tile along the current nav path."""
+	if _nav_path.is_empty():
+		_nav_cancel()
+		return
+
+	var next_tile: Vector2i = _nav_path.pop_front()
+	var curr_tile := Vector2i(
+		int(floorf(global_position.x / tile_size)),
+		int(floorf(global_position.y / tile_size))
+	)
+	var diff := next_tile - curr_tile
+
+	# Only accept cardinal 1-tile steps (A* with DIAGONAL_MODE_NEVER guarantees this)
+	if abs(diff.x) + abs(diff.y) != 1:
+		_nav_cancel()
+		return
+
+	# Walkability re-check in case something changed since path was computed
+	var tile_clear: bool = false
+	if in_local_area and area_container.current_area:
+		tile_clear = _local_area_is_walkable(area_container.current_area, next_tile)
+	else:
+		tile_clear = overworld.is_walkable(next_tile)
+
+	if not tile_clear:
+		_nav_cancel()
+		return
+
+	_move(Vector2(diff))
+
+	if _nav_path.is_empty():
+		_nav_active = false
+		if path_overlay:
+			path_overlay.clear_nav_destination()
+
+
+func _nav_cancel() -> void:
+	"""Stop point-and-click navigation immediately."""
+	_nav_path = []
+	_nav_active = false
+	if path_overlay:
+		path_overlay.clear_nav_destination()
+
+
+func _rebuild_nav_grid() -> void:
+	"""(Re)build the A* pathfinding grid for the current context."""
+	if not path_overlay:
+		return
+	if in_local_area and area_container and area_container.current_area and map_rect:
+		var area: Node2D = area_container.current_area
+		path_overlay.setup_grid(
+			map_rect,
+			func(tile: Vector2i) -> bool: return _local_area_is_walkable(area, tile)
+		)
+	else:
+		var ow: Node2D = overworld
+		var ow_rect := Rect2i(0, 0, int(ow.WIDTH), int(ow.HEIGHT))
+		path_overlay.setup_grid(
+			ow_rect,
+			func(tile: Vector2i) -> bool: return ow.is_walkable(tile)
+		)
+
+func _local_area_is_walkable(area: Node2D, tile: Vector2i) -> bool:
+	"""Walkability check that works for both LocationGenerator subclasses
+	(procedural maps) and plain settlement Node2D scenes (e.g. town_1_new.gd)."""
+	# LocationGenerator subclasses expose is_walkable directly
+	if area.has_method("is_walkable"):
+		return area.is_walkable(tile)
+	# Fallback: read tilemaps directly — blocked if there's a wall tile or no ground
+	if not area.get("tilemaps"):
+		return false
+	var maps: Dictionary = area.tilemaps
+	# A wall tile present → not walkable
+	var walls = maps.get("WALLS")
+	if walls and walls.get_cell_source_id(tile) != -1:
+		return false
+	# No ground tile → not walkable
+	var ground = maps.get("GROUND")
+	if ground and ground.get_cell_source_id(tile) == -1:
+		return false
+	return true
+	
 func descend_to_local_area() -> void:
 	overworld_tile_pos = global_position
 
@@ -188,6 +333,7 @@ func descend_to_local_area() -> void:
 	overworld.hide()
 	in_local_area = true
 	update_camera_limits()
+	_rebuild_nav_grid()
 
 func return_to_overworld() -> void:
 	if in_local_area:
@@ -197,6 +343,8 @@ func return_to_overworld() -> void:
 	in_local_area = false
 	position = overworld_tile_pos
 	update_camera_limits()
+	_nav_cancel()
+	_rebuild_nav_grid()
 
 func get_spawn_tile():
 	return area_container.spawn_tile.position

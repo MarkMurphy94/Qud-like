@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://2yt1rem30pxh"]
+[gd_scene format=3 uid="uid://2yt1rem30pxh"]
 
 [ext_resource type="Script" uid="uid://bfol1ynhn5mik" path="res://scripts/Player.gd" id="1_fcrbl"]
 [ext_resource type="Texture2D" uid="uid://br0x1tgc8tpf0" path="res://assets/32rogues-0.5.0/32rogues/rogues.png" id="2_6k1bd"]
@@ -7,47 +7,47 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kuy4p"]
 size = Vector2(8, 8)
 
-[node name="Player" type="CharacterBody2D"]
+[node name="Player" type="CharacterBody2D" unique_id=1271049849]
 visibility_layer = 7
 z_index = 1
 script = ExtResource("1_fcrbl")
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1044107717]
 position = Vector2(1, 1)
 zoom = Vector2(2, 2)
 position_smoothing_enabled = true
 
-[node name="CanvasLayer" type="CanvasLayer" parent="Camera2D"]
+[node name="CanvasLayer" type="CanvasLayer" parent="Camera2D" unique_id=1056059061]
 visible = false
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=837343850]
 position = Vector2(-2.98023e-08, -2.98023e-08)
 scale = Vector2(0.5, 0.5)
 texture = ExtResource("2_6k1bd")
 region_enabled = true
 region_rect = Rect2(32, 32, 32, 32)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=994844199]
 shape = SubResource("RectangleShape2D_kuy4p")
 
-[node name="up" type="RayCast2D" parent="."]
+[node name="up" type="RayCast2D" parent="." unique_id=970763943]
 position = Vector2(0, -8)
 target_position = Vector2(0, -8)
 hit_from_inside = true
 
-[node name="down" type="RayCast2D" parent="."]
+[node name="down" type="RayCast2D" parent="." unique_id=1635015820]
 position = Vector2(0, 8)
 target_position = Vector2(0, 8)
 hit_from_inside = true
 
-[node name="left" type="RayCast2D" parent="."]
+[node name="left" type="RayCast2D" parent="." unique_id=1613302651]
 position = Vector2(-8, 0)
 target_position = Vector2(-8, 0)
 hit_from_inside = true
 
-[node name="right" type="RayCast2D" parent="."]
+[node name="right" type="RayCast2D" parent="." unique_id=173988762]
 position = Vector2(8, 0)
 target_position = Vector2(8, 0)
 hit_from_inside = true
 
-[node name="HUD" parent="." instance=ExtResource("3_hud")]
+[node name="HUD" parent="." unique_id=240473281 instance=ExtResource("3_hud")]
