@@ -691,7 +691,9 @@ func _on_inventory_full() -> void:
 func _on_item_added(item: Item, quantity: int) -> void:
 	"""Called when an item is successfully added"""
 	print("Added %d x %s to inventory" % [quantity, item.get_display_name()])
-	# TODO: Show UI notification
+	# Auto-add consumables to hotbar
+	if hud and hud.has_method("notify_item_added"):
+		hud.notify_item_added(item, quantity)
 
 func _on_item_removed(item: Item, quantity: int) -> void:
 	"""Called when an item is removed"""
@@ -881,6 +883,9 @@ func learn_spell(spell: Spell) -> bool:
 	# Learn the spell
 	learned_spells.append(spell)
 	print("Learned spell: %s" % spell.get_display_name())
+	# Auto-add spell to hotbar
+	if hud and hud.has_method("notify_spell_learned"):
+		hud.notify_spell_learned(spell)
 	return true
 
 func has_spell(spell_id: String) -> bool:
