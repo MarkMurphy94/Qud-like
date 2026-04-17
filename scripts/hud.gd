@@ -116,6 +116,7 @@ func _build_hotbar() -> void:
 		# Outer panel for border/background
 		var panel := Panel.new()
 		panel.custom_minimum_size = Vector2(SLOT_SIZE, SLOT_SIZE)
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_style_hotbar_slot(panel, false)
 
 		# Key number label (top-left)

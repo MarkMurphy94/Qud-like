@@ -1,119 +1,131 @@
-[gd_scene load_steps=2 format=3 uid="uid://cduxhurofnhgh"]
+[gd_scene format=3 uid="uid://cduxhurofnhgh"]
 
 [ext_resource type="Script" uid="uid://b3p71y6r5o0o7" path="res://scripts/hud.gd" id="1_hud"]
 
-[node name="HUD" type="CanvasLayer"]
+[node name="HUD" type="CanvasLayer" unique_id=175180085]
 script = ExtResource("1_hud")
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=193014273]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+mouse_filter = 2
 theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1765816122]
 layout_mode = 2
 size_flags_vertical = 3
+mouse_filter = 2
 
-[node name="TopContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+[node name="TopContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=288264589]
 layout_mode = 2
 size_flags_vertical = 0
+mouse_filter = 2
 alignment = 3
 
-[node name="BarsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer"]
+[node name="BarsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer" unique_id=2091780509]
 layout_mode = 2
 size_flags_horizontal = 0
+mouse_filter = 2
 theme_override_constants/separation = 4
 
-[node name="HPContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer"]
+[node name="HPContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer" unique_id=1751185917]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="HPLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/HPContainer"]
+[node name="HPLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/HPContainer" unique_id=551580966]
 custom_minimum_size = Vector2(24, 0)
 layout_mode = 2
 text = "HP"
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/HPContainer"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/HPContainer" unique_id=779924681]
 custom_minimum_size = Vector2(150, 20)
 layout_mode = 2
+mouse_filter = 2
 step = 1.0
 value = 100.0
 show_percentage = false
 
-[node name="HPValue" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/HPContainer"]
+[node name="HPValue" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/HPContainer" unique_id=1918261477]
 custom_minimum_size = Vector2(60, 0)
 layout_mode = 2
 text = "100/100"
 
-[node name="MPContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer"]
+[node name="MPContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer" unique_id=2144625542]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="MPLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/MPContainer"]
+[node name="MPLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/MPContainer" unique_id=1502753231]
 custom_minimum_size = Vector2(24, 0)
 layout_mode = 2
 text = "MP"
 
-[node name="MPBar" type="ProgressBar" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/MPContainer"]
+[node name="MPBar" type="ProgressBar" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/MPContainer" unique_id=898620134]
 custom_minimum_size = Vector2(150, 20)
 layout_mode = 2
+mouse_filter = 2
 step = 1.0
 value = 100.0
 show_percentage = false
 
-[node name="MPValue" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/MPContainer"]
+[node name="MPValue" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/MPContainer" unique_id=955481877]
 custom_minimum_size = Vector2(60, 0)
 layout_mode = 2
 text = "100/100"
 
-[node name="SPContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer"]
+[node name="SPContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer" unique_id=1093270366]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="SPLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer"]
+[node name="SPLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer" unique_id=1403648959]
 custom_minimum_size = Vector2(24, 0)
 layout_mode = 2
 text = "SP"
 
-[node name="SPBar" type="ProgressBar" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer"]
+[node name="SPBar" type="ProgressBar" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer" unique_id=542426980]
 custom_minimum_size = Vector2(150, 20)
 layout_mode = 2
+mouse_filter = 2
 step = 1.0
 value = 100.0
 show_percentage = false
 
-[node name="SPValue" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer"]
+[node name="SPValue" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer" unique_id=1640776541]
 custom_minimum_size = Vector2(60, 0)
 layout_mode = 2
 text = "100/100"
 
-[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/TopContainer"]
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/TopContainer" unique_id=1718757767]
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 2
 
-[node name="PauseButton" type="Button" parent="MarginContainer/VBoxContainer/TopContainer"]
+[node name="PauseButton" type="Button" parent="MarginContainer/VBoxContainer/TopContainer" unique_id=1191430995]
 layout_mode = 2
 size_flags_vertical = 0
 text = "II"
 
-[node name="inventory" type="Button" parent="MarginContainer/VBoxContainer/TopContainer"]
+[node name="inventory" type="Button" parent="MarginContainer/VBoxContainer/TopContainer" unique_id=1119949339]
 layout_mode = 2
 size_flags_vertical = 0
 text = "Inventory"
 
-[node name="VerticalSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
+[node name="VerticalSpacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=1132480012]
 layout_mode = 2
 size_flags_vertical = 3
+mouse_filter = 2
 
-[node name="HotbarContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+[node name="HotbarContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1119035606]
 layout_mode = 2
 size_flags_horizontal = 4
-alignment = 1
 theme_override_constants/separation = 4
+alignment = 1
 
 [connection signal="pressed" from="MarginContainer/VBoxContainer/TopContainer/PauseButton" to="." method="_on_pause_button_pressed"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/TopContainer/inventory" to="." method="_on_inventory_pressed"]

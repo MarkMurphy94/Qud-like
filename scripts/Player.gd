@@ -97,11 +97,12 @@ func _process(_delta: float) -> void:
 	# Update spell cooldowns
 	_update_spell_cooldowns(_delta)
 
-	# Update path-overlay hover preview (skip while aiming or a UI screen is open)
+	# Update path-overlay hover preview (skip while aiming, a UI screen is open, or mouse is over HUD)
 	if path_overlay and not _is_aiming:
 		var ui_open: bool = (inventory_screen and inventory_screen.visible) or \
 					  (spell_book_screen and spell_book_screen.visible)
-		if not ui_open:
+		var mouse_over_hud: bool = get_viewport().gui_get_hovered_control() != null
+		if not ui_open and not mouse_over_hud:
 			path_overlay.update_preview(global_position, get_global_mouse_position())
 		else:
 			path_overlay.clear_preview()
@@ -160,6 +161,9 @@ func _physics_process(_delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
+			# Ignore clicks that land on a HUD / GUI control
+			if get_viewport().gui_get_hovered_control() != null:
+				return
 			if _is_aiming:
 				# Spell targeting: fire toward click
 				_fire_pending_spell(get_global_mouse_position())
