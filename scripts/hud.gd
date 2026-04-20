@@ -44,6 +44,8 @@ func _ready() -> void:
 	_style_bars()
 	_build_hotbar()
 	_build_equip_panel()
+	# Defer so the player node is fully ready before we read equipped_items
+	call_deferred("refresh_equipment_display")
 
 func _style_bars() -> void:
 	# HP = Red, MP = Blue, SP = Green
@@ -419,7 +421,7 @@ func _refresh_equip_slot(slot_name: String, item) -> void:
 		name_lbl.visible = false
 		_style_hotbar_slot(panel, false)
 	else:
-		icon.texture = item.icon if item.icon else null
+		icon.texture = item.get_icon() if item.has_method("get_icon") else item.icon
 		name_lbl.text = item.get_display_name() if item.has_method("get_display_name") else item.display_name
 		name_lbl.visible = true
 		_style_hotbar_slot(panel, true)
