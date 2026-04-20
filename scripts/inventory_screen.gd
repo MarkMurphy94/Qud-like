@@ -20,6 +20,7 @@ signal inventory_closed
 @onready var item_stats_label: Label = $Panel/MarginContainer/VBoxContainer/BottomPanel/ItemDetails/VBoxContainer/ItemStatsLabel
 @onready var action_buttons: HBoxContainer = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons
 @onready var use_button: Button = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/UseButton
+@onready var equip_button: Button = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/EquipButton
 @onready var drop_button: Button = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/DropButton
 @onready var drop_amount: SpinBox = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/DropAmount
 
@@ -59,8 +60,13 @@ func _ready():
 	sort_option.add_item("Weight", 3)
 	sort_option.add_item("Rarity", 4)
 	
-	# Disable action buttons initially
+	# Connect equip button
+	equip_button.pressed.connect(_on_equip_button_pressed)
+
+	# Disable / hide action buttons initially
 	use_button.disabled = true
+	equip_button.disabled = true
+	equip_button.visible = false
 	drop_button.disabled = true
 	drop_amount.visible = false
 
@@ -289,6 +295,16 @@ func _update_item_details(item: Item, quantity: int):
 	
 	# Enable/disable buttons
 	use_button.disabled = not _can_use_item(item)
+	var is_equippable := _can_equip_item(item)
+	equip_button.visible = is_equippable
+	equip_button.disabled = not is_equippable
+	# Show "Unequip" label when the item is already in an equipment slot
+	var player = get_tree().get_first_node_in_group("Player")
+	if is_equippable and player and player.has_method("equip_item"):
+		var already_equipped := _item_is_equipped(player, item)
+		equip_button.text = "Unequip" if already_equipped else "Equip"
+	else:
+		equip_button.text = "Equip"
 	drop_button.disabled = not item.can_drop
 	
 	# Setup drop amount
@@ -305,6 +321,19 @@ func _can_use_item(item: Item) -> bool:
 	"""Check if an item can be used"""
 	# Books and consumables can be used
 	return item.item_type == Item.ItemType.CONSUMABLE or item.item_type == Item.ItemType.BOOK
+
+
+func _can_equip_item(item: Item) -> bool:
+	"""Check if an item can be equipped (weapons and armor only)"""
+	return item.item_type == Item.ItemType.WEAPON or item.item_type == Item.ItemType.ARMOR
+
+
+func _item_is_equipped(player, item: Item) -> bool:
+	"""Return true if this item is currently in one of the player's equipment slots."""
+	for slot_item in player.equipped_items.values():
+		if slot_item != null and slot_item == item:
+			return true
+	return false
 
 
 func _create_item_slot_scene():
@@ -393,6 +422,33 @@ func _on_use_button_pressed():
 		# TODO: Apply consumable effects
 	
 	# The inventory_changed signal will trigger refresh
+
+
+func _on_equip_button_pressed():
+	"""Called when Equip/Unequip button is clicked"""
+	if selected_slot_index < 0 or not inventory:
+		return
+
+	var slot = inventory.get_slot(selected_slot_index)
+	if slot.is_empty():
+		return
+
+	var item: Item = slot.item
+	var player = get_tree().get_first_node_in_group("Player")
+	if not player or not player.has_method("equip_item"):
+		return
+
+	if _item_is_equipped(player, item):
+		# Unequip: find which slot holds this item and free it
+		for slot_name in player.equipped_items.keys():
+			if player.equipped_items[slot_name] == item:
+				player.unequip_slot(slot_name)
+				break
+	else:
+		player.equip_item(item)
+
+	# Refresh details panel to update button label
+	_update_item_details(item, slot.quantity)
 
 
 func _on_drop_button_pressed():

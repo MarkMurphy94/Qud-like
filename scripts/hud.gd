@@ -8,8 +8,21 @@ extends CanvasLayer
 @onready var sp_value: Label = $MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer/SPValue
 @onready var pause_button: Button = $MarginContainer/VBoxContainer/TopContainer/PauseButton
 @onready var inventory: Button = $MarginContainer/VBoxContainer/TopContainer/inventory
-@onready var hotbar_container: HBoxContainer = $MarginContainer/VBoxContainer/HotbarContainer
+@onready var hotbar_container: HBoxContainer = $MarginContainer/VBoxContainer/BottomRowContainer/HotbarContainer
+@onready var equip_panel: Control = $MarginContainer/VBoxContainer/BottomRowContainer/EquipPanel
 
+const EQUIP_SLOT_SIZE := 48
+# Order matches the "+" layout positions
+const EQUIP_SLOTS: Array = ["head", "left_hand", "chest", "right_hand", "legs"]
+const EQUIP_SLOT_LABELS: Dictionary = {
+	"head": "Head",
+	"chest": "Body",
+	"legs": "Legs",
+	"right_hand": "R.Hand",
+	"left_hand": "L.Hand",
+}
+## Maps slot name -> Panel node
+var equip_slot_nodes: Dictionary = {}
 const HOTBAR_SLOTS := 9
 const SLOT_SIZE := 48  # pixels per slot
 
@@ -30,6 +43,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_style_bars()
 	_build_hotbar()
+	_build_equip_panel()
 
 func _style_bars() -> void:
 	# HP = Red, MP = Blue, SP = Green
@@ -316,6 +330,99 @@ func _use_hotbar_slot(index: int) -> void:
 		var spell: Spell = slot.data
 		if player.has_method("_on_spell_cast_requested"):
 			player._on_spell_cast_requested(spell)
+
+# =============================
+# EQUIPMENT PANEL
+# =============================
+
+func _build_equip_panel() -> void:
+	# "+" layout using a GridContainer (3 cols x 3 rows, center slots filled):
+	# [ ]  [head]  [ ]
+	# [lh] [chest] [rh]
+	# [ ]  [legs]  [ ]
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 4)
+	grid.add_theme_constant_override("v_separation", 4)
+	equip_panel.add_child(grid)
+
+	# Row 0: empty, head, empty
+	# Row 1: left_hand, chest, right_hand
+	# Row 2: empty, legs, empty
+	var layout: Array = [
+		"", "head", "",
+		"left_hand", "chest", "right_hand",
+		"", "legs", ""
+	]
+
+	for slot_name in layout:
+		if slot_name == "":
+			# Invisible spacer
+			var spacer := Control.new()
+			spacer.custom_minimum_size = Vector2(EQUIP_SLOT_SIZE, EQUIP_SLOT_SIZE)
+			grid.add_child(spacer)
+		else:
+			var panel := Panel.new()
+			panel.custom_minimum_size = Vector2(EQUIP_SLOT_SIZE, EQUIP_SLOT_SIZE)
+			panel.tooltip_text = EQUIP_SLOT_LABELS[slot_name]
+			_style_hotbar_slot(panel, false)
+
+			# Slot label (top-left)
+			var lbl := Label.new()
+			lbl.name = "SlotLabel"
+			lbl.text = EQUIP_SLOT_LABELS[slot_name]
+			lbl.add_theme_font_size_override("font_size", 9)
+			lbl.position = Vector2(2, 0)
+			lbl.size = Vector2(EQUIP_SLOT_SIZE - 4, 12)
+			lbl.clip_text = true
+			panel.add_child(lbl)
+
+			# Icon
+			var icon := TextureRect.new()
+			icon.name = "Icon"
+			icon.custom_minimum_size = Vector2(28, 28)
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.position = Vector2(10, 10)
+			icon.size = Vector2(28, 28)
+			panel.add_child(icon)
+
+			# Item name (bottom)
+			var name_lbl := Label.new()
+			name_lbl.name = "Name"
+			name_lbl.add_theme_font_size_override("font_size", 9)
+			name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			name_lbl.position = Vector2(0, EQUIP_SLOT_SIZE - 14)
+			name_lbl.size = Vector2(EQUIP_SLOT_SIZE, 12)
+			name_lbl.clip_text = true
+			name_lbl.visible = false
+			panel.add_child(name_lbl)
+
+			grid.add_child(panel)
+			equip_slot_nodes[slot_name] = panel
+
+## Refresh all 5 equipment slot visuals from the player's equipped_items.
+func refresh_equipment_display() -> void:
+	var player = get_parent()
+	if not player or not player.has_method("equip_item"):
+		return
+	for slot_name in EQUIP_SLOT_LABELS.keys():
+		_refresh_equip_slot(slot_name, player.equipped_items.get(slot_name, null))
+
+func _refresh_equip_slot(slot_name: String, item) -> void:
+	var panel: Panel = equip_slot_nodes.get(slot_name)
+	if not panel:
+		return
+	var icon: TextureRect = panel.get_node("Icon")
+	var name_lbl: Label = panel.get_node("Name")
+	if item == null:
+		icon.texture = null
+		name_lbl.visible = false
+		_style_hotbar_slot(panel, false)
+	else:
+		icon.texture = item.icon if item.icon else null
+		name_lbl.text = item.get_display_name() if item.has_method("get_display_name") else item.display_name
+		name_lbl.visible = true
+		_style_hotbar_slot(panel, true)
 
 func _input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:

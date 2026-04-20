@@ -7,7 +7,10 @@
 [ext_resource type="PackedScene" uid="uid://c884d0nqudvsi" path="res://scenes/world_item.tscn" id="4_58i1x"]
 [ext_resource type="Script" uid="uid://ena8k3p3ftwd" path="res://resources/map_config.gd" id="4_h6wc6"]
 [ext_resource type="Resource" uid="uid://2ml1geofo1id" path="res://resources/items/templates/weapons/basic_sword.tres" id="5_kvjk8"]
-[ext_resource type="Resource" path="res://resources/items/templates/consumables/spellbook_fireball.tres" id="6_s81oj"]
+[ext_resource type="Resource" uid="uid://bkt706i3won0k" path="res://resources/items/templates/consumables/spellbook_fireball.tres" id="6_s81oj"]
+[ext_resource type="Resource" path="res://resources/items/templates/weapons/axe.tres" id="9_h6wc6"]
+[ext_resource type="Resource" path="res://resources/items/templates/armor/iron_helm.tres" id="10_5vcqy"]
+[ext_resource type="Resource" path="res://resources/items/templates/armor/chainmail.tres" id="11_5vcqy"]
 
 [sub_resource type="Resource" id="Resource_5vcqy"]
 script = ExtResource("4_h6wc6")
@@ -67,3 +70,15 @@ item_resource = ExtResource("5_kvjk8")
 [node name="fireball_book" parent="." unique_id=1014889487 instance=ExtResource("4_58i1x")]
 position = Vector2(712, 976)
 item_resource = ExtResource("6_s81oj")
+
+[node name="axe" parent="." unique_id=609039429 instance=ExtResource("4_58i1x")]
+position = Vector2(704, 928)
+item_resource = ExtResource("9_h6wc6")
+
+[node name="iron_helmet" parent="." unique_id=388557934 instance=ExtResource("4_58i1x")]
+position = Vector2(680, 888)
+item_resource = ExtResource("10_5vcqy")
+
+[node name="chainmail" parent="." unique_id=1899685150 instance=ExtResource("4_58i1x")]
+position = Vector2(656, 1016)
+item_resource = ExtResource("11_5vcqy")

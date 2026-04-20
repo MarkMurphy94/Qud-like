@@ -46,6 +46,16 @@ var inventory: Inventory = null
 @export var inventory_slots: int = 20
 @export var max_carry_weight: float = 100.0
 
+# Equipment slots: head, chest, legs, right_hand, left_hand
+## Keys match ItemArmor.ArmorType names (lowercased) and "right_hand"/"left_hand"
+var equipped_items: Dictionary = {
+	"head": null,
+	"chest": null,
+	"legs": null,
+	"right_hand": null,
+	"left_hand": null,
+}
+
 # Spell system
 var learned_spells: Array[Spell] = []  ## Array of learned Spell resources
 var spell_cooldowns: Dictionary = {}  ## spell_id -> cooldown_remaining
@@ -707,6 +717,55 @@ func _on_item_removed(item: Item, quantity: int) -> void:
 func get_inventory() -> Inventory:
 	"""Get the player's inventory for external access"""
 	return inventory
+
+# =============================
+# EQUIPMENT SYSTEM
+# =============================
+
+## Equip an item into its appropriate slot.
+## Weapons go into right_hand (or left_hand if right_hand is occupied).
+## Armor goes into the slot matching its ArmorType.
+## Returns true on success.
+func equip_item(item: Item, slot: String = "") -> bool:
+	if item == null:
+		return false
+	var target_slot := slot
+	if item.item_type == Item.ItemType.WEAPON:
+		if target_slot == "":
+			target_slot = "right_hand" if equipped_items["right_hand"] == null else "left_hand"
+		if target_slot != "right_hand" and target_slot != "left_hand":
+			return false
+	elif item.item_type == Item.ItemType.ARMOR:
+		var armor := item as ItemArmor
+		if armor == null:
+			return false
+		if target_slot == "":
+			match armor.armor_type:
+				ItemArmor.ArmorType.HEAD:  target_slot = "head"
+				ItemArmor.ArmorType.CHEST: target_slot = "chest"
+				ItemArmor.ArmorType.LEGS, ItemArmor.ArmorType.FEET: target_slot = "legs"
+				_: return false
+		if not equipped_items.has(target_slot):
+			return false
+	else:
+		return false
+	# Unequip whatever is already in the slot
+	if equipped_items[target_slot] != null:
+		unequip_slot(target_slot)
+	equipped_items[target_slot] = item
+	if hud and hud.has_method("refresh_equipment_display"):
+		hud.refresh_equipment_display()
+	return true
+
+## Unequip the item in the given slot and return it (or null).
+func unequip_slot(slot: String) -> Item:
+	if not equipped_items.has(slot):
+		return null
+	var item: Item = equipped_items[slot]
+	equipped_items[slot] = null
+	if hud and hud.has_method("refresh_equipment_display"):
+		hud.refresh_equipment_display()
+	return item
 
 # =============================
 # INVENTORY SCREEN
