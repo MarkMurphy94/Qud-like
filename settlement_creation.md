@@ -2,13 +2,14 @@
 
 _Note: This is not a great process, and lot of it should be optimized soon..._
 
-1. Open location_generator scene, click top SettlementGenerator node and add a new Area Template config
+1. Open location_generator scene, click top SettlementGenerator node and add a new Map Template config
 2.  Click Scene>Reload Saved Scene to run the tool script
 3. Create a new scene and copy+paste the tilemap nodes from the generator scene to the new scene with a node2d parent
 4. In the new scene, add a script to the parent node2d and copy+paste in this code and save the new settlement scene
     
     ```jsx
-    @onready var tilemaps = {
+    @export var config: MapConfig
+	@onready var tilemaps = {
     	"GROUND": $ground,
     	"INTERIOR_FLOOR": $interior_floor,
     	"WALLS": $walls,

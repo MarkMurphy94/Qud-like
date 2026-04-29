@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="MapConfig" format=3 uid="uid://b4ieloaa7776s"]
+
+[ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_321xs"]
+[ext_resource type="Script" uid="uid://dmxba4w6hdk8e" path="res://resources/npc_config.gd" id="2_nxmlb"]
+[ext_resource type="Script" uid="uid://ena8k3p3ftwd" path="res://resources/map_config.gd" id="3_u4lgc"]
+
+[resource]
+script = ExtResource("3_u4lgc")
+map_name = "test_battle_field"
+building_density = 0
+road_terrain = "stone"
+metadata/_custom_type_script = "uid://ena8k3p3ftwd"
