@@ -1,1 +1,13 @@
-hihihihihhi
+test_character: You lost friend?
+- yes
+	test_character: oh well. looking to trade?
+	- yes
+		[signal arg="start_trade"]
+	- no
+		test_character: then piss off!
+- no
+	test_character: oh good. Looking to trade?
+	- yes
+		[signal arg="start_trade"]
+	- no
+		test_character: then piss off!
