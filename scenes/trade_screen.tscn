@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://trade_screen_001"]
+
+[ext_resource type="Script" path="res://scripts/trade_screen.gd" id="1_trade_screen"]
+
+[node name="TradeScreen" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_trade_screen")

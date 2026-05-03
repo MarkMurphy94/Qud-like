@@ -541,9 +541,13 @@ func _start_dialogic_conversation(npc: NPC) -> void:
 	
 	# Start the timeline
 	Dialogic.start(timeline_name)
-	
+
 	# Connect to timeline end signal
 	Dialogic.timeline_ended.connect(_on_dialogic_timeline_ended)
+
+	# Connect Dialogic custom signals (e.g. "start_trade")
+	if not Dialogic.signal_event.is_connected(_on_dialogic_signal):
+		Dialogic.signal_event.connect(_on_dialogic_signal)
 
 func _get_timeline_for_npc(npc: NPC) -> String:
 	"""Determine which Dialogic timeline to use for this NPC"""
@@ -591,7 +595,30 @@ func _dialogic_timeline_exists(timeline_name: String) -> bool:
 func _on_dialogic_timeline_ended() -> void:
 	"""Called when Dialogic timeline finishes"""
 	Dialogic.timeline_ended.disconnect(_on_dialogic_timeline_ended)
+	if Dialogic.signal_event.is_connected(_on_dialogic_signal):
+		Dialogic.signal_event.disconnect(_on_dialogic_signal)
 	_end_npc_interaction()
+
+func _on_dialogic_signal(arg: String) -> void:
+	"""Handle custom signals emitted from Dialogic timelines."""
+	if arg == "start_trade":
+		open_trade_screen(current_interacting_npc)
+
+func open_trade_screen(npc: NPC) -> void:
+	"""Open the trade screen with the given NPC."""
+	if not trade_screen:
+		return
+	if not npc or not is_instance_valid(npc):
+		push_warning("[Player] open_trade_screen called with invalid NPC")
+		return
+	# Ensure NPC has an inventory
+	if not npc.inventory:
+		npc._initialize_inventory()
+	trade_screen.open_trade(self, npc)
+
+func _on_trade_screen_closed() -> void:
+	"""Called when the trade screen is closed."""
+	pass
 
 func _on_npc_dialogue_ended(npc: NPC) -> void:
 	"""Called when NPC dialogue ends"""
@@ -773,6 +800,7 @@ func unequip_slot(slot: String) -> Item:
 
 var inventory_screen = null
 var spell_book_screen = null
+var trade_screen = null
 
 func _setup_inventory_screen():
 	"""Load and setup the inventory screen"""
@@ -793,6 +821,15 @@ func _setup_inventory_screen():
 		spell_book_screen.spell_cast_requested.connect(_on_spell_cast_requested)
 	else:
 		push_error("Failed to load spell_book_screen.tscn")
+
+	# Setup trade screen
+	var trade_screen_scene = load("res://scenes/trade_screen.tscn")
+	if trade_screen_scene:
+		trade_screen = trade_screen_scene.instantiate()
+		add_child(trade_screen)
+		trade_screen.trade_closed.connect(_on_trade_screen_closed)
+	else:
+		push_error("Failed to load trade_screen.tscn")
 
 func _toggle_inventory_screen():
 	"""Open or close the inventory screen"""

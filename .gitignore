@@ -6,3 +6,4 @@ addons/
 .vscode/
 *.uid
 assets/
+*.exe

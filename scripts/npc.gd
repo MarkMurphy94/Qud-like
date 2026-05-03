@@ -1082,6 +1082,40 @@ func _initialize_inventory() -> void:
 		# Connect to inventory signals
 		inventory.inventory_changed.connect(_on_inventory_changed)
 		inventory.inventory_full.connect(_on_inventory_full)
+		
+		# Populate a default test inventory so NPCs have something to trade
+		_populate_default_inventory()
+
+func _populate_default_inventory() -> void:
+	"""Add a handful of starter items to every NPC inventory for testing."""
+	# Always give a few consumables
+	var potion_path := "res://resources/items/templates/consumables/health_potion.tres"
+	var bread_path  := "res://resources/items/templates/consumables/bread.tres"
+	var dagger_path := "res://resources/items/templates/weapons/dagger.tres"
+	var sword_path  := "res://resources/items/templates/weapons/basic_sword.tres"
+
+	if ResourceLoader.exists(potion_path):
+		var potion: Item = load(potion_path)
+		if potion:
+			inventory.add_item(potion, 3)
+
+	if ResourceLoader.exists(bread_path):
+		var bread: Item = load(bread_path)
+		if bread:
+			inventory.add_item(bread, 2)
+
+	# Merchants and bandits also stock weapons
+	if can_trade or faction in ["OUTLAW", "GUARD"]:
+		if ResourceLoader.exists(dagger_path):
+			var dagger: Item = load(dagger_path)
+			if dagger:
+				inventory.add_item(dagger, 1)
+
+	if can_trade:
+		if ResourceLoader.exists(sword_path):
+			var sword: Item = load(sword_path)
+			if sword:
+				inventory.add_item(sword, 1)
 
 func add_item_to_inventory(item: Item, quantity: int = 1) -> bool:
 	"""Add an item to the NPC's inventory. Returns true if successful."""
