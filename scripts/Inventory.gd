@@ -18,7 +18,8 @@ signal inventory_full
 
 ## The items in this inventory
 ## Each element is a Dictionary with keys: {item: Item, quantity: int}
-var items: Array[Dictionary] = []
+@export var items: Array[Dictionary] = []
+@export var spellbook: Array[Spell] = []  # Optional spellbook for spellcasting entities- mainly for NPCs
 
 
 func _ready():

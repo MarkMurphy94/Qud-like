@@ -2,7 +2,7 @@ extends CharacterBody2D
 class_name NPC
 
 # === EXPORTS AND CONFIGURATION ===
-@export var config: NPCConfig
+# @export var config: NPCConfig
 @export_group("Basic Properties")
 @export var move_speed: float = 50.0
 @export var tile_size: int = 16
@@ -28,7 +28,8 @@ var sprite_node_pos_tween: Tween
 	"agility": 10,
 	"intelligence": 10,
 	"endurance": 10,
-	"charisma": 10
+	"charisma": 10,
+	"initiative": 10   ## Used for turn-order rolls in combat
 }
 @export var inventory: Inventory = null  # Proper inventory system with stacking
 @export var equipped_items: Dictionary = {}
@@ -368,7 +369,7 @@ var npc_properties = {
 			"move_speed": 65.0,
 			"move_interval": 0.3,
 			"wander_radius": 12.0,
-			"sprite_region_coords": Rect2i(128, 32, 32, 32),
+			"sprite_region_coords": Rect2i(0, 160, 32, 32),
 			"behavior": "hunt",
 			"faction": "MONSTER",
 			"dialogue": "none",
@@ -419,11 +420,21 @@ var hear_event_cooldown: float = 0.0
 
 # --- DEBUG OPTIONS ---
 var show_debug: bool = true
+
+# --- TURN-BASED COMBAT ---
+var _combat_triggered : bool = false  ## Prevent duplicate trigger_combat() calls
+var _in_combat_mode   : bool = false  ## True while CombatManager is active
+## Combat UI nodes (created programmatically in _ready)
+var _exclamation_label : Label       = null
+var _hp_bar_container  : Control     = null
+var _hp_bar_bg         : ColorRect   = null
+var _hp_bar_fill       : ColorRect   = null
 	
 func _ready():
 	rng.randomize()
 	apply_type_profile()
 	set_sprite()
+	_build_combat_indicators()
 	# Randomize initial move timer to desync NPC movement
 	move_timer = rng.randf_range(0.0, move_interval + move_interval_variance)
 	# Attempt to locate player for reference (optional)
@@ -444,6 +455,13 @@ func _ready():
 
 func _physics_process(delta: float) -> void:
 	if state == NPCState.DEAD:
+		return
+
+	# During turn-based combat the CombatManager drives NPC actions directly.
+	# We still update debug/combat-UI but skip the free-roam AI loop.
+	if CombatManager.in_combat:
+		_update_debug()
+		_update_combat_ui()
 		return
 
 	state_timer += delta
@@ -478,6 +496,10 @@ func apply_type_profile():
 	can_trade = profile.get("can_trade", false)
 	if profile.has("trade_prices"):
 		trade_prices = profile.trade_prices
+
+func apply_config(_config: NPCConfig):
+	# TODO: implement to auto-set all export variables from a config- good for applying templates for npc types or named npcs
+	pass
 
 # Simple helper to set home/work
 func set_locations(home: Vector2, work: Vector2 = Vector2.ZERO):
@@ -595,6 +617,10 @@ func _perception_update():
 			# Hostile logic
 			if _is_hostile_to_player():
 				current_target = player_reference
+				# Trigger turn-based combat (only once per encounter)
+				if not _combat_triggered and not CombatManager.in_combat:
+					_combat_triggered = true
+					CombatManager.trigger_combat(self, player_reference)
 			elif faction == "WILDLIFE" and dist < vision_range * 0.6 * tile_size:
 				# Wildlife flees sooner
 				threat_source = player_reference
@@ -818,6 +844,124 @@ func _state_name(s: int) -> String:
 		NPCState.FOLLOW: return "FOLLOW"
 		NPCState.DEAD: return "DEAD"
 		_: return "UNKNOWN"
+
+# =============================
+# TURN-BASED COMBAT SUPPORT
+# =============================
+
+func _build_combat_indicators() -> void:
+	"""Create exclamation mark label and HP bar in the NPC's CanvasLayer."""
+	var canvas = get_node_or_null("CanvasLayer")
+	if canvas == null:
+		return
+
+	# ── Exclamation label (red "!") ──────────────────────────────────────
+	_exclamation_label = Label.new()
+	_exclamation_label.text = "!"
+	_exclamation_label.add_theme_font_size_override("font_size", 22)
+	_exclamation_label.add_theme_color_override("font_color", Color(1.0, 0.15, 0.15))
+	_exclamation_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	_exclamation_label.add_theme_constant_override("shadow_offset_x", 1)
+	_exclamation_label.add_theme_constant_override("shadow_offset_y", 1)
+	_exclamation_label.visible = false
+	canvas.add_child(_exclamation_label)
+
+	# ── HP bar (background + fill) ───────────────────────────────────────
+	_hp_bar_container = Control.new()
+	_hp_bar_container.custom_minimum_size = Vector2(32, 5)
+	_hp_bar_container.visible = false
+	canvas.add_child(_hp_bar_container)
+
+	_hp_bar_bg = ColorRect.new()
+	_hp_bar_bg.color = Color(0.2, 0.2, 0.2)
+	_hp_bar_bg.size = Vector2(32, 5)
+	_hp_bar_container.add_child(_hp_bar_bg)
+
+	_hp_bar_fill = ColorRect.new()
+	_hp_bar_fill.color = Color(0.85, 0.15, 0.15)
+	_hp_bar_fill.size = Vector2(32, 5)
+	_hp_bar_container.add_child(_hp_bar_fill)
+
+func _update_combat_ui() -> void:
+	"""Reposition and refresh combat indicators every physics frame."""
+	if _exclamation_label == null:
+		return
+	var camera := get_viewport().get_camera_2d()
+	if camera == null:
+		return
+	var screen_pos: Vector2 = get_global_transform_with_canvas().origin
+	# Exclamation: directly above the NPC
+	_exclamation_label.position = screen_pos + Vector2(-6, -44)
+	# HP bar: just below the exclamation
+	if _hp_bar_container:
+		_hp_bar_container.position = screen_pos + Vector2(-16, -26)
+		var ratio: float = float(current_health) / float(max(1, max_health))
+		if _hp_bar_fill:
+			_hp_bar_fill.size.x = 32.0 * clampf(ratio, 0.0, 1.0)
+
+## Called by CombatManager when this NPC is pulled into combat.
+func enter_combat_mode() -> void:
+	_in_combat_mode = true
+	_combat_triggered = true
+	set_state(NPCState.COMBAT)
+	# Show indicators with a brief "!" blink
+	if _exclamation_label:
+		_exclamation_label.visible = true
+		# Fade the "!" out after 1.5 s
+		var tw := create_tween()
+		tw.tween_interval(1.5)
+		tw.tween_property(_exclamation_label, "modulate:a", 0.0, 0.4)
+		tw.finished.connect(func(): _exclamation_label.visible = false)
+	if _hp_bar_container:
+		_hp_bar_container.visible = true
+
+## Called by CombatManager when combat ends.
+func exit_combat_mode() -> void:
+	_in_combat_mode = false
+	_combat_triggered = false
+	if _exclamation_label:
+		_exclamation_label.visible = false
+		_exclamation_label.modulate.a = 1.0
+	if _hp_bar_container:
+		_hp_bar_container.visible = false
+
+## Called by CombatManager during the NPC's turn to move one tile toward a target.
+## Returns true if the move succeeded.
+func _combat_move_towards(target_pos: Vector2) -> bool:
+	if is_moving:
+		return false
+	var curr_tile := Vector2i(global_position / tile_size)
+	var tgt_tile  := Vector2i(target_pos / tile_size)
+	if curr_tile == tgt_tile:
+		return false
+	var delta_tile := tgt_tile - curr_tile
+	var primary: Vector2
+	var secondary: Vector2
+	if abs(delta_tile.x) >= abs(delta_tile.y):
+		primary   = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
+		secondary = Vector2.DOWN  if delta_tile.y > 0 else Vector2.UP
+	else:
+		primary   = Vector2.DOWN  if delta_tile.y > 0 else Vector2.UP
+		secondary = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
+	if _grid_try_move(primary):
+		return true
+	if _grid_try_move(secondary):
+		return true
+	return false
+
+## Called by CombatManager during the NPC's turn to attack a target.
+func combat_attack(target: Node2D) -> void:
+	if not is_instance_valid(target):
+		return
+	# Calculate damage: strength-based with a small dice roll
+	var str_val: int = stats.get("strength", 10)
+	var damage := int(str_val * 0.5) + rng.randi_range(1, 6)
+	emit_signal("npc_attacked", self, target)
+	if target.has_method("take_damage"):
+		target.take_damage(damage, self)
+	else:
+		var display_name: String = npc_name if npc_name != "" else str(name)
+		print("%s attacks %s for %d damage" % [display_name, target.name, damage])
 
 func take_damage(amount: int, source: Node2D = null):
 	if state == NPCState.DEAD:
