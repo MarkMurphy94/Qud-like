@@ -215,6 +215,7 @@ func _move(dir: Vector2):
 	if CombatManager.in_combat:
 		if not CombatManager.spend_mp(CombatManager.MP_COST_PER_TILE):
 			return
+		CombatManager._log("Player moves.", "move")
 	global_position += dir * tile_size
 	$Sprite2D.global_position -= dir * tile_size
 	# print("current_tile:", get_current_tile())
@@ -242,8 +243,12 @@ func take_damage(amount: int, source: Node2D = null) -> void:
 	current_health = max(0, current_health)
 	if hud:
 		hud.update_hp(current_health, max_health)
+	if CombatManager.in_combat:
+		CombatManager._log("Player takes %d damage. (%d/%d HP)" % [amount, current_health, max_health], "attack")
 	if current_health <= 0:
 		print("Player died!")
+		if CombatManager.in_combat:
+			CombatManager._log("Player has been defeated!", "death")
 		# TODO: game-over handling
 		return
 	# If hit by a hostile NPC outside of combat, trigger combat
@@ -273,6 +278,8 @@ func combat_attack_npc() -> void:
 		var str_val: int = stats.get("strength", 12)
 		var damage := int(str_val * 0.5) + rng_roll(1, 8)
 		best_npc.take_damage(damage, self)
+		var npc_label: String = best_npc.get("npc_name") if best_npc.get("npc_name") else best_npc.name
+		CombatManager._log("Player attacks %s for %d damage." % [npc_label, damage], "attack")
 		print("Player attacks %s for %d damage" % [best_npc.name, damage])
 	else:
 		print("No target in range!")
@@ -1029,6 +1036,8 @@ func _fire_pending_spell(world_target: Vector2) -> void:
 
 	print("Cast %s toward %s (damage: %d, AOE radius: %.0f px)" \
 		% [spell.get_display_name(), world_target, spell.get_damage(), spell.aoe_radius * 16.0])
+	if CombatManager.in_combat:
+		CombatManager._log("Player casts %s!" % spell.get_display_name(), "spell")
 
 
 

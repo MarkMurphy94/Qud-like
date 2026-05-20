@@ -158,6 +158,8 @@ var npc_properties = {
 			"move_speed": 55.0,
 			"sprite_region_coords": Rect2i(0, 64, 32, 32),
 			"faction": "GUARD",
+			"max_mana": 80,
+			"spells": ["res://resources/spells/spell_templates/fireball.tres"],
 			"stats": {"strength": 10, "agility": 10, "intelligence": 16, "endurance": 12, "charisma": 10}
 		},
 		"dwarf_warrior": {
@@ -279,18 +281,24 @@ var npc_properties = {
 			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(160, 192, 32, 32),
 			"faction": "NEUTRAL",
+			"max_mana": 90,
+			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 6, "agility": 10, "intelligence": 16, "endurance": 8, "charisma": 10}
 		},
 		"wizard": {
 			"move_speed": 42.0,
 			"sprite_region_coords": Rect2i(192, 192, 32, 32),
 			"faction": "MAGE",
+			"max_mana": 120,
+			"spells": ["res://resources/spells/spell_templates/fireball.tres", "res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 6, "agility": 8, "intelligence": 18, "endurance": 8, "charisma": 12}
 		},
 		"warlock": {
 			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(224, 192, 32, 32),
 			"faction": "NEUTRAL",
+			"max_mana": 100,
+			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
 		},
 		"dwarf_wizard": {
@@ -347,6 +355,8 @@ var npc_properties = {
 			"move_speed": 52.0,
 			"sprite_region_coords": Rect2i(192, 0, 32, 32),
 			"faction": "CULTIST",
+			"max_mana": 80,
+			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
 		}
 	},
@@ -371,6 +381,7 @@ var npc_properties = {
 			"wander_radius": 12.0,
 			"sprite_region_coords": Rect2i(0, 160, 32, 32),
 			"behavior": "hunt",
+			"max_mana": 50,
 			"faction": "MONSTER",
 			"dialogue": "none",
 			"inventory_template": "monster_items",
@@ -421,6 +432,13 @@ var hear_event_cooldown: float = 0.0
 # --- DEBUG OPTIONS ---
 var show_debug: bool = true
 
+# --- SPELL SYSTEM ---
+@export var learned_spells: Array[Spell] = []   ## Spells this NPC knows
+var spell_cooldowns: Dictionary = {}    ## spell_id -> seconds remaining
+var max_mana: int = 0                   ## 0 means NPC is non-magical
+var current_mana: int = 0
+var mana_regen_per_turn: int = 5        ## Mana restored at the start of each combat turn
+
 # --- TURN-BASED COMBAT ---
 var _combat_triggered : bool = false  ## Prevent duplicate trigger_combat() calls
 var _in_combat_mode   : bool = false  ## True while CombatManager is active
@@ -431,6 +449,7 @@ var _hp_bar_bg         : ColorRect   = null
 var _hp_bar_fill       : ColorRect   = null
 	
 func _ready():
+	add_to_group("NPCs")  # Ensure group membership regardless of how the NPC was created
 	rng.randomize()
 	apply_type_profile()
 	set_sprite()
@@ -468,6 +487,11 @@ func _physics_process(delta: float) -> void:
 	move_timer += delta
 	if hear_event_cooldown > 0:
 		hear_event_cooldown -= delta
+	# Tick spell cooldowns
+	for sid in spell_cooldowns.keys():
+		spell_cooldowns[sid] -= delta
+		if spell_cooldowns[sid] <= 0.0:
+			spell_cooldowns.erase(sid)
 
 	# Update or simulate time-of-day
 	internal_time_seconds += delta
@@ -496,6 +520,15 @@ func apply_type_profile():
 	can_trade = profile.get("can_trade", false)
 	if profile.has("trade_prices"):
 		trade_prices = profile.trade_prices
+	# Load spells
+	max_mana = profile.get("max_mana", 0)
+	current_mana = max_mana
+	# learned_spells.clear()
+	# for spell_path in profile.get("spells", []):
+	# 	if ResourceLoader.exists(spell_path):
+	# 		var sp := load(spell_path) as Spell
+	# 		if sp:
+	# 			learned_spells.append(sp)
 
 func apply_config(_config: NPCConfig):
 	# TODO: implement to auto-set all export variables from a config- good for applying templates for npc types or named npcs
@@ -949,6 +982,72 @@ func _combat_move_towards(target_pos: Vector2) -> bool:
 		return true
 	return false
 
+## Called by CombatManager during the NPC's turn to cast a spell at a target.
+## Returns true if the spell was cast successfully.
+func combat_cast_spell(spell: Spell, target: Node2D) -> bool:
+	if not is_instance_valid(target) or not spell:
+		return false
+	if current_mana < spell.get_mana_cost():
+		return false
+	if is_spell_on_cooldown(spell.id):
+		return false
+	current_mana -= spell.get_mana_cost()
+	start_spell_cooldown(spell.id, spell.cooldown)
+	# Spawn the projectile
+	var projectile_scene: PackedScene = load("res://scenes/projectile_spell.tscn")
+	if projectile_scene == null:
+		push_warning("[NPC] projectile_spell.tscn not found")
+		return false
+	var projectile: Node2D = projectile_scene.instantiate()
+	get_parent().add_child(projectile)
+	projectile.global_position = global_position
+	var to_target: Vector2 = target.global_position - global_position
+	var max_range_px: float = spell.spell_range * tile_size
+	var stop_px: float = minf(to_target.length(), max_range_px)
+	projectile.setup(spell, self, to_target.normalized(), stop_px)
+	var display_name: String = npc_name if npc_name != "" else str(name)
+	print("%s casts %s!" % [display_name, spell.get_display_name()])
+	return true
+
+## Called at the start of each combat turn to regenerate a little mana.
+func restore_mana_for_turn() -> void:
+	if max_mana > 0:
+		current_mana = mini(current_mana + mana_regen_per_turn, max_mana)
+
+## Return the best offensive spell this NPC can cast at the given distance (px).
+## Returns null if none are available.
+func get_best_combat_spell(dist_px: float) -> Spell:
+	var best: Spell = null
+	for sp in learned_spells:
+		if sp.spell_type != Spell.SpellType.OFFENSIVE:
+			continue
+		if current_mana < sp.get_mana_cost():
+			continue
+		if is_spell_on_cooldown(sp.id):
+			continue
+		if dist_px > sp.spell_range * tile_size:
+			continue
+		if best == null or sp.get_damage() > best.get_damage():
+			best = sp
+	return best
+
+## Returns current mana (duck-typed compatibility with Spell.can_cast()).
+func get_current_mana() -> int:
+	return current_mana
+
+## Returns NPC level (placeholder; satisfies Spell.can_cast() duck-typing).
+func get_level() -> int:
+	return 1
+
+## Check if a spell is on cooldown.
+func is_spell_on_cooldown(spell_id: String) -> bool:
+	return spell_cooldowns.has(spell_id) and spell_cooldowns[spell_id] > 0.0
+
+## Start cooldown for a spell.
+func start_spell_cooldown(spell_id: String, cooldown: float) -> void:
+	if cooldown > 0.0:
+		spell_cooldowns[spell_id] = cooldown
+
 ## Called by CombatManager during the NPC's turn to attack a target.
 func combat_attack(target: Node2D) -> void:
 	if not is_instance_valid(target):
@@ -968,11 +1067,16 @@ func take_damage(amount: int, source: Node2D = null):
 		return
 	current_health -= amount
 	record_event({"type": "damage", "amount": amount})
+	var display_name: String = npc_name if npc_name != "" else str(name)
+	if CombatManager.in_combat:
+		CombatManager._log("%s takes %d damage. (%d/%d HP)" % [display_name, amount, max(0, current_health), max_health], "attack")
 	if current_health <= 0:
 		current_health = 0
 		set_state(NPCState.DEAD)
 		emit_signal("npc_died", self)
 		velocity = Vector2.ZERO
+		if CombatManager.in_combat:
+			CombatManager._log("%s has been defeated!" % display_name, "death")
 		return
 	# Reaction: set combat target or flee
 	if source and source != self:

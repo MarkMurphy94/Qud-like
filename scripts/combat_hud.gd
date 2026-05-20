@@ -22,6 +22,14 @@ const C_PIP_EMPTY := Color(0.25, 0.25, 0.25)
 const C_BG        := Color(0.05, 0.05, 0.10, 0.82)
 const C_BORDER    := Color(0.55, 0.55, 0.65)
 
+# ── Log colours by category ───────────────────────────────────────────────────
+const C_LOG_INFO   := Color(0.80, 0.80, 0.80)
+const C_LOG_MOVE   := Color(0.55, 0.85, 0.55)
+const C_LOG_ATTACK := Color(1.00, 0.55, 0.30)
+const C_LOG_SPELL  := Color(0.60, 0.75, 1.00)
+const C_LOG_DEATH  := Color(1.00, 0.30, 0.30)
+const MAX_LOG_LINES := 30
+
 # ── Pip layout ────────────────────────────────────────────────────────────────
 const PIP_SIZE    := 18
 const PIP_GAP     := 4
@@ -37,6 +45,10 @@ var _ap_pips     : HBoxContainer
 var _mp_label    : Label
 var _mp_pips     : HBoxContainer
 var _end_btn     : Button
+var _log_panel   : PanelContainer
+var _log_scroll  : ScrollContainer
+var _log_list    : VBoxContainer
+var _log_lines   : Array = []  # stores Label nodes for capping MAX_LOG_LINES
 
 # ── Build UI ──────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -127,6 +139,39 @@ func _build_ui() -> void:
 	_rebuild_pips(_ap_pips, MAX_PIPS, MAX_PIPS, C_AP)
 	_rebuild_pips(_mp_pips, MAX_PIPS, MAX_PIPS, C_MP)
 
+	# ── Event log (bottom-left, above the bottom bar) ──────────────────────
+	const LOG_W := 280
+	const LOG_H := 110
+	_log_panel = PanelContainer.new()
+	_log_panel.size = Vector2(LOG_W, LOG_H)
+	_log_panel.position = Vector2(6, vp_size.y - 56 - LOG_H - 6)
+	_style_panel(_log_panel)
+	add_child(_log_panel)
+
+	var log_margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		log_margin.add_theme_constant_override("margin_" + side, 4)
+	_log_panel.add_child(log_margin)
+
+	var log_vbox := VBoxContainer.new()
+	log_margin.add_child(log_vbox)
+
+	var log_title := Label.new()
+	log_title.text = "Combat Log"
+	log_title.add_theme_font_size_override("font_size", 11)
+	log_title.add_theme_color_override("font_color", C_BORDER)
+	log_vbox.add_child(log_title)
+
+	_log_scroll = ScrollContainer.new()
+	_log_scroll.custom_minimum_size = Vector2(LOG_W - 10, LOG_H - 22)
+	_log_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	log_vbox.add_child(_log_scroll)
+
+	_log_list = VBoxContainer.new()
+	_log_list.add_theme_constant_override("separation", 1)
+	_log_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_log_scroll.add_child(_log_list)
+
 # ── Public refresh interface (called by CombatManager) ───────────────────────
 func refresh(combatant_list: Array, ap: int, mp: int, player_turn: bool) -> void:
 	# Banner
@@ -205,6 +250,10 @@ func _connect_signals() -> void:
 		CombatManager.resources_changed.connect(_on_resources_changed)
 	if not CombatManager.combatant_added.is_connected(_on_combatant_added):
 		CombatManager.combatant_added.connect(_on_combatant_added)
+	if not CombatManager.combat_event_logged.is_connected(_on_combat_event_logged):
+		CombatManager.combat_event_logged.connect(_on_combat_event_logged)
+	if not CombatManager.combat_started.is_connected(_on_combat_started):
+		CombatManager.combat_started.connect(_on_combat_started)
 
 func _on_end_turn_pressed() -> void:
 	CombatManager.end_current_turn()
@@ -216,3 +265,33 @@ func _on_resources_changed(ap: int, mp: int) -> void:
 func _on_combatant_added(_entity: Node2D) -> void:
 	# Trigger a full refresh when a new combatant joins mid-combat
 	CombatManager._refresh_hud()
+
+func _on_combat_started() -> void:
+	# Clear the log at the start of each new combat
+	for child in _log_list.get_children():
+		child.queue_free()
+	_log_lines.clear()
+
+func _on_combat_event_logged(message: String, category: String) -> void:
+	var lbl := Label.new()
+	lbl.text = message
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var col: Color
+	match category:
+		"move":   col = C_LOG_MOVE
+		"attack": col = C_LOG_ATTACK
+		"spell":  col = C_LOG_SPELL
+		"death":  col = C_LOG_DEATH
+		_:        col = C_LOG_INFO
+	lbl.add_theme_color_override("font_color", col)
+	_log_list.add_child(lbl)
+	_log_lines.append(lbl)
+	# Trim oldest entries when over the cap
+	while _log_lines.size() > MAX_LOG_LINES:
+		var oldest: Label = _log_lines.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
+	# Scroll to the bottom on the next frame
+	await get_tree().process_frame
+	_log_scroll.scroll_vertical = int(_log_scroll.get_v_scroll_bar().max_value)

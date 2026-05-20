@@ -19,6 +19,9 @@ signal turn_ended(entity: Node2D)
 ## Fired whenever AP or MP changes mid-turn (so HUD can refresh).
 signal resources_changed(ap: int, mp: int)
 signal combatant_added(entity: Node2D)
+## Fired for every notable combat event so the HUD log can display it.
+## category: "move" | "attack" | "spell" | "death" | "info"
+signal combat_event_logged(message: String, category: String)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 const BASE_AP            := 3   # action points per turn
@@ -76,6 +79,7 @@ func trigger_combat(initiating_npc: Node2D, player: Node2D) -> void:
 	)
 
 	emit_signal("combat_started")
+	_log("⚔ Combat begins!", "info")
 	_show_hud()
 	_start_turn()
 
@@ -197,9 +201,15 @@ func _start_turn() -> void:
 	slot.ap = BASE_AP
 	slot.mp = BASE_MP
 	combatants[current_index] = slot
+	# Restore mana for caster NPCs
+	if not slot.is_player and is_instance_valid(slot.entity) and slot.entity.has_method("restore_mana_for_turn"):
+		slot.entity.restore_mana_for_turn()
 
 	_pan_camera_to(slot.entity)
 	_refresh_hud()
+	var turn_name: String = "Player" if slot.is_player else \
+		(slot.entity.get("npc_name") if slot.entity.get("npc_name") else slot.entity.name)
+	_log("— %s's turn —" % turn_name, "info")
 	emit_signal("turn_started", slot.entity, slot.is_player, slot.ap, slot.mp)
 
 	if not slot.is_player and not _npc_turn_running:
@@ -245,21 +255,41 @@ func _run_npc_turn() -> void:
 				moves_taken += 1
 				combatants[current_index] = slot
 				_pan_camera_to(npc)
+				var npc_label: String = npc.get("npc_name") if npc.get("npc_name") else npc.name
+				_log("%s moves closer." % npc_label, "move")
 				await get_tree().create_timer(NPC_TURN_MOVE_DELAY).timeout
 			else:
 				break   # blocked
 		else:
 			break
 
+	# ── Spell phase ────────────────────────────────────────────────────────
+	var spell_cast := false
+	if slot.ap >= AP_COST_SPELL and npc.has_method("get_best_combat_spell"):
+		var dist_for_spell: float = npc.global_position.distance_to(target.global_position)
+		var spell = npc.get_best_combat_spell(dist_for_spell)
+		if spell != null:
+			slot.ap -= AP_COST_SPELL
+			combatants[current_index] = slot
+			if npc.has_method("combat_cast_spell"):
+				npc.combat_cast_spell(spell, target)
+			var npc_label: String = npc.get("npc_name") if npc.get("npc_name") else npc.name
+			_log("%s casts %s!" % [npc_label, spell.get_display_name()], "spell")
+			await get_tree().create_timer(NPC_TURN_ATTACK_DELAY).timeout
+			spell_cast = true
+
 	# ── Attack phase ───────────────────────────────────────────────────────
-	await get_tree().create_timer(0.15).timeout
-	var dist_now: float = npc.global_position.distance_to(target.global_position)
-	if dist_now <= attack_range and slot.ap >= AP_COST_ATTACK:
-		slot.ap -= AP_COST_ATTACK
-		combatants[current_index] = slot
-		if npc.has_method("combat_attack"):
-			npc.combat_attack(target)
-		await get_tree().create_timer(NPC_TURN_ATTACK_DELAY).timeout
+	if not spell_cast:
+		await get_tree().create_timer(0.15).timeout
+		var dist_now: float = npc.global_position.distance_to(target.global_position)
+		if dist_now <= attack_range and slot.ap >= AP_COST_ATTACK:
+			slot.ap -= AP_COST_ATTACK
+			combatants[current_index] = slot
+			if npc.has_method("combat_attack"):
+				npc.combat_attack(target)
+			var npc_label: String = npc.get("npc_name") if npc.get("npc_name") else npc.name
+			_log("%s attacks the player!" % npc_label, "attack")
+			await get_tree().create_timer(NPC_TURN_ATTACK_DELAY).timeout
 
 	_npc_turn_running = false
 	end_current_turn()
@@ -303,6 +333,7 @@ func end_combat() -> void:
 		tw.tween_property(_camera, "offset", Vector2.ZERO, 0.35).set_trans(Tween.TRANS_SINE)
 
 	_hide_hud()
+	_log("⚔ Combat ended.", "info")
 	emit_signal("combat_ended")
 
 	# Tell all NPCs to drop out of combat mode
@@ -331,6 +362,10 @@ func _pan_camera_to(target: Node2D) -> void:
 	var desired_offset := target.global_position - _player.global_position
 	var tw := create_tween()
 	tw.tween_property(_camera, "offset", desired_offset, 0.35).set_trans(Tween.TRANS_SINE)
+
+# ── Event log ─────────────────────────────────────────────────────────────────
+func _log(message: String, category: String = "info") -> void:
+	emit_signal("combat_event_logged", message, category)
 
 # ── HUD ───────────────────────────────────────────────────────────────────────
 func _show_hud() -> void:
