@@ -90,6 +90,9 @@ func _ready() -> void:
 	add_to_group("player")  # Lowercase for WorldItem detection
 	update_camera_limits()
 	hud.pause_requested.connect(_on_pause_requested)
+	# Cancel point-and-click path at the end of each player turn so the
+	# player must choose a fresh destination every turn.
+	CombatManager.turn_ended.connect(_on_combat_turn_ended)
 	# Connect point-and-click nav overlay (scene sibling; gracefully absent)
 	path_overlay = get_node_or_null("../PointAndClickPath")
 	if path_overlay:
@@ -342,6 +345,12 @@ func _nav_step() -> void:
 		if path_overlay:
 			path_overlay.clear_nav_destination()
 
+
+func _on_combat_turn_ended(entity: Node2D) -> void:
+	"""Clear the nav path when the player's turn ends so they pick a new
+	destination each turn rather than continuing the previous route."""
+	if entity == self:
+		_nav_cancel()
 
 func _nav_cancel() -> void:
 	"""Stop point-and-click navigation immediately."""
