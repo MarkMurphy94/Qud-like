@@ -1,13 +1,20 @@
 extends CanvasLayer
-## CombatHUD – built entirely in code, attached to a CanvasLayer created by CombatManager.
+## CombatHUD – scene-based UI for turn-based combat.
+##
+## Edit the visual layout in scenes/combat_hud.tscn.
+## This script handles only the dynamic / data-driven parts:
+##   • Refreshing the turn-order list
+##   • Rebuilding AP / MP pip rows
+##   • Appending combat-log entries
+##   • Applying the dark StyleBox to each PanelContainer at runtime
 ##
 ## Layout (screen space):
 ##   ┌─────────────────────────────────────────────────────┐
-##   │  [TURN BANNER]  "YOUR TURN" / "Enemy Turn"          │  ← top-center
+##   │  [TURN BANNER]  "YOUR TURN" / "Enemy Turn"          │  ← top-centre
 ##   ├─────────────────────────────────────────────────────┤
 ##   │  Turn order list (top-right)                        │
-##   │  ○ Player                                           │
-##   │  ● Bandit                                           │
+##   │  ▶ Player                                           │
+##   │    Bandit                                           │
 ##   ├─────────────────────────────────────────────────────┤
 ##   │  AP: ■ ■ ■   MP: ▲ ▲ ▲        [End Turn]          │  ← bottom
 ##   └─────────────────────────────────────────────────────┘
@@ -31,146 +38,36 @@ const C_LOG_DEATH  := Color(1.00, 0.30, 0.30)
 const MAX_LOG_LINES := 30
 
 # ── Pip layout ────────────────────────────────────────────────────────────────
-const PIP_SIZE    := 18
-const PIP_GAP     := 4
-const MAX_PIPS    := CombatManager.BASE_AP   # same for AP and MP
+const PIP_SIZE := 18
+const PIP_GAP  := 4
+const MAX_PIPS := CombatManager.BASE_AP   # same for AP and MP
 
-# ── Nodes ─────────────────────────────────────────────────────────────────────
-var _banner      : Label
-var _order_panel : PanelContainer
-var _order_list  : VBoxContainer
-var _bottom_bar  : PanelContainer
-var _ap_label    : Label
-var _ap_pips     : HBoxContainer
-var _mp_label    : Label
-var _mp_pips     : HBoxContainer
-var _end_btn     : Button
-var _log_panel   : PanelContainer
-var _log_scroll  : ScrollContainer
-var _log_list    : VBoxContainer
-var _log_lines   : Array = []  # stores Label nodes for capping MAX_LOG_LINES
+# ── Scene nodes (wired via @onready) ─────────────────────────────────────────
+@onready var _banner      : Label           = $Banner
+@onready var _order_panel : PanelContainer  = $OrderPanel
+@onready var _order_list  : VBoxContainer   = $OrderPanel/MarginContainer/OrderList
+@onready var _bottom_bar  : PanelContainer  = $BottomBar
+@onready var _ap_pips     : HBoxContainer   = $BottomBar/HBoxContainer/APPips
+@onready var _mp_pips     : HBoxContainer   = $BottomBar/HBoxContainer/MPPips
+@onready var _end_btn     : Button          = $BottomBar/HBoxContainer/EndTurnBtn
+@onready var _log_panel   : PanelContainer  = $LogPanel
+@onready var _log_list: VBoxContainer = $LogPanel/MarginContainer/VBoxContainer/LogScroll/LogList
+@onready var _log_scroll: ScrollContainer = $LogPanel/MarginContainer/VBoxContainer/LogScroll
 
-# ── Build UI ──────────────────────────────────────────────────────────────────
+var _log_lines : Array = []   # stores Label nodes for capping MAX_LOG_LINES
+
+# ── Ready ──────────────────────────────────────────────────────────────────────
 func _ready() -> void:
-	_build_ui()
-	_connect_signals()
-	# Hide until refreshed for the first time
-	_banner.text = ""
-
-func _build_ui() -> void:
-	var vp_size := Vector2(ProjectSettings.get_setting("display/window/size/viewport_width"),
-						   ProjectSettings.get_setting("display/window/size/viewport_height"))
-
-	# ── Turn banner (top-centre) ───────────────────────────────────────────
-	_banner = Label.new()
-	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_banner.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	_banner.add_theme_font_size_override("font_size", 20)
-	_banner.add_theme_color_override("font_color", C_CURRENT)
-	_banner.add_theme_color_override("font_shadow_color", Color.BLACK)
-	_banner.add_theme_constant_override("shadow_offset_x", 2)
-	_banner.add_theme_constant_override("shadow_offset_y", 2)
-	_banner.size = Vector2(vp_size.x, 36)
-	_banner.position = Vector2(0, 8)
-	add_child(_banner)
-
-	# ── Turn-order panel (top-right) ───────────────────────────────────────
-	_order_panel = PanelContainer.new()
-	_order_panel.size = Vector2(160, 200)
-	_order_panel.position = Vector2(vp_size.x - 168, 48)
+	# Apply the shared dark background style to every panel
 	_style_panel(_order_panel)
-	add_child(_order_panel)
-
-	var margin := MarginContainer.new()
-	for side in ["left","right","top","bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 6)
-	_order_panel.add_child(margin)
-
-	_order_list = VBoxContainer.new()
-	_order_list.add_theme_constant_override("separation", 3)
-	margin.add_child(_order_list)
-
-	# ── Bottom bar (AP / MP pips + End Turn button) ────────────────────────
-	_bottom_bar = PanelContainer.new()
-	_bottom_bar.size = Vector2(vp_size.x, 52)
-	_bottom_bar.position = Vector2(0, vp_size.y - 56)
 	_style_panel(_bottom_bar)
-	add_child(_bottom_bar)
-
-	var hbox := HBoxContainer.new()
-	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	hbox.add_theme_constant_override("separation", 16)
-	hbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_bottom_bar.add_child(hbox)
-
-	# AP label + pips
-	_ap_label = _make_label("AP:", C_AP, 14)
-	hbox.add_child(_ap_label)
-	_ap_pips = HBoxContainer.new()
-	_ap_pips.add_theme_constant_override("separation", PIP_GAP)
-	hbox.add_child(_ap_pips)
-	for _i in MAX_PIPS:
-		hbox.add_child(_make_pip())     # placeholder; refreshed each turn
-
-	# Spacer
-	var sp1 := Control.new(); sp1.custom_minimum_size = Vector2(20, 1)
-	hbox.add_child(sp1)
-
-	# MP label + pips
-	_mp_label = _make_label("MP:", C_MP, 14)
-	hbox.add_child(_mp_label)
-	_mp_pips = HBoxContainer.new()
-	_mp_pips.add_theme_constant_override("separation", PIP_GAP)
-	hbox.add_child(_mp_pips)
-
-	# Spacer
-	var sp2 := Control.new(); sp2.custom_minimum_size = Vector2(24, 1)
-	hbox.add_child(sp2)
-
-	# End Turn button
-	_end_btn = Button.new()
-	_end_btn.text = "End Turn"
-	_end_btn.custom_minimum_size = Vector2(90, 34)
-	_end_btn.add_theme_font_size_override("font_size", 13)
-	_end_btn.pressed.connect(_on_end_turn_pressed)
-	hbox.add_child(_end_btn)
-
-	# Populate pip containers
+	_style_panel(_log_panel)
+	# Fill pips to their maximum at startup
 	_rebuild_pips(_ap_pips, MAX_PIPS, MAX_PIPS, C_AP)
 	_rebuild_pips(_mp_pips, MAX_PIPS, MAX_PIPS, C_MP)
-
-	# ── Event log (bottom-left, above the bottom bar) ──────────────────────
-	const LOG_W := 280
-	const LOG_H := 110
-	_log_panel = PanelContainer.new()
-	_log_panel.size = Vector2(LOG_W, LOG_H)
-	_log_panel.position = Vector2(6, vp_size.y - 56 - LOG_H - 6)
-	_style_panel(_log_panel)
-	add_child(_log_panel)
-
-	var log_margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		log_margin.add_theme_constant_override("margin_" + side, 4)
-	_log_panel.add_child(log_margin)
-
-	var log_vbox := VBoxContainer.new()
-	log_margin.add_child(log_vbox)
-
-	var log_title := Label.new()
-	log_title.text = "Combat Log"
-	log_title.add_theme_font_size_override("font_size", 11)
-	log_title.add_theme_color_override("font_color", C_BORDER)
-	log_vbox.add_child(log_title)
-
-	_log_scroll = ScrollContainer.new()
-	_log_scroll.custom_minimum_size = Vector2(LOG_W - 10, LOG_H - 22)
-	_log_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	log_vbox.add_child(_log_scroll)
-
-	_log_list = VBoxContainer.new()
-	_log_list.add_theme_constant_override("separation", 1)
-	_log_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_log_scroll.add_child(_log_list)
+	# Start with an empty banner
+	_banner.text = ""
+	_connect_signals()
 
 # ── Public refresh interface (called by CombatManager) ───────────────────────
 func refresh(combatant_list: Array, ap: int, mp: int, player_turn: bool) -> void:
@@ -222,13 +119,6 @@ func _rebuild_pips(container: HBoxContainer, filled: int, total: int, color: Col
 		# Round the pip with a StyleBoxFlat via theme override (not possible for ColorRect,
 		# so we nest it in a Panel) – keep it simple: just use ColorRect
 		container.add_child(pip)
-
-func _make_label(text: String, color: Color, size: int) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", size)
-	return l
 
 func _make_pip() -> ColorRect:
 	var p := ColorRect.new()

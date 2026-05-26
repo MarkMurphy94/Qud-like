@@ -370,10 +370,8 @@ func _log(message: String, category: String = "info") -> void:
 # ── HUD ───────────────────────────────────────────────────────────────────────
 func _show_hud() -> void:
 	if _hud == null:
-		var hud_script = load("res://scripts/combat_hud.gd")
-		_hud = CanvasLayer.new()
-		_hud.layer = 12
-		_hud.set_script(hud_script)
+		var hud_scene: PackedScene = load("res://scenes/combat_hud.tscn")
+		_hud = hud_scene.instantiate()
 		get_tree().get_root().add_child(_hud)
 	_hud.visible = true
 	_refresh_hud()
