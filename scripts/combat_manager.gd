@@ -24,28 +24,28 @@ signal combatant_added(entity: Node2D)
 signal combat_event_logged(message: String, category: String)
 
 # ── Constants ────────────────────────────────────────────────────────────────
-const BASE_AP            := 3   # action points per turn
-const BASE_MP            := 3   # movement points per turn
-const AP_COST_ATTACK     := 2
-const AP_COST_SPELL      := 2
-const AP_COST_USE_ITEM   := 1
-const AP_COST_EQUIP      := 1
-const MP_COST_PER_TILE   := 1
-const ALLY_PULL_RADIUS   := 8   # tiles – nearby hostiles auto-join
-const NPC_TURN_MOVE_DELAY := 0.22  # seconds between each NPC step
+const BASE_AP := 3 # action points per turn
+const BASE_MP := 3 # movement points per turn
+const AP_COST_ATTACK := 2
+const AP_COST_SPELL := 2
+const AP_COST_USE_ITEM := 1
+const AP_COST_EQUIP := 1
+const MP_COST_PER_TILE := 1
+const ALLY_PULL_RADIUS := 8 # tiles – nearby hostiles auto-join
+const NPC_TURN_MOVE_DELAY := 0.22 # seconds between each NPC step
 const NPC_TURN_ATTACK_DELAY := 0.30
 
 # ── State ─────────────────────────────────────────────────────────────────────
-var in_combat     : bool   = false
+var in_combat: bool = false
 ## Array of slot-dictionaries; see _make_slot()
-var combatants    : Array  = []
-var current_index : int    = 0
+var combatants: Array = []
+var current_index: int = 0
 var rng := RandomNumberGenerator.new()
 
-var _player  : Node2D    = null
-var _camera  : Camera2D  = null
-var _hud     : Node      = null   # CombatHUD CanvasLayer instance
-var _npc_turn_running : bool = false
+var _player: Node2D = null
+var _camera: Camera2D = null
+var _hud: Node = null # CombatHUD CanvasLayer instance
+var _npc_turn_running: bool = false
 
 # ── Ready ─────────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -60,8 +60,8 @@ func trigger_combat(initiating_npc: Node2D, player: Node2D) -> void:
 		_try_add_npc(initiating_npc)
 		return
 
-	_player  = player
-	_camera  = _find_camera()
+	_player = player
+	_camera = _find_camera()
 	in_combat = true
 	combatants.clear()
 	current_index = 0
@@ -149,7 +149,7 @@ func _make_slot(entity: Node2D, is_player: bool, roll: int) -> Dictionary:
 func _add_slot(entity: Node2D, is_player: bool) -> void:
 	for s in combatants:
 		if s.entity == entity:
-			return   # already registered
+			return # already registered
 	var init_val := _get_initiative(entity)
 	var roll := init_val + rng.randi_range(1, 10)
 	combatants.append(_make_slot(entity, is_player, roll))
@@ -221,7 +221,7 @@ func _advance_turn() -> void:
 	_start_turn()
 
 func _run_npc_turn() -> void:
-	await get_tree().create_timer(0.35).timeout   # brief pause so player sees whose turn it is
+	await get_tree().create_timer(0.35).timeout # brief pause so player sees whose turn it is
 
 	var slot: Dictionary = _current_slot()
 	if slot.is_empty() or slot.is_player:
@@ -247,7 +247,7 @@ func _run_npc_turn() -> void:
 	while slot.mp > 0 and moves_taken < BASE_MP:
 		var dist: float = npc.global_position.distance_to(target.global_position)
 		if dist <= attack_range:
-			break   # already in melee range
+			break # already in melee range
 		if npc.has_method("_combat_move_towards"):
 			var moved: bool = npc._combat_move_towards(target.global_position)
 			if moved:
@@ -259,7 +259,7 @@ func _run_npc_turn() -> void:
 				_log("%s moves closer." % npc_label, "move")
 				await get_tree().create_timer(NPC_TURN_MOVE_DELAY).timeout
 			else:
-				break   # blocked
+				break # blocked
 		else:
 			break
 
@@ -310,7 +310,7 @@ func _remove_dead_combatants() -> void:
 
 func _only_one_faction_left() -> bool:
 	var has_player := false
-	var has_enemy  := false
+	var has_enemy := false
 	for s in combatants:
 		if not is_instance_valid(s.entity):
 			continue
