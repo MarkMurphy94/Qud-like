@@ -140,6 +140,63 @@ func get_combatant_names() -> Array:
 		names.append({"label": label, "is_player": s.is_player, "is_current": i == current_index})
 	return names
 
+## Returns an array of Dictionaries for every living enemy combatant.
+## Each dict: { entity: Node2D, label: String, in_range: bool }
+func get_enemy_combatants() -> Array:
+	var result := []
+	for s in combatants:
+		if s.is_player or not is_instance_valid(s.entity):
+			continue
+		var label: String = s.entity.get("npc_name") if s.entity.get("npc_name") else s.entity.name
+		result.append({
+			"entity": s.entity,
+			"label": label,
+			"in_range": is_target_in_melee_range(s.entity)
+		})
+	return result
+
+## Returns true if target is within the player's melee attack range.
+func is_target_in_melee_range(target: Node2D) -> bool:
+	if not is_instance_valid(target) or not is_instance_valid(_player):
+		return false
+	var tile_size: float = float(_player.get("tile_size")) if _player.get("tile_size") != null else 16.0
+	var melee_range: float = tile_size * 1.6
+	return _player.global_position.distance_to(target.global_position) <= melee_range
+
+## Called by the HUD Attack button: attack a specific enemy target.
+## Checks AP, melee range, and equipped-weapon damage; deducts AP on success.
+func player_attack_enemy(target: Node2D) -> void:
+	if not in_combat or not is_player_turn():
+		_log("It's not your turn!", "info")
+		return
+	if not is_instance_valid(target) or not is_instance_valid(_player):
+		return
+	if not is_target_in_melee_range(target):
+		_log("Target is out of melee range!", "info")
+		return
+	if not spend_ap(AP_COST_ATTACK):
+		_log("Not enough AP to attack!", "info")
+		return
+	# Damage calculation: mirrors Player.combat_attack_npc()
+	var str_val: int = 12
+	var player_stats = _player.get("stats")
+	if player_stats != null:
+		str_val = int(player_stats.get("strength", 12))
+	# Check for equipped weapon bonus
+	var weapon_bonus := 0
+	var equipped = _player.get("equipped_items")
+	if equipped != null:
+		var weapon = equipped.get("right_hand")
+		if weapon == null:
+			weapon = equipped.get("left_hand")
+		if weapon != null and weapon.get("damage") != null:
+			weapon_bonus = int(weapon.damage)
+	var damage: int = int(str_val * 0.5) + rng.randi_range(1, 8) + weapon_bonus
+	if target.has_method("take_damage"):
+		target.take_damage(damage, _player)
+	var tgt_label: String = target.get("npc_name") if target.get("npc_name") else target.name
+	_log("Player attacks %s for %d damage." % [tgt_label, damage], "attack")
+
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 func _make_slot(entity: Node2D, is_player: bool, roll: int) -> Dictionary:

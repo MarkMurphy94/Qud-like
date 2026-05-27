@@ -50,6 +50,8 @@ const MAX_PIPS := CombatManager.BASE_AP # same for AP and MP
 @onready var _ap_pips: HBoxContainer = $BottomBar/HBoxContainer/APPips
 @onready var _mp_pips: HBoxContainer = $BottomBar/HBoxContainer/MPPips
 @onready var _end_btn: Button = $BottomBar/HBoxContainer/EndTurnBtn
+@onready var _attack_btn: Button = $BottomBar/HBoxContainer/AttackBtn
+@onready var _target_select: OptionButton = $BottomBar/HBoxContainer/TargetSelect
 @onready var _log_panel: PanelContainer = $LogPanel
 @onready var _log_list: VBoxContainer = $LogPanel/MarginContainer/VBoxContainer/LogScroll/LogList
 @onready var _log_scroll: ScrollContainer = $LogPanel/MarginContainer/VBoxContainer/LogScroll
@@ -67,6 +69,8 @@ func _ready() -> void:
 	_rebuild_pips(_mp_pips, MAX_PIPS, MAX_PIPS, C_MP)
 	# Start with an empty banner
 	_banner.text = ""
+	_attack_btn.disabled = true
+	_target_select.disabled = true
 	_connect_signals()
 
 # ── Public refresh interface (called by CombatManager) ───────────────────────
@@ -107,6 +111,9 @@ func refresh(combatant_list: Array, ap: int, mp: int, player_turn: bool) -> void
 
 	# End Turn only active on player's turn
 	_end_btn.disabled = not player_turn
+
+	# Populate target selector with enemies and update attack button
+	_populate_targets(player_turn, ap)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 func _rebuild_pips(container: HBoxContainer, filled: int, total: int, color: Color) -> void:
@@ -151,6 +158,49 @@ func _on_end_turn_pressed() -> void:
 func _on_resources_changed(ap: int, mp: int) -> void:
 	_rebuild_pips(_ap_pips, ap, MAX_PIPS, C_AP)
 	_rebuild_pips(_mp_pips, mp, MAX_PIPS, C_MP)
+	# Re-evaluate attack button whenever AP changes
+	var player_turn := CombatManager.is_player_turn()
+	_populate_targets(player_turn, ap)
+
+func _populate_targets(player_turn: bool, ap: int) -> void:
+	## Fill the OptionButton with living enemies and update attack-button state.
+	var prev_id: int = _target_select.get_selected_id() if _target_select.item_count > 0 else -1
+	_target_select.clear()
+	if not player_turn:
+		_target_select.disabled = true
+		_attack_btn.disabled = true
+		return
+	var enemies: Array = CombatManager.get_enemy_combatants()
+	for i in enemies.size():
+		var entry: Dictionary = enemies[i]
+		var in_range: bool = entry.get("in_range", false)
+		var suffix: String = " [near]" if in_range else ""
+		_target_select.add_item(entry.label + suffix, i)
+		_target_select.set_item_metadata(i, entry.entity)
+	var can_select := enemies.size() > 0
+	_target_select.disabled = not can_select
+	# Restore previously selected index if still valid
+	if prev_id >= 0 and prev_id < _target_select.item_count:
+		_target_select.select(prev_id)
+	_refresh_attack_btn(ap)
+
+func _refresh_attack_btn(ap: int) -> void:
+	## Enable Attack only when the player has AP and the selected target is in melee range.
+	if _target_select.item_count == 0 or _target_select.disabled:
+		_attack_btn.disabled = true
+		return
+	var target = _target_select.get_selected_metadata()
+	var in_range: bool = CombatManager.is_target_in_melee_range(target)
+	_attack_btn.disabled = not (ap >= CombatManager.AP_COST_ATTACK and in_range)
+
+func _on_target_selected(_index: int) -> void:
+	_refresh_attack_btn(CombatManager.get_current_ap())
+
+func _on_attack_pressed() -> void:
+	var target = _target_select.get_selected_metadata()
+	if target == null or not is_instance_valid(target):
+		return
+	CombatManager.player_attack_enemy(target)
 
 func _on_combatant_added(_entity: Node2D) -> void:
 	# Trigger a full refresh when a new combatant joins mid-combat
