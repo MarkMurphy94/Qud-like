@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://x5ays8g0b4uo"]
+
+[ext_resource type="Script" uid="uid://c7hgj26c2r0ty" path="res://scripts/item_container.gd" id="1_n11ee"]
+[ext_resource type="Texture2D" uid="uid://d3j6h7gxyxycq" path="res://assets/32rogues-0.5.0/32rogues/tiles.png" id="2_2umob"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_n11ee"]
+size = Vector2(26, 16)
+
+[node name="item_container" type="Node2D" unique_id=542770569]
+script = ExtResource("1_n11ee")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=972561715]
+texture = ExtResource("2_2umob")
+region_enabled = true
+region_rect = Rect2(0, 544, 32, 32)
+
+[node name="Area2D" type="Area2D" parent="." unique_id=1098248977]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D" unique_id=1913352769]
+shape = SubResource("RectangleShape2D_n11ee")
+
+[node name="InteractLabel" type="Label" parent="." unique_id=2048110001]
+visible = false
+offset_left = -24.0
+offset_top = -24.0
+offset_right = -24.0
+offset_bottom = -24.0
+theme_override_font_sizes/font_size = 10
+text = "[T] Open"

@@ -23,6 +23,7 @@ signal inventory_closed
 @onready var equip_button: Button = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/EquipButton
 @onready var drop_button: Button = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/DropButton
 @onready var drop_amount: SpinBox = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/DropAmount
+@onready var take_button: Button = $Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons/TakeButton
 
 ## Reference to the inventory being displayed
 var inventory: Inventory = null
@@ -35,6 +36,11 @@ var item_slot_scene: PackedScene
 
 ## Array of item slot buttons
 var item_slots: Array = []
+
+## Container mode — set when opened via open_as_container()
+var _container_mode: bool = false
+var _container_source: ItemContainer = null
+var _container_player: Node = null
 
 
 func _ready():
@@ -62,6 +68,7 @@ func _ready():
 	
 	# Connect equip button
 	equip_button.pressed.connect(_on_equip_button_pressed)
+	take_button.pressed.connect(_on_take_button_pressed)
 
 	# Disable / hide action buttons initially
 	use_button.disabled = true
@@ -69,6 +76,8 @@ func _ready():
 	equip_button.visible = false
 	drop_button.disabled = true
 	drop_amount.visible = false
+	take_button.visible = false
+	take_button.disabled = true
 
 
 func _input(event):
@@ -100,11 +109,54 @@ func open_inventory(player_inventory: Inventory):
 	get_tree().paused = true
 
 
+func open_as_container(container: ItemContainer, player: Node) -> void:
+	"""Open the screen in container-loot mode for the given ItemContainer."""
+	_container_mode = true
+	_container_source = container
+	_container_player = player
+
+	title_label.text = container.container_label
+	spell_book_button.visible = false
+
+	# Swap action buttons: hide player-inventory actions, show Take
+	use_button.visible = false
+	equip_button.visible = false
+	drop_button.visible = false
+	drop_amount.visible = false
+	take_button.visible = true
+	take_button.disabled = true
+
+	inventory = container.inventory
+	if not inventory.inventory_changed.is_connected(_on_inventory_changed):
+		inventory.inventory_changed.connect(_on_inventory_changed)
+
+	refresh_inventory()
+	show()
+	get_tree().paused = true
+
+
+func _exit_container_mode() -> void:
+	_container_mode = false
+	_container_source = null
+	_container_player = null
+	title_label.text = "Inventory"
+	spell_book_button.visible = true
+	use_button.visible = true
+	drop_button.visible = true
+	take_button.visible = false
+	take_button.disabled = true
+
+
 func close_inventory():
 	"""Close the inventory screen"""
 	if inventory and inventory.inventory_changed.is_connected(_on_inventory_changed):
 		inventory.inventory_changed.disconnect(_on_inventory_changed)
-	
+
+	if _container_mode:
+		if _container_source and _container_source.is_open:
+			_container_source.close()
+		_exit_container_mode()
+
 	selected_slot_index = -1
 	hide()
 	
@@ -275,13 +327,14 @@ func _update_item_details(item: Item, quantity: int):
 		use_button.disabled = true
 		drop_button.disabled = true
 		drop_amount.visible = false
+		take_button.disabled = true
 		return
-	
+
 	item_name_label.text = item.get_display_name()
 	item_name_label.add_theme_color_override("font_color", item.get_rarity_color())
-	
+
 	item_desc_label.text = item.description if item.description else "No description"
-	
+
 	# Build stats text
 	var stats = []
 	stats.append("Type: %s" % Item.ItemType.keys()[item.item_type])
@@ -290,9 +343,13 @@ func _update_item_details(item: Item, quantity: int):
 	stats.append("Value: %d gold" % item.get_total_value())
 	if quantity > 1:
 		stats.append("Quantity: %d" % quantity)
-	
+
 	item_stats_label.text = "\n".join(stats)
-	
+
+	if _container_mode:
+		take_button.disabled = false
+		return
+
 	# Enable/disable buttons
 	use_button.disabled = not _can_use_item(item)
 	var is_equippable := _can_equip_item(item)
@@ -455,20 +512,46 @@ func _on_drop_button_pressed():
 	"""Called when Drop button is clicked"""
 	if selected_slot_index < 0 or not inventory:
 		return
-	
+
 	var slot = inventory.get_slot(selected_slot_index)
 	if slot.is_empty():
 		return
-	
+
 	var item = slot.item
 	var amount = int(drop_amount.value) if drop_amount.visible else 1
-	
+
 	# Get player reference to drop item in world
 	var player = get_tree().get_first_node_in_group("Player")
 	if player and player.has_method("drop_item"):
 		if player.drop_item(item.id, amount):
 			print("Dropped %d x %s" % [amount, item.get_display_name()])
 		# The inventory_changed signal will trigger refresh
+
+
+func _on_take_button_pressed() -> void:
+	"""Called when Take button is clicked in container mode."""
+	if selected_slot_index < 0 or not inventory or not _container_mode:
+		return
+
+	var slot := inventory.get_slot(selected_slot_index)
+	if slot.is_empty():
+		return
+
+	var item: Item = slot.item
+	var quantity: int = slot.quantity
+
+	var player := _container_player
+	if not player or not player.has_method("add_item_to_inventory"):
+		player = get_tree().get_first_node_in_group("Player")
+
+	if player and player.has_method("add_item_to_inventory"):
+		if player.add_item_to_inventory(item, quantity):
+			_container_source.take_item(item.id, quantity)
+			selected_slot_index = -1
+			_update_item_details(null, 0)
+			# inventory_changed fires the refresh automatically
+		else:
+			print("[Container] Player inventory full – could not take %s" % item.get_display_name())
 
 
 func _on_sort_option_selected(index: int):

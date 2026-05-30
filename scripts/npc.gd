@@ -1,28 +1,24 @@
 extends CharacterBody2D
 class_name NPC
 
+## Optional config resource to auto-apply settings from a config resource (useful for type templates, unique NPCs, or loading an NPC programmatically from a saved config)
+@export var auto_set_config: NPCConfig 
+
 # === EXPORTS AND CONFIGURATION ===
-# @export var config: NPCConfig
 @export_group("Basic Properties")
 @export var move_speed: float = 50.0
 @export var tile_size: int = 16
-@export var grid_size: int = 16
+# @export var grid_size: int = 16
 @export var move_interval: float = 1.5 # seconds between moves
 @export var move_interval_variance: float = 0.5 # random variance added to move_interval
 @export var movement_threshold: float = 1.0 # Distance threshold for considering movement complete
-var sprite_node_pos_tween: Tween
 @export var npc_type: MainGameState.NpcType = MainGameState.NpcType.PEASANT
 @export var npc_variant: String = "default" # New variant property
 @export var vision_range: float = 8.0 # How many tiles the NPC can see
 @export var hearing_range: float = 5.0 # How many tiles the NPC can hear
 @export var max_health: int = 100
 
-# === IDENTITY AND PERSISTENCE ===
-@export_group("NPC stats and behavior")
-@export var npc_id: String = "" # Unique identifier
-@export var npc_name: String = ""
-@export var faction: String = "NEUTRAL" # Group this NPC belongs to
-@export var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
+@export_group("stats sheet")
 @export var stats: Dictionary = {
 	"strength": 10,
 	"agility": 10,
@@ -31,6 +27,13 @@ var sprite_node_pos_tween: Tween
 	"charisma": 10,
 	"initiative": 10   ## Used for turn-order rolls in combat
 }
+
+# === IDENTITY AND PERSISTENCE ===
+@export_group("NPC identity, and behavior")
+@export var npc_id: String = "" # Unique identifier
+@export var npc_name: String = ""
+@export var faction: String = "NEUTRAL" # Group this NPC belongs to
+@export var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
 @export var inventory: Inventory = null  # Proper inventory system with stacking
 @export var equipped_items: Dictionary = {}
 @export var quest_flags: Dictionary = {}
@@ -41,6 +44,7 @@ var sprite_node_pos_tween: Tween
 @onready var down: RayCast2D = $down
 @onready var left: RayCast2D = $left
 @onready var right: RayCast2D = $right
+
 
 # === STATE MACHINE ===
 enum NPCState {
@@ -60,6 +64,7 @@ var state = NPCState.WANDER
 var previous_state = NPCState.IDLE
 var state_timer: float = 0.0
 var state_data: Dictionary = {} # Additional data for current state
+var sprite_node_pos_tween: Tween
 
 # === MOVEMENT AND NAVIGATION ===
 # NPCs are currently restricted to local area maps only and cannot transition to overworld
@@ -530,7 +535,7 @@ func apply_type_profile():
 	# 		if sp:
 	# 			learned_spells.append(sp)
 
-func apply_config(_config: NPCConfig):
+func apply_auto_set_config(_config: NPCConfig):
 	# TODO: implement to auto-set all export variables from a config- good for applying templates for npc types or named npcs
 	pass
 

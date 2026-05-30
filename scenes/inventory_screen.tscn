@@ -142,3 +142,10 @@ visible = false
 layout_mode = 2
 min_value = 1.0
 value = 1.0
+
+[node name="TakeButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/BottomPanel/ActionButtons" unique_id=411455227]
+custom_minimum_size = Vector2(100, 40)
+layout_mode = 2
+disabled = true
+visible = false
+text = "Take"

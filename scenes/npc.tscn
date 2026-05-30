@@ -9,7 +9,7 @@
 radius = 24.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1vbwm"]
-size = Vector2(8, 8)
+size = Vector2(16, 20)
 
 [node name="NPC" type="CharacterBody2D" unique_id=124900439]
 z_index = 1
@@ -48,8 +48,8 @@ fit_content = true
 shape = SubResource("CircleShape2D_7n8xq")
 
 [node name="human_sprite" type="Sprite2D" parent="." unique_id=698778903]
-position = Vector2(-5.96046e-07, -2.68221e-07)
-scale = Vector2(0.5, 0.5)
+position = Vector2(2.3841858e-07, 0)
+scale = Vector2(0.75, 0.75)
 texture = ExtResource("2_8k8i5")
 region_enabled = true
 region_rect = Rect2(0, 160, 32, 32)
@@ -74,6 +74,7 @@ region_rect = Rect2(0, 160, 32, 32)
 region_filter_clip_enabled = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=751973765]
+position = Vector2(0, 2)
 shape = SubResource("RectangleShape2D_1vbwm")
 
 [node name="up" type="RayCast2D" parent="." unique_id=1551959418]

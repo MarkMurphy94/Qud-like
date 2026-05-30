@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://cduxhurofnhgh" path="res://scenes/hud.tscn" id="3_hud"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kuy4p"]
-size = Vector2(8, 8)
+size = Vector2(16, 16)
 
 [node name="Player" type="CharacterBody2D" unique_id=1271049849]
 visibility_layer = 7
@@ -21,8 +21,7 @@ position_smoothing_enabled = true
 visible = false
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=837343850]
-position = Vector2(-2.98023e-08, -2.98023e-08)
-scale = Vector2(0.5, 0.5)
+scale = Vector2(0.75, 0.75)
 texture = ExtResource("2_6k1bd")
 region_enabled = true
 region_rect = Rect2(32, 32, 32, 32)
