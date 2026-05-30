@@ -53,6 +53,7 @@ scale = Vector2(0.5, 0.5)
 texture = ExtResource("2_8k8i5")
 region_enabled = true
 region_rect = Rect2(0, 160, 32, 32)
+region_filter_clip_enabled = true
 
 [node name="animal_sprite" type="Sprite2D" parent="." unique_id=2123573849]
 visible = false
@@ -61,6 +62,7 @@ scale = Vector2(0.5, 0.5)
 texture = ExtResource("3_rv78h")
 region_enabled = true
 region_rect = Rect2(0, 160, 32, 32)
+region_filter_clip_enabled = true
 
 [node name="monster_sprite" type="Sprite2D" parent="." unique_id=1936891170]
 visible = false
@@ -69,6 +71,7 @@ scale = Vector2(0.5, 0.5)
 texture = ExtResource("4_7n8xq")
 region_enabled = true
 region_rect = Rect2(0, 160, 32, 32)
+region_filter_clip_enabled = true
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=751973765]
 shape = SubResource("RectangleShape2D_1vbwm")

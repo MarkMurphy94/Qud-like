@@ -1,0 +1,148 @@
+[gd_scene format=3 uid="uid://bd3d4s4h0junt"]
+
+[ext_resource type="Script" uid="uid://dwrdiihijdot2" path="res://scripts/combat_hud.gd" id="1_script"]
+
+[node name="CombatHUD" type="CanvasLayer" unique_id=2028321618]
+layer = 12
+script = ExtResource("1_script")
+
+[node name="Banner" type="Label" parent="." unique_id=1502813418]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 8.0
+offset_bottom = 44.0
+theme_override_colors/font_color = Color(1, 0.9, 0.2, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="OrderPanel" type="PanelContainer" parent="." unique_id=1129357012]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -168.0
+offset_top = 48.0
+offset_right = -8.0
+offset_bottom = 248.0
+
+[node name="MarginContainer" type="MarginContainer" parent="OrderPanel" unique_id=1989489114]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="OrderList" type="VBoxContainer" parent="OrderPanel/MarginContainer" unique_id=341513023]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="BottomBar" type="PanelContainer" parent="." unique_id=627408807]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -56.0
+offset_bottom = -4.0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="BottomBar" unique_id=910440433]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="APLabel" type="Label" parent="BottomBar/HBoxContainer" unique_id=500432731]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.72, 0.2, 1)
+theme_override_font_sizes/font_size = 14
+text = "AP:"
+
+[node name="APPips" type="HBoxContainer" parent="BottomBar/HBoxContainer" unique_id=125799474]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Spacer1" type="Control" parent="BottomBar/HBoxContainer" unique_id=1271225184]
+custom_minimum_size = Vector2(20, 1)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MPLabel" type="Label" parent="BottomBar/HBoxContainer" unique_id=240878034]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.8, 0.45, 1)
+theme_override_font_sizes/font_size = 14
+text = "MP:"
+
+[node name="MPPips" type="HBoxContainer" parent="BottomBar/HBoxContainer" unique_id=2097259824]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Spacer2" type="Control" parent="BottomBar/HBoxContainer" unique_id=1857131419]
+custom_minimum_size = Vector2(24, 1)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TargetSelect" type="OptionButton" parent="BottomBar/HBoxContainer" unique_id=741230011]
+custom_minimum_size = Vector2(110, 34)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+fit_to_longest_item = false
+
+[node name="Spacer3" type="Control" parent="BottomBar/HBoxContainer" unique_id=612830044]
+custom_minimum_size = Vector2(6, 1)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="AttackBtn" type="Button" parent="BottomBar/HBoxContainer" unique_id=993710522]
+custom_minimum_size = Vector2(90, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.55, 0.3, 1)
+theme_override_font_sizes/font_size = 13
+text = "⚔ Attack"
+
+[node name="EndTurnBtn" type="Button" parent="BottomBar/HBoxContainer" unique_id=1852201388]
+custom_minimum_size = Vector2(90, 34)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "End Turn"
+
+[node name="LogPanel" type="PanelContainer" parent="." unique_id=949022217]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = -172.0
+offset_right = 286.0
+offset_bottom = -62.0
+
+[node name="MarginContainer" type="MarginContainer" parent="LogPanel" unique_id=233557322]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="LogPanel/MarginContainer" unique_id=54377229]
+layout_mode = 2
+
+[node name="LogTitle" type="Label" parent="LogPanel/MarginContainer/VBoxContainer" unique_id=1572975549]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.55, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Combat Log"
+
+[node name="LogScroll" type="ScrollContainer" parent="LogPanel/MarginContainer/VBoxContainer" unique_id=1700321932]
+custom_minimum_size = Vector2(270, 88)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="LogList" type="VBoxContainer" parent="LogPanel/MarginContainer/VBoxContainer/LogScroll" unique_id=1962819259]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+
+[connection signal="item_selected" from="BottomBar/HBoxContainer/TargetSelect" to="." method="_on_target_selected"]
+[connection signal="pressed" from="BottomBar/HBoxContainer/AttackBtn" to="." method="_on_attack_pressed"]
+[connection signal="pressed" from="BottomBar/HBoxContainer/EndTurnBtn" to="." method="_on_end_turn_pressed"]

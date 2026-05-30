@@ -41,6 +41,16 @@ var max_stamina: int = 100
 var current_stamina: int = 100
 var gold: int = 0
 
+# Player base stats (used by combat systems)
+var stats: Dictionary = {
+	"strength": 12,
+	"agility": 12,
+	"intelligence": 10,
+	"endurance": 12,
+	"charisma": 10,
+	"initiative": 12   ## Higher = acts sooner in turn-based combat
+}
+
 # Inventory system
 var inventory: Inventory = null
 @export var inventory_slots: int = 20
@@ -80,6 +90,9 @@ func _ready() -> void:
 	add_to_group("player")  # Lowercase for WorldItem detection
 	update_camera_limits()
 	hud.pause_requested.connect(_on_pause_requested)
+	# Cancel point-and-click path at the end of each player turn so the
+	# player must choose a fresh destination every turn.
+	CombatManager.turn_ended.connect(_on_combat_turn_ended)
 	# Connect point-and-click nav overlay (scene sibling; gracefully absent)
 	path_overlay = get_node_or_null("../PointAndClickPath")
 	if path_overlay:
@@ -148,16 +161,21 @@ func _physics_process(_delta: float) -> void:
 		_nav_cancel()
 
 	if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
-		_move(Vector2.RIGHT)
+		if _can_move_in_combat():
+			_move(Vector2.RIGHT)
 	if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
-		_move(Vector2.LEFT)
+		if _can_move_in_combat():
+			_move(Vector2.LEFT)
 	if Input.is_action_just_pressed("ui_up") and !up.is_colliding():
-		_move(Vector2.UP)
+		if _can_move_in_combat():
+			_move(Vector2.UP)
 	if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
-		_move(Vector2.DOWN)
+		if _can_move_in_combat():
+			_move(Vector2.DOWN)
 
 	# Advance point-and-click path one tile at a time (wait for sprite tween)
-	if _nav_active and _nav_path.size() > 0:
+	# Block nav during combat when it's not the player's turn
+	if _nav_active and _nav_path.size() > 0 and _can_move_in_combat():
 		if sprite_node_pos_tween == null or not sprite_node_pos_tween.is_running():
 			_nav_step()
 
@@ -196,6 +214,11 @@ func _input(event: InputEvent) -> void:
 
 
 func _move(dir: Vector2):
+	# During combat, movement costs 1 MP. Deny the move if MP is exhausted.
+	if CombatManager.in_combat:
+		if not CombatManager.spend_mp(CombatManager.MP_COST_PER_TILE):
+			return
+		CombatManager._log("Player moves.", "move")
 	global_position += dir * tile_size
 	$Sprite2D.global_position -= dir * tile_size
 	# print("current_tile:", get_current_tile())
@@ -206,8 +229,66 @@ func _move(dir: Vector2):
 	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
 
-# =============================
-# POINT-AND-CLICK NAVIGATION
+## Returns true if the player is allowed to move right now.
+## Outside combat: always true. Inside combat: only on the player's turn.
+func _can_move_in_combat() -> bool:
+	if not CombatManager.in_combat:
+		return true
+	if not CombatManager.is_player_turn():
+		return false
+	if CombatManager.get_current_mp() <= 0:
+		return false
+	return true
+
+## Receive damage from any source. Triggers combat if hit while not in combat.
+func take_damage(amount: int, source: Node2D = null) -> void:
+	current_health -= amount
+	current_health = max(0, current_health)
+	if hud:
+		hud.update_hp(current_health, max_health)
+	if CombatManager.in_combat:
+		CombatManager._log("Player takes %d damage. (%d/%d HP)" % [amount, current_health, max_health], "attack")
+	if current_health <= 0:
+		print("Player died!")
+		if CombatManager.in_combat:
+			CombatManager._log("Player has been defeated!", "death")
+		# TODO: game-over handling
+		return
+	# If hit by a hostile NPC outside of combat, trigger combat
+	if source != null and not CombatManager.in_combat:
+		if source is NPC and source._is_hostile_to_player():
+			CombatManager.trigger_combat(source, self)
+
+## Attack an NPC in melee range (costs AP_COST_ATTACK action points).
+func combat_attack_npc() -> void:
+	if not CombatManager.in_combat or not CombatManager.is_player_turn():
+		return
+	if not CombatManager.spend_ap(CombatManager.AP_COST_ATTACK):
+		print("Not enough AP to attack!")
+		return
+	# Find the closest NPC in melee range
+	var best_npc: NPC = null
+	var best_dist := tile_size * 1.6   # ~1 tile diagonal
+	var npcs := get_tree().get_nodes_in_group("NPCs")
+	for npc in npcs:
+		if not is_instance_valid(npc):
+			continue
+		var d: float = global_position.distance_to(npc.global_position)
+		if d < best_dist:
+			best_dist = d
+			best_npc = npc
+	if best_npc:
+		var str_val: int = stats.get("strength", 12)
+		var damage := int(str_val * 0.5) + rng_roll(1, 8)
+		best_npc.take_damage(damage, self)
+		var npc_label: String = best_npc.get("npc_name") if best_npc.get("npc_name") else best_npc.name
+		CombatManager._log("Player attacks %s for %d damage." % [npc_label, damage], "attack")
+		print("Player attacks %s for %d damage" % [best_npc.name, damage])
+	else:
+		print("No target in range!")
+
+func rng_roll(min_val: int, max_val: int) -> int:
+	return randi_range(min_val, max_val)
 # =============================
 
 func _on_nav_click(world_pos: Vector2) -> void:
@@ -264,6 +345,12 @@ func _nav_step() -> void:
 		if path_overlay:
 			path_overlay.clear_nav_destination()
 
+
+func _on_combat_turn_ended(entity: Node2D) -> void:
+	"""Clear the nav path when the player's turn ends so they pick a new
+	destination each turn rather than continuing the previous route."""
+	if entity == self:
+		_nav_cancel()
 
 func _nav_cancel() -> void:
 	"""Stop point-and-click navigation immediately."""
@@ -958,6 +1045,8 @@ func _fire_pending_spell(world_target: Vector2) -> void:
 
 	print("Cast %s toward %s (damage: %d, AOE radius: %.0f px)" \
 		% [spell.get_display_name(), world_target, spell.get_damage(), spell.aoe_radius * 16.0])
+	if CombatManager.in_combat:
+		CombatManager._log("Player casts %s!" % spell.get_display_name(), "spell")
 
 
 

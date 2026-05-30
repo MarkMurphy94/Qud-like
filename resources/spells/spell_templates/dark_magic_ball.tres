@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="Spell" format=3 uid="uid://bgckiq3i8fp50"]
+
+[ext_resource type="Script" uid="uid://1x30e1yyu22g" path="res://resources/spells/spell.gd" id="2_spell"]
+
+[resource]
+script = ExtResource("2_spell")
+id = "dark_magic_ball"
+display_name = "Dark Magic Ball"
+description = "Hurl a sphere of dark magic at your enemies, dealing explosive damage to all creatures in the blast radius."
+spell_type = 0
+rarity = 1
+mana_cost = 2
+cast_time = 1.5
+cooldown = 3.0
+spell_range = 8.0
+target_type = 5
+can_move_while_casting = false
+damage = 45
+aoe_radius = 2.5
+projectile_speed = 15.0
+animation = "fireball_cast"
+spell_color = Color(0.2, 0.7, 0.5, 1)

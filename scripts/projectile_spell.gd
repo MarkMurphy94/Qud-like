@@ -63,16 +63,19 @@ func _physics_process(delta: float) -> void:
 	_check_npc_collision()
 
 
-## Check whether the projectile has flown into an NPC this frame.
+## Check whether the projectile has flown into any damageable entity this frame.
 func _check_npc_collision() -> void:
 	var hit_radius: float = 10.0   # pixel radius treated as a direct hit
-	for npc in get_tree().get_nodes_in_group("NPCs"):
-		if not is_instance_valid(npc):
+	var candidates: Array = []
+	candidates.append_array(get_tree().get_nodes_in_group("NPCs"))
+	candidates.append_array(get_tree().get_nodes_in_group("Player"))
+	for target in candidates:
+		if not is_instance_valid(target):
 			continue
-		if npc == caster:
+		if target == caster:
 			continue
-		if npc.global_position.distance_to(global_position) <= hit_radius:
-			_on_hit_npc(npc)
+		if target.global_position.distance_to(global_position) <= hit_radius:
+			_on_hit_npc(target)
 			return
 
 
@@ -81,16 +84,19 @@ func _on_hit_npc(primary: Node2D) -> void:
 	_hit = true
 
 	if aoe_radius_px > 0.0:
-		# Splash damage to every NPC inside the blast radius
+		# Splash damage to every damageable entity inside the blast radius
 		var already_hit: Array = []
-		for npc in get_tree().get_nodes_in_group("NPCs"):
-			if not is_instance_valid(npc) or npc == caster:
+		var candidates: Array = []
+		candidates.append_array(get_tree().get_nodes_in_group("NPCs"))
+		candidates.append_array(get_tree().get_nodes_in_group("Player"))
+		for target in candidates:
+			if not is_instance_valid(target) or target == caster:
 				continue
-			if npc.global_position.distance_to(global_position) <= aoe_radius_px:
-				if npc not in already_hit:
-					already_hit.append(npc)
-					if npc.has_method("take_damage"):
-						npc.take_damage(damage, caster)
+			if target.global_position.distance_to(global_position) <= aoe_radius_px:
+				if target not in already_hit:
+					already_hit.append(target)
+					if target.has_method("take_damage"):
+						target.take_damage(damage, caster)
 	else:
 		# Single-target damage
 		if primary.has_method("take_damage"):

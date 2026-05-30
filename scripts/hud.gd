@@ -10,6 +10,7 @@ extends CanvasLayer
 @onready var inventory: Button = $MarginContainer/VBoxContainer/TopContainer/inventory
 @onready var hotbar_container: HBoxContainer = $MarginContainer/VBoxContainer/BottomRowContainer/HotbarContainer
 @onready var equip_panel: Control = $MarginContainer/VBoxContainer/BottomRowContainer/EquipPanel
+@onready var margin_container: MarginContainer = $MarginContainer
 
 const EQUIP_SLOT_SIZE := 48
 # Order matches the "+" layout positions
@@ -41,6 +42,8 @@ func _ready() -> void:
 	pause_button.pressed.connect(_on_pause_button_pressed)
 	inventory.pressed.connect(_on_inventory_pressed)
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	CombatManager.combat_started.connect(_on_combat_started)
+	CombatManager.combat_ended.connect(_on_combat_ended)
 	_style_bars()
 	_build_hotbar()
 	_build_equip_panel()
@@ -118,6 +121,16 @@ func _on_inventory_screen_closed() -> void:
 	# Keep the instance around for reuse, just hide it
 	pass
 
+# Raised/lowered to avoid the CombatHUD bottom bar during combat
+const BASE_MARGIN_BOTTOM := 16
+const COMBAT_MARGIN_BOTTOM := 72  # 16 base + 56 (BottomBar height)
+
+func _on_combat_started() -> void:
+	margin_container.add_theme_constant_override("margin_bottom", COMBAT_MARGIN_BOTTOM)
+
+func _on_combat_ended() -> void:
+	margin_container.add_theme_constant_override("margin_bottom", BASE_MARGIN_BOTTOM)
+
 # =============================
 # HOTBAR
 # =============================
@@ -128,62 +141,11 @@ func _build_hotbar() -> void:
 
 	for i in range(HOTBAR_SLOTS):
 		hotbar_slots[i] = null
-
-		# Outer panel for border/background
-		var panel := Panel.new()
-		panel.custom_minimum_size = Vector2(SLOT_SIZE, SLOT_SIZE)
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_style_hotbar_slot(panel, false)
-
-		# Key number label (top-left)
-		var key_label := Label.new()
-		key_label.text = str(i + 1)
-		key_label.add_theme_font_size_override("font_size", 10)
-		key_label.position = Vector2(2, 0)
-		key_label.size = Vector2(14, 14)
-		panel.add_child(key_label)
-
-		# Icon texture
-		var icon_rect := TextureRect.new()
-		icon_rect.name = "Icon"
-		icon_rect.custom_minimum_size = Vector2(28, 28)
-		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon_rect.position = Vector2(10, 10)
-		icon_rect.size = Vector2(28, 28)
-		panel.add_child(icon_rect)
-
-		# Quantity label (bottom-right, only for stackable items)
-		var qty_label := Label.new()
-		qty_label.name = "Qty"
-		qty_label.add_theme_font_size_override("font_size", 10)
-		qty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		qty_label.position = Vector2(2, SLOT_SIZE - 16)
-		qty_label.size = Vector2(SLOT_SIZE - 4, 14)
-		qty_label.visible = false
-		panel.add_child(qty_label)
-
-		# Tooltip-style name label (shown as panel tooltip)
-		var name_label := Label.new()
-		name_label.name = "Name"
-		name_label.add_theme_font_size_override("font_size", 9)
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_label.position = Vector2(0, SLOT_SIZE - 14)
-		name_label.size = Vector2(SLOT_SIZE, 12)
-		name_label.clip_text = true
-		name_label.visible = false
-		panel.add_child(name_label)
-
-		# Click button (transparent, covers whole slot)
-		var btn := Button.new()
-		btn.flat = true
-		btn.size = Vector2(SLOT_SIZE, SLOT_SIZE)
-		btn.position = Vector2.ZERO
-		var idx := i  # capture
-		btn.pressed.connect(func(): _on_hotbar_slot_pressed(idx))
-		panel.add_child(btn)
-
-		hotbar_container.add_child(panel)
+		var panel: Panel = hotbar_container.get_child(i)
 		hotbar_slot_nodes[i] = panel
+		_style_hotbar_slot(panel, false)
+		var idx := i  # capture
+		panel.get_node("Button").pressed.connect(func(): _on_hotbar_slot_pressed(idx))
 
 func _style_hotbar_slot(panel: Panel, active: bool) -> void:
 	var style := StyleBoxFlat.new()

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="NPCConfig" format=3 uid="uid://c0sq68y0ddjaf"]
+
+[ext_resource type="Script" uid="uid://dmxba4w6hdk8e" path="res://resources/npc_config.gd" id="1_dtx62"]
+
+[resource]
+script = ExtResource("1_dtx62")
+npc_type = 6
+current_health = null
+metadata/_custom_type_script = "uid://dmxba4w6hdk8e"

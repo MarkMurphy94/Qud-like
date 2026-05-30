@@ -2,7 +2,7 @@ extends CharacterBody2D
 class_name NPC
 
 # === EXPORTS AND CONFIGURATION ===
-@export var config: NPCConfig
+# @export var config: NPCConfig
 @export_group("Basic Properties")
 @export var move_speed: float = 50.0
 @export var tile_size: int = 16
@@ -28,7 +28,8 @@ var sprite_node_pos_tween: Tween
 	"agility": 10,
 	"intelligence": 10,
 	"endurance": 10,
-	"charisma": 10
+	"charisma": 10,
+	"initiative": 10   ## Used for turn-order rolls in combat
 }
 @export var inventory: Inventory = null  # Proper inventory system with stacking
 @export var equipped_items: Dictionary = {}
@@ -157,6 +158,8 @@ var npc_properties = {
 			"move_speed": 55.0,
 			"sprite_region_coords": Rect2i(0, 64, 32, 32),
 			"faction": "GUARD",
+			"max_mana": 80,
+			"spells": ["res://resources/spells/spell_templates/fireball.tres"],
 			"stats": {"strength": 10, "agility": 10, "intelligence": 16, "endurance": 12, "charisma": 10}
 		},
 		"dwarf_warrior": {
@@ -278,18 +281,24 @@ var npc_properties = {
 			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(160, 192, 32, 32),
 			"faction": "NEUTRAL",
+			"max_mana": 90,
+			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 6, "agility": 10, "intelligence": 16, "endurance": 8, "charisma": 10}
 		},
 		"wizard": {
 			"move_speed": 42.0,
 			"sprite_region_coords": Rect2i(192, 192, 32, 32),
 			"faction": "MAGE",
+			"max_mana": 120,
+			"spells": ["res://resources/spells/spell_templates/fireball.tres", "res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 6, "agility": 8, "intelligence": 18, "endurance": 8, "charisma": 12}
 		},
 		"warlock": {
 			"move_speed": 45.0,
 			"sprite_region_coords": Rect2i(224, 192, 32, 32),
 			"faction": "NEUTRAL",
+			"max_mana": 100,
+			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
 		},
 		"dwarf_wizard": {
@@ -346,6 +355,8 @@ var npc_properties = {
 			"move_speed": 52.0,
 			"sprite_region_coords": Rect2i(192, 0, 32, 32),
 			"faction": "CULTIST",
+			"max_mana": 80,
+			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
 		}
 	},
@@ -368,8 +379,9 @@ var npc_properties = {
 			"move_speed": 65.0,
 			"move_interval": 0.3,
 			"wander_radius": 12.0,
-			"sprite_region_coords": Rect2i(128, 32, 32, 32),
+			"sprite_region_coords": Rect2i(0, 160, 32, 32),
 			"behavior": "hunt",
+			"max_mana": 50,
 			"faction": "MONSTER",
 			"dialogue": "none",
 			"inventory_template": "monster_items",
@@ -419,11 +431,29 @@ var hear_event_cooldown: float = 0.0
 
 # --- DEBUG OPTIONS ---
 var show_debug: bool = true
+
+# --- SPELL SYSTEM ---
+@export var learned_spells: Array[Spell] = []   ## Spells this NPC knows
+var spell_cooldowns: Dictionary = {}    ## spell_id -> seconds remaining
+var max_mana: int = 0                   ## 0 means NPC is non-magical
+var current_mana: int = 0
+var mana_regen_per_turn: int = 5        ## Mana restored at the start of each combat turn
+
+# --- TURN-BASED COMBAT ---
+var _combat_triggered : bool = false  ## Prevent duplicate trigger_combat() calls
+var _in_combat_mode   : bool = false  ## True while CombatManager is active
+## Combat UI nodes (created programmatically in _ready)
+var _exclamation_label : Label       = null
+var _hp_bar_container  : Control     = null
+var _hp_bar_bg         : ColorRect   = null
+var _hp_bar_fill       : ColorRect   = null
 	
 func _ready():
+	add_to_group("NPCs")  # Ensure group membership regardless of how the NPC was created
 	rng.randomize()
 	apply_type_profile()
 	set_sprite()
+	_build_combat_indicators()
 	# Randomize initial move timer to desync NPC movement
 	move_timer = rng.randf_range(0.0, move_interval + move_interval_variance)
 	# Attempt to locate player for reference (optional)
@@ -446,10 +476,22 @@ func _physics_process(delta: float) -> void:
 	if state == NPCState.DEAD:
 		return
 
+	# During turn-based combat the CombatManager drives NPC actions directly.
+	# We still update debug/combat-UI but skip the free-roam AI loop.
+	if CombatManager.in_combat:
+		_update_debug()
+		_update_combat_ui()
+		return
+
 	state_timer += delta
 	move_timer += delta
 	if hear_event_cooldown > 0:
 		hear_event_cooldown -= delta
+	# Tick spell cooldowns
+	for sid in spell_cooldowns.keys():
+		spell_cooldowns[sid] -= delta
+		if spell_cooldowns[sid] <= 0.0:
+			spell_cooldowns.erase(sid)
 
 	# Update or simulate time-of-day
 	internal_time_seconds += delta
@@ -478,6 +520,19 @@ func apply_type_profile():
 	can_trade = profile.get("can_trade", false)
 	if profile.has("trade_prices"):
 		trade_prices = profile.trade_prices
+	# Load spells
+	max_mana = profile.get("max_mana", 0)
+	current_mana = max_mana
+	# learned_spells.clear()
+	# for spell_path in profile.get("spells", []):
+	# 	if ResourceLoader.exists(spell_path):
+	# 		var sp := load(spell_path) as Spell
+	# 		if sp:
+	# 			learned_spells.append(sp)
+
+func apply_config(_config: NPCConfig):
+	# TODO: implement to auto-set all export variables from a config- good for applying templates for npc types or named npcs
+	pass
 
 # Simple helper to set home/work
 func set_locations(home: Vector2, work: Vector2 = Vector2.ZERO):
@@ -595,6 +650,10 @@ func _perception_update():
 			# Hostile logic
 			if _is_hostile_to_player():
 				current_target = player_reference
+				# Trigger turn-based combat (only once per encounter)
+				if not _combat_triggered and not CombatManager.in_combat:
+					_combat_triggered = true
+					CombatManager.trigger_combat(self, player_reference)
 			elif faction == "WILDLIFE" and dist < vision_range * 0.6 * tile_size:
 				# Wildlife flees sooner
 				threat_source = player_reference
@@ -819,16 +878,205 @@ func _state_name(s: int) -> String:
 		NPCState.DEAD: return "DEAD"
 		_: return "UNKNOWN"
 
+# =============================
+# TURN-BASED COMBAT SUPPORT
+# =============================
+
+func _build_combat_indicators() -> void:
+	"""Create exclamation mark label and HP bar in the NPC's CanvasLayer."""
+	var canvas = get_node_or_null("CanvasLayer")
+	if canvas == null:
+		return
+
+	# ── Exclamation label (red "!") ──────────────────────────────────────
+	_exclamation_label = Label.new()
+	_exclamation_label.text = "!"
+	_exclamation_label.add_theme_font_size_override("font_size", 22)
+	_exclamation_label.add_theme_color_override("font_color", Color(1.0, 0.15, 0.15))
+	_exclamation_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	_exclamation_label.add_theme_constant_override("shadow_offset_x", 1)
+	_exclamation_label.add_theme_constant_override("shadow_offset_y", 1)
+	_exclamation_label.visible = false
+	canvas.add_child(_exclamation_label)
+
+	# ── HP bar (background + fill) ───────────────────────────────────────
+	_hp_bar_container = Control.new()
+	_hp_bar_container.custom_minimum_size = Vector2(32, 5)
+	_hp_bar_container.visible = false
+	canvas.add_child(_hp_bar_container)
+
+	_hp_bar_bg = ColorRect.new()
+	_hp_bar_bg.color = Color(0.2, 0.2, 0.2)
+	_hp_bar_bg.size = Vector2(32, 5)
+	_hp_bar_container.add_child(_hp_bar_bg)
+
+	_hp_bar_fill = ColorRect.new()
+	_hp_bar_fill.color = Color(0.85, 0.15, 0.15)
+	_hp_bar_fill.size = Vector2(32, 5)
+	_hp_bar_container.add_child(_hp_bar_fill)
+
+func _update_combat_ui() -> void:
+	"""Reposition and refresh combat indicators every physics frame."""
+	if _exclamation_label == null:
+		return
+	var camera := get_viewport().get_camera_2d()
+	if camera == null:
+		return
+	var screen_pos: Vector2 = get_global_transform_with_canvas().origin
+	# Exclamation: directly above the NPC
+	_exclamation_label.position = screen_pos + Vector2(-6, -44)
+	# HP bar: just below the exclamation
+	if _hp_bar_container:
+		_hp_bar_container.position = screen_pos + Vector2(-16, -26)
+		var ratio: float = float(current_health) / float(max(1, max_health))
+		if _hp_bar_fill:
+			_hp_bar_fill.size.x = 32.0 * clampf(ratio, 0.0, 1.0)
+
+## Called by CombatManager when this NPC is pulled into combat.
+func enter_combat_mode() -> void:
+	_in_combat_mode = true
+	_combat_triggered = true
+	set_state(NPCState.COMBAT)
+	# Show indicators with a brief "!" blink
+	if _exclamation_label:
+		_exclamation_label.visible = true
+		# Fade the "!" out after 1.5 s
+		var tw := create_tween()
+		tw.tween_interval(1.5)
+		tw.tween_property(_exclamation_label, "modulate:a", 0.0, 0.4)
+		tw.finished.connect(func(): _exclamation_label.visible = false)
+	if _hp_bar_container:
+		_hp_bar_container.visible = true
+
+## Called by CombatManager when combat ends.
+func exit_combat_mode() -> void:
+	_in_combat_mode = false
+	_combat_triggered = false
+	if _exclamation_label:
+		_exclamation_label.visible = false
+		_exclamation_label.modulate.a = 1.0
+	if _hp_bar_container:
+		_hp_bar_container.visible = false
+
+## Called by CombatManager during the NPC's turn to move one tile toward a target.
+## Returns true if the move succeeded.
+func _combat_move_towards(target_pos: Vector2) -> bool:
+	if is_moving:
+		return false
+	var curr_tile := Vector2i(global_position / tile_size)
+	var tgt_tile  := Vector2i(target_pos / tile_size)
+	if curr_tile == tgt_tile:
+		return false
+	var delta_tile := tgt_tile - curr_tile
+	var primary: Vector2
+	var secondary: Vector2
+	if abs(delta_tile.x) >= abs(delta_tile.y):
+		primary   = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
+		secondary = Vector2.DOWN  if delta_tile.y > 0 else Vector2.UP
+	else:
+		primary   = Vector2.DOWN  if delta_tile.y > 0 else Vector2.UP
+		secondary = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
+	if _grid_try_move(primary):
+		return true
+	if _grid_try_move(secondary):
+		return true
+	return false
+
+## Called by CombatManager during the NPC's turn to cast a spell at a target.
+## Returns true if the spell was cast successfully.
+func combat_cast_spell(spell: Spell, target: Node2D) -> bool:
+	if not is_instance_valid(target) or not spell:
+		return false
+	if current_mana < spell.get_mana_cost():
+		return false
+	if is_spell_on_cooldown(spell.id):
+		return false
+	current_mana -= spell.get_mana_cost()
+	start_spell_cooldown(spell.id, spell.cooldown)
+	# Spawn the projectile
+	var projectile_scene: PackedScene = load("res://scenes/projectile_spell.tscn")
+	if projectile_scene == null:
+		push_warning("[NPC] projectile_spell.tscn not found")
+		return false
+	var projectile: Node2D = projectile_scene.instantiate()
+	get_parent().add_child(projectile)
+	projectile.global_position = global_position
+	var to_target: Vector2 = target.global_position - global_position
+	var max_range_px: float = spell.spell_range * tile_size
+	var stop_px: float = minf(to_target.length(), max_range_px)
+	projectile.setup(spell, self, to_target.normalized(), stop_px)
+	var display_name: String = npc_name if npc_name != "" else str(name)
+	print("%s casts %s!" % [display_name, spell.get_display_name()])
+	return true
+
+## Called at the start of each combat turn to regenerate a little mana.
+func restore_mana_for_turn() -> void:
+	if max_mana > 0:
+		current_mana = mini(current_mana + mana_regen_per_turn, max_mana)
+
+## Return the best offensive spell this NPC can cast at the given distance (px).
+## Returns null if none are available.
+func get_best_combat_spell(dist_px: float) -> Spell:
+	var best: Spell = null
+	for sp in learned_spells:
+		if sp.spell_type != Spell.SpellType.OFFENSIVE:
+			continue
+		if current_mana < sp.get_mana_cost():
+			continue
+		if is_spell_on_cooldown(sp.id):
+			continue
+		if dist_px > sp.spell_range * tile_size:
+			continue
+		if best == null or sp.get_damage() > best.get_damage():
+			best = sp
+	return best
+
+## Returns current mana (duck-typed compatibility with Spell.can_cast()).
+func get_current_mana() -> int:
+	return current_mana
+
+## Returns NPC level (placeholder; satisfies Spell.can_cast() duck-typing).
+func get_level() -> int:
+	return 1
+
+## Check if a spell is on cooldown.
+func is_spell_on_cooldown(spell_id: String) -> bool:
+	return spell_cooldowns.has(spell_id) and spell_cooldowns[spell_id] > 0.0
+
+## Start cooldown for a spell.
+func start_spell_cooldown(spell_id: String, cooldown: float) -> void:
+	if cooldown > 0.0:
+		spell_cooldowns[spell_id] = cooldown
+
+## Called by CombatManager during the NPC's turn to attack a target.
+func combat_attack(target: Node2D) -> void:
+	if not is_instance_valid(target):
+		return
+	# Calculate damage: strength-based with a small dice roll
+	var str_val: int = stats.get("strength", 10)
+	var damage := int(str_val * 0.5) + rng.randi_range(1, 6)
+	emit_signal("npc_attacked", self, target)
+	if target.has_method("take_damage"):
+		target.take_damage(damage, self)
+	else:
+		var display_name: String = npc_name if npc_name != "" else str(name)
+		print("%s attacks %s for %d damage" % [display_name, target.name, damage])
+
 func take_damage(amount: int, source: Node2D = null):
 	if state == NPCState.DEAD:
 		return
 	current_health -= amount
 	record_event({"type": "damage", "amount": amount})
+	var display_name: String = npc_name if npc_name != "" else str(name)
+	if CombatManager.in_combat:
+		CombatManager._log("%s takes %d damage. (%d/%d HP)" % [display_name, amount, max(0, current_health), max_health], "attack")
 	if current_health <= 0:
 		current_health = 0
 		set_state(NPCState.DEAD)
 		emit_signal("npc_died", self)
 		velocity = Vector2.ZERO
+		if CombatManager.in_combat:
+			CombatManager._log("%s has been defeated!" % display_name, "death")
 		return
 	# Reaction: set combat target or flee
 	if source and source != self:
