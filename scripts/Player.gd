@@ -125,7 +125,9 @@ func _process(_delta: float) -> void:
 		var ui_open: bool = (inventory_screen and inventory_screen.visible) or \
 					  (spell_book_screen and spell_book_screen.visible)
 		var mouse_over_hud: bool = get_viewport().gui_get_hovered_control() != null
-		if not ui_open and not mouse_over_hud:
+		var tween_running: bool = sprite_node_pos_tween != null and sprite_node_pos_tween.is_running()
+		path_overlay.set_preview_suppressed(tween_running)
+		if not ui_open and not mouse_over_hud and not tween_running:
 			path_overlay.update_preview(global_position, get_global_mouse_position())
 		else:
 			path_overlay.clear_preview()
@@ -160,22 +162,26 @@ func _physics_process(_delta: float) -> void:
 	if kb_pressed and _nav_active:
 		_nav_cancel()
 
-	if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
-		if _can_move_in_combat():
-			_move(Vector2.RIGHT)
-	if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
-		if _can_move_in_combat():
-			_move(Vector2.LEFT)
-	if Input.is_action_just_pressed("ui_up") and !up.is_colliding():
-		if _can_move_in_combat():
-			_move(Vector2.UP)
-	if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
-		if _can_move_in_combat():
-			_move(Vector2.DOWN)
+	# Block all movement while talking to an NPC
+	var is_talking := current_interacting_npc != null
+
+	if not is_talking:
+		if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
+			if _can_move_in_combat():
+				_move(Vector2.RIGHT)
+		if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
+			if _can_move_in_combat():
+				_move(Vector2.LEFT)
+		if Input.is_action_just_pressed("ui_up") and !up.is_colliding():
+			if _can_move_in_combat():
+				_move(Vector2.UP)
+		if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
+			if _can_move_in_combat():
+				_move(Vector2.DOWN)
 
 	# Advance point-and-click path one tile at a time (wait for sprite tween)
 	# Block nav during combat when it's not the player's turn
-	if _nav_active and _nav_path.size() > 0 and _can_move_in_combat():
+	if not is_talking and _nav_active and _nav_path.size() > 0 and _can_move_in_combat():
 		if sprite_node_pos_tween == null or not sprite_node_pos_tween.is_running():
 			_nav_step()
 
@@ -197,8 +203,14 @@ func _input(event: InputEvent) -> void:
 				_fire_pending_spell(get_global_mouse_position())
 				_exit_targeting_mode()
 			else:
-				# Point-and-click navigation
-				_on_nav_click(get_global_mouse_position())
+				# If the sprite tween is still running, the player is mid-step:
+				# cancel the current path instead of starting a new one.
+				var tween_running := sprite_node_pos_tween != null and sprite_node_pos_tween.is_running()
+				if tween_running and _nav_active:
+					_nav_cancel()
+				else:
+					# Point-and-click navigation
+					_on_nav_click(get_global_mouse_position())
 			get_viewport().set_input_as_handled()
 			return
 		elif event.button_index == MOUSE_BUTTON_RIGHT and _is_aiming:

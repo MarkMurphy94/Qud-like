@@ -406,6 +406,7 @@ var npc_properties = {
 @onready var animal_sprite: Sprite2D = $animal_sprite
 @onready var monster_sprite: Sprite2D = $monster_sprite
 @onready var interact_radius: Area2D = $interact_radius
+@onready var _interact_label: Label = $InteractLabel
 
 # === SIGNALS ===
 signal npc_dialogue_started(npc)
@@ -502,8 +503,10 @@ func _physics_process(delta: float) -> void:
 	internal_time_seconds += delta
 	_update_schedule()
 	_perception_update()
-	_behavior_decision()
-	_execute_state(delta)
+	# Don't move or make decisions while actively interacting with the player
+	if not is_interacting:
+		_behavior_decision()
+		_execute_state(delta)
 	_update_debug()
 
 func apply_type_profile():
@@ -1170,11 +1173,15 @@ func _orthogonal_dirs(dir: Vector2) -> Array:
 func _on_interact_radius_body_entered(body: Node2D) -> void:
 	if body.is_in_group("Player"):
 		player_in_interact_range = true
+		if _interact_label and state != NPCState.DEAD:
+			_interact_label.visible = true
 		emit_signal("npc_interaction_available", self)
 
 func _on_interact_radius_body_exited(body: Node2D) -> void:
 	if body.is_in_group("Player"):
 		player_in_interact_range = false
+		if _interact_label:
+			_interact_label.visible = false
 		if is_interacting:
 			end_interaction()
 		emit_signal("npc_interaction_unavailable", self)

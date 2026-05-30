@@ -97,5 +97,16 @@ position = Vector2(8, 0)
 target_position = Vector2(8, 0)
 hit_from_inside = true
 
+[node name="InteractLabel" type="Label" parent="." unique_id=1484273200]
+position = Vector2(-16, -28)
+z_index = 10
+text = "[T] Talk"
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(1, 1, 0.6, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.85)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+visible = false
+
 [connection signal="area_entered" from="interact_radius" to="." method="_on_interact_radius_body_entered"]
 [connection signal="area_exited" from="interact_radius" to="." method="_on_interact_radius_body_exited"]

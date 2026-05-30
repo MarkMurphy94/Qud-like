@@ -18,6 +18,15 @@ var _dest_tile: Vector2i = Vector2i(-9999, -9999)   # last queried destination
 var _prev_player_tile: Vector2i = Vector2i(-9999, -9999)
 var _dest_blocked: bool = false
 
+## When true the hover path is not drawn (e.g. while the player sprite is mid-tween).
+var _suppress_preview: bool = false
+
+func set_preview_suppressed(suppressed: bool) -> void:
+	"""Called by Player each frame to hide the path while the sprite is moving."""
+	if _suppress_preview != suppressed:
+		_suppress_preview = suppressed
+		queue_redraw()
+
 # ── Active navigation destination ─────────────────────────────────────────────
 ## The tile the player has committed to walk toward (set on click, cleared on arrival/cancel)
 var _nav_dest_tile: Vector2i = Vector2i(-9999, -9999)
@@ -179,6 +188,9 @@ func _draw() -> void:
 			draw_line(corners[i], corners[i] + Vector2(0.0, dirs_y[i] * tick), nd_color, 2.0)
 
 	if _dest_tile == Vector2i(-9999, -9999):
+		return
+
+	if _suppress_preview:
 		return
 
 	var dest_world := _t2w_center(_dest_tile)
