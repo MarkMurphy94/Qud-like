@@ -57,12 +57,12 @@ enum MapType {
 	DUNGEON # Dungeon level
 }
 
-# ── Source IDs within grassland_poneti.tres ─────────────────────────────────
+# ── image Source IDs within grassland_poneti.tres ─────────────────────────────────
 const GROUND_SOURCE_ID = 0 # TileGrass.png – autotile terrain
 const TERRAIN_FEATURE_SOURCE_ID = 0
-const FEATURE_SOURCE_ID = 6 # TreeAndStoneSprites.png – trees, rocks, bushes
+const FOLIAGE_SOURCE_ID = 6 # TreeAndStoneSprites.png – trees, rocks, bushes
 
-# ── Source IDs within temperate_medieval_village.tres ───────────────────────
+# ── image Source IDs within temperate_medieval_village.tres ───────────────────────
 const STRUCT_SOURCE_TOWERS = 1 # Towers.png
 const STRUCT_SOURCE_TOWN = 2 # TownSprites.png
 const STRUCT_SOURCE_VILLAGE = 3 # VillageBuildingSprites.png
@@ -99,35 +99,35 @@ const FOLIAGE_DATA = {
 	FoliageTile.ROCK: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
 }
 const TERRAIN_FEATURE_DATA = {
-	# TODO:update atlas coords and sizes
-	TerrainFeatureTile.LARGE_DIRT_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.LARGE_DIRT_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_3: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_4: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.CREVASSE_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.CREVASSE_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.ROCK_IN_DIRT_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.ROCK_IN_DIRT_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.ROCK_IN_DIRT_3: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_PUDDLE_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_PUDDLE_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.ROAD_PUDDLE_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.ROAD_PUDDLE_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.ROAD_GRASS_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.ROAD_GRASS_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.DARK_GRASS_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_ROCKS_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_ROCKS_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_ROCKS_3: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	# TODO: update atlas coords and sizes
+	TerrainFeatureTile.LARGE_DIRT_PATCH_1: {"atlas": Vector2i(4, 6), "size": Vector2i(6, 6)},
+	TerrainFeatureTile.LARGE_DIRT_PATCH_2: {"atlas": Vector2i(8, 12), "size": Vector2i(6, 6)},
+	TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES: {"atlas": Vector2i(0, 0), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_1: {"atlas": Vector2i(18, 4), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_2: {"atlas": Vector2i(18, 6), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_3: {"atlas": Vector2i(18, 8), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_4: {"atlas": Vector2i(18, 10), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.CREVASSE_1: {"atlas": Vector2i(20, 12), "size": Vector2i(6, 8)},
+	TerrainFeatureTile.CREVASSE_2: {"atlas": Vector2i(14, 20), "size": Vector2i(12, 6)},
+	TerrainFeatureTile.ROCK_IN_DIRT_1: {"atlas": Vector2i(14, 16), "size": Vector2i(6, 4)},
+	TerrainFeatureTile.ROCK_IN_DIRT_2: {"atlas": Vector2i(8, 20), "size": Vector2i(6, 6)},
+	TerrainFeatureTile.ROCK_IN_DIRT_3: {"atlas": Vector2i(12, 18), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_PUDDLE_1: {"atlas": Vector2i(18, 12), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_PUDDLE_2: {"atlas": Vector2i(18, 14), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.ROAD_PUDDLE_1: {"atlas": Vector2i(22, 10), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.ROAD_PUDDLE_2: {"atlas": Vector2i(24, 10), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.ROAD_GRASS_1: {"atlas": Vector2i(20, 8), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.ROAD_GRASS_2: {"atlas": Vector2i(20, 10), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(2, 6), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(0, 6), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(0, 10), "size": Vector2i(4, 4)},
+	TerrainFeatureTile.LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(0, 14), "size": Vector2i(4, 4)},
+	TerrainFeatureTile.DARK_GRASS_PATCH_1: {"atlas": Vector2i(0, 20), "size": Vector2i(8, 6)},
+	TerrainFeatureTile.FLOWER_PATCH_1: {"atlas": Vector2i(0, 8), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.FLOWER_PATCH_2: {"atlas": Vector2i(2, 8), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_ROCKS_1: {"atlas": Vector2i(10, 6), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_ROCKS_2: {"atlas": Vector2i(10, 8), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SMALL_ROCKS_3: {"atlas": Vector2i(10, 10), "size": Vector2i(2, 2)},
 }
 
 # ── Building sprite definitions (temperate_medieval_village.tres) ────────────
@@ -633,17 +633,12 @@ func add_foliage() -> void:
 						if not area_free:
 							break
 					if area_free:
-						terrain_features.set_cell(pos, FEATURE_SOURCE_ID, fdata["atlas"])
-						# Mark every cell of this sprite as occupied
+						foliage.set_cell(pos, FOLIAGE_SOURCE_ID, fdata["atlas"])
 						for dy in fsize.y:
 							for dx in fsize.x:
 								used_cells[pos + Vector2i(dx, dy)] = true
 
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
-	var feature_noise := FastNoiseLite.new()
-	feature_noise.seed = int(current_map_seed) ^ 0xCAFEBABE
-	feature_noise.frequency = 1.0 / (map_template.noise_scale * 0.3)
-
 	# Features grouped by the ground type they suit
 	var grass_features: Array[int] = [
 		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1,
@@ -677,7 +672,7 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 		TerrainFeatureTile.SMALL_ROCKS_3,
 	]
 
-	const FEATURE_DENSITY := 0.06
+	const FEATURE_DENSITY := 0.15
 	var used_cells: Dictionary = {}
 
 	for y in HEIGHT:
@@ -686,24 +681,15 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			if used_cells.has(pos):
 				continue
 
-			# Skip if at or adjacent to a road tile
-			var near_road := false
-			for cdy in range(-1, 2):
-				for cdx in range(-1, 2):
-					if road.get_cell_source_id(pos + Vector2i(cdx, cdy)) != -1:
-						near_road = true
-						break
-				if near_road:
-					break
-			if near_road:
+			# Skip if this cell is on a road tile
+			if road.get_cell_source_id(pos) != -1:
 				continue
 
 			var ground_type := get_cell_ground_type(pos)
 			if ground_type == -1 or ground_type == GroundTile.WATER:
 				continue
 
-			var noise_val := (feature_noise.get_noise_2d(x, y) + 1.0) / 2.0
-			if noise_val >= FEATURE_DENSITY:
+			if local_rng.randf() > FEATURE_DENSITY:
 				continue
 
 			# Pick a candidate list for this ground type
@@ -820,10 +806,10 @@ func get_cell_ground_type(coords: Vector2i) -> int:
 	return -1
 
 func get_cell_foliage_type(coords: Vector2i) -> int:
-	# Check the terrain_features layer for placed foliage
-	if terrain_features.get_cell_source_id(coords) != FEATURE_SOURCE_ID:
+	# Check the foliage layer for placed foliage
+	if foliage.get_cell_source_id(coords) != FOLIAGE_SOURCE_ID:
 		return -1
-	var atlas_coords = terrain_features.get_cell_atlas_coords(coords)
+	var atlas_coords = foliage.get_cell_atlas_coords(coords)
 	for foliage_type in FOLIAGE_DATA:
 		if FOLIAGE_DATA[foliage_type]["atlas"] == atlas_coords:
 			return foliage_type
@@ -836,7 +822,7 @@ func is_walkable(pos: Vector2i) -> bool:
 	if ground_type == GroundTile.WATER:
 		return false
 	# Block if a foliage sprite root is at this position
-	if terrain_features.get_cell_source_id(pos) == FEATURE_SOURCE_ID:
+	if foliage.get_cell_source_id(pos) == FOLIAGE_SOURCE_ID:
 		return false
 	return true
 
@@ -1039,8 +1025,8 @@ func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionar
 
 	# Clear foliage under the building
 	for cell in building_cells:
-		if terrain_features.get_cell_source_id(cell) != -1:
-			terrain_features.set_cell(cell, -1)
+		if foliage.get_cell_source_id(cell) != -1:
+			foliage.set_cell(cell, -1)
 
 	# Exterior sprite (what the player sees from outside / on the overworld layer)
 	structures_exterior.set_cell(pos, sprite_def["exterior_source"], sprite_def["exterior_atlas"])
