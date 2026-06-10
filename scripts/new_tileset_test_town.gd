@@ -1,4 +1,4 @@
-# @tool
+@tool
 extends Node2D
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
@@ -9,11 +9,42 @@ extends Node2D
 @onready var terrain_features: TileMapLayer = $terrain_features
 @onready var structures_exterior: TileMapLayer = $structures_exterior
 @onready var structures_interior: TileMapLayer = $structures_interior
+@onready var foliage: TileMapLayer = $foliage
 
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, DIRT, WATER}
 enum FoliageTile {TREE, BUSH, ROCK}
+enum TerrainFeatureTile {
+	LARGE_DIRT_PATCH_1,
+	LARGE_DIRT_PATCH_2,
+	LARGE_DIRT_WITH_PUDDLES,
+	SMALL_DIRT_PATCH_1,
+	SMALL_DIRT_PATCH_2,
+	SMALL_DIRT_PATCH_3,
+	SMALL_DIRT_PATCH_4,
+	CREVASSE_1,
+	CREVASSE_2,
+	ROCK_IN_DIRT_1,
+	ROCK_IN_DIRT_2,
+	ROCK_IN_DIRT_3,
+	SMALL_PUDDLE_1,
+	SMALL_PUDDLE_2,
+	ROAD_PUDDLE_1,
+	ROAD_PUDDLE_2,
+	ROAD_GRASS_1,
+	ROAD_GRASS_2,
+	SMALL_LIGHT_GRASS_PATCH_1,
+	SMALL_LIGHT_GRASS_PATCH_2,
+	LIGHT_GRASS_PATCH_1,
+	LIGHT_GRASS_PATCH_2,
+	DARK_GRASS_PATCH_1,
+	FLOWER_PATCH_1,
+	FLOWER_PATCH_2,
+	SMALL_ROCKS_1,
+	SMALL_ROCKS_2,
+	SMALL_ROCKS_3,
+}
 enum HamletStructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
 
 # Area generation types – mirrors MapConfig.MapType for backward compat.
@@ -28,6 +59,7 @@ enum MapType {
 
 # ── Source IDs within grassland_poneti.tres ─────────────────────────────────
 const GROUND_SOURCE_ID = 0 # TileGrass.png – autotile terrain
+const TERRAIN_FEATURE_SOURCE_ID = 0
 const FEATURE_SOURCE_ID = 6 # TreeAndStoneSprites.png – trees, rocks, bushes
 
 # ── Source IDs within temperate_medieval_village.tres ───────────────────────
@@ -38,11 +70,11 @@ const STRUCT_SOURCE_WOODEN = 5 # WoodenElements.png – fences, props
 
 # ── Terrain set IDs (grassland_poneti.tres terrain set 0) ───────────────────
 const TERRAINS = {
-	"stone": 0,
+	"stone": 0, # change to new terrain set index when updated in grassland_poneti.tres
 	"grass": 1,
 	"dirt": 2,
-	"water": 3,
-	"wheat_field": 4,
+	"water": 3, # change to new terrain set index when updated in grassland_poneti.tres
+	"wheat_field": 4, # change to new terrain set index when updated in grassland_poneti.tres
 }
 
 # Map our enum types to terrain sets
@@ -65,6 +97,37 @@ const FOLIAGE_DATA = {
 	FoliageTile.TREE: {"atlas": Vector2i(35, 14), "size": Vector2i(8, 13)},
 	FoliageTile.BUSH: {"atlas": Vector2i(8, 38), "size": Vector2i(4, 3)},
 	FoliageTile.ROCK: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+}
+const TERRAIN_FEATURE_DATA = {
+	# TODO:update atlas coords and sizes
+	TerrainFeatureTile.LARGE_DIRT_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.LARGE_DIRT_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_3: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_DIRT_PATCH_4: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.CREVASSE_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.CREVASSE_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.ROCK_IN_DIRT_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.ROCK_IN_DIRT_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.ROCK_IN_DIRT_3: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_PUDDLE_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_PUDDLE_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.ROAD_PUDDLE_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.ROAD_PUDDLE_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.ROAD_GRASS_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.ROAD_GRASS_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.DARK_GRASS_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_ROCKS_1: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_ROCKS_2: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.SMALL_ROCKS_3: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
 }
 
 # ── Building sprite definitions (temperate_medieval_village.tres) ────────────
@@ -194,8 +257,8 @@ const BUILDING_COUNTS_BY_DENSITY = {
 # tiles (e.g. a tree is 6×8).  The used_cells check prevents overlapping.
 const TREE_DENSITY_VALUES = {
 	MapConfig.TreeDensity.NONE: 0.0,
-	MapConfig.TreeDensity.SPARSE: 0.06,
-	MapConfig.TreeDensity.FOREST: 0.18,
+	MapConfig.TreeDensity.SPARSE: 0.15,
+	MapConfig.TreeDensity.FOREST: 0.30,
 }
 
 # Road generation parameters
@@ -284,6 +347,8 @@ func build_settlement_from_dataset() -> void:
 		if not terrain_cells[terrain].is_empty():
 			ground.set_cells_terrain_connect(terrain_cells[terrain], TERRAIN_SET_ID, TERRAINS[terrain], false)
 
+	current_map_seed = int(map_template.SEED)
+
 	var placed_for_roads: Array = []
 	for b: Structure in map_template.important_buildings:
 		if b == null:
@@ -311,6 +376,8 @@ func build_settlement_from_dataset() -> void:
 
 	generate_roads_between_buildings(placed_for_roads, RandomNumberGenerator.new())
 	generate_edge_roads()
+	add_terrain_features(RandomNumberGenerator.new())
+	add_foliage()
 
 func get_settlement_details() -> Dictionary:
 	var details := {
@@ -378,9 +445,10 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 	if base_terrain_type == OverworldTile.GRASS:
 		maybe_add_water_features()
 	
-	add_foliage()
 	_generate_misc_features(local_rng)
 	generate_edge_roads()
+	add_terrain_features(local_rng)
+	add_foliage()
 
 # Generate settlement function driven by MapConfig fields.
 func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
@@ -418,6 +486,8 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 				terrain_cells[terrain], TERRAIN_SET_ID, TERRAINS[terrain], false)
 		else:
 			print("No cells for terrain type: ", terrain)
+
+	current_map_seed = map_template.SEED
 
 	var occupied_space_grid = []
 	for y in area_size.y:
@@ -468,6 +538,8 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	
 	generate_roads_between_buildings(placed_buildings, settlement_rng)
 	generate_edge_roads()
+	add_terrain_features(settlement_rng)
+	add_foliage()
 
 	var details := get_settlement_details()
 	details.type = int(map_template.map_type)
@@ -505,8 +577,21 @@ func add_foliage() -> void:
 			if used_cells.has(pos):
 				continue
 
+			# Skip if a road tile is present at this cell or within 1 tile
+			var near_road := false
+			for check_dy in range(-1, 2):
+				for check_dx in range(-1, 2):
+					if road.get_cell_source_id(pos + Vector2i(check_dx, check_dy)) != -1:
+						near_road = true
+						break
+				if near_road:
+					break
+			if near_road:
+				continue
+
 			var ground_type = get_cell_ground_type(pos)
 			if ground_type == -1:
+				print("Could not determine ground type for cell %s, skipping foliage" % pos)
 				continue
 
 			var detail_value = (detail_noise.get_noise_2d(x, y) + 1) / 2
@@ -553,6 +638,113 @@ func add_foliage() -> void:
 						for dy in fsize.y:
 							for dx in fsize.x:
 								used_cells[pos + Vector2i(dx, dy)] = true
+
+func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
+	var feature_noise := FastNoiseLite.new()
+	feature_noise.seed = int(current_map_seed) ^ 0xCAFEBABE
+	feature_noise.frequency = 1.0 / (map_template.noise_scale * 0.3)
+
+	# Features grouped by the ground type they suit
+	var grass_features: Array[int] = [
+		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1,
+		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2,
+		TerrainFeatureTile.LIGHT_GRASS_PATCH_1,
+		TerrainFeatureTile.LIGHT_GRASS_PATCH_2,
+		TerrainFeatureTile.DARK_GRASS_PATCH_1,
+		TerrainFeatureTile.FLOWER_PATCH_1,
+		TerrainFeatureTile.FLOWER_PATCH_2,
+		TerrainFeatureTile.SMALL_PUDDLE_1,
+		TerrainFeatureTile.SMALL_PUDDLE_2,
+	]
+	var dirt_features: Array[int] = [
+		TerrainFeatureTile.LARGE_DIRT_PATCH_1,
+		TerrainFeatureTile.LARGE_DIRT_PATCH_2,
+		TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES,
+		TerrainFeatureTile.SMALL_DIRT_PATCH_1,
+		TerrainFeatureTile.SMALL_DIRT_PATCH_2,
+		TerrainFeatureTile.SMALL_DIRT_PATCH_3,
+		TerrainFeatureTile.SMALL_DIRT_PATCH_4,
+		TerrainFeatureTile.ROCK_IN_DIRT_1,
+		TerrainFeatureTile.ROCK_IN_DIRT_2,
+		TerrainFeatureTile.ROCK_IN_DIRT_3,
+		TerrainFeatureTile.SMALL_PUDDLE_1,
+	]
+	var stone_features: Array[int] = [
+		TerrainFeatureTile.CREVASSE_1,
+		TerrainFeatureTile.CREVASSE_2,
+		TerrainFeatureTile.SMALL_ROCKS_1,
+		TerrainFeatureTile.SMALL_ROCKS_2,
+		TerrainFeatureTile.SMALL_ROCKS_3,
+	]
+
+	const FEATURE_DENSITY := 0.06
+	var used_cells: Dictionary = {}
+
+	for y in HEIGHT:
+		for x in WIDTH:
+			var pos := Vector2i(x, y)
+			if used_cells.has(pos):
+				continue
+
+			# Skip if at or adjacent to a road tile
+			var near_road := false
+			for cdy in range(-1, 2):
+				for cdx in range(-1, 2):
+					if road.get_cell_source_id(pos + Vector2i(cdx, cdy)) != -1:
+						near_road = true
+						break
+				if near_road:
+					break
+			if near_road:
+				continue
+
+			var ground_type := get_cell_ground_type(pos)
+			if ground_type == -1 or ground_type == GroundTile.WATER:
+				continue
+
+			var noise_val := (feature_noise.get_noise_2d(x, y) + 1.0) / 2.0
+			if noise_val >= FEATURE_DENSITY:
+				continue
+
+			# Pick a candidate list for this ground type
+			var candidates: Array[int]
+			match ground_type:
+				GroundTile.GRASS:
+					candidates = grass_features
+				GroundTile.DIRT:
+					candidates = dirt_features
+				GroundTile.STONE:
+					candidates = stone_features
+				_:
+					continue
+
+			var feature_type: int = candidates[local_rng.randi() % candidates.size()]
+			var fdata: Dictionary = TERRAIN_FEATURE_DATA[feature_type]
+			var fsize: Vector2i = fdata["size"]
+
+			# Verify the full footprint is free of existing features and roads
+			var area_free := true
+			for dy in fsize.y:
+				for dx in fsize.x:
+					var check := pos + Vector2i(dx, dy)
+					if check.x >= WIDTH or check.y >= HEIGHT:
+						area_free = false
+						break
+					if used_cells.has(check):
+						area_free = false
+						break
+					if road.get_cell_source_id(check) != -1:
+						area_free = false
+						break
+				if not area_free:
+					break
+			if not area_free:
+				continue
+
+			terrain_features.set_cell(pos, TERRAIN_FEATURE_SOURCE_ID, fdata["atlas"])
+			for dy in fsize.y:
+				for dx in fsize.x:
+					used_cells[pos + Vector2i(dx, dy)] = true
 
 func maybe_add_water_features(local_rng = null) -> void:
 	# 30% chance to add a water feature
@@ -802,15 +994,48 @@ func place_building_settlement(pos: Vector2i, size: Vector2i, building_type: int
 # Both structure layers share the same coordinate space as the ground layer
 # provided both tilesets use the same tile_size (default 16 × 16 px).
 func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary) -> void:
-	# Ground terrain under building (1-tile border around the footprint)
+	# Seeded RNG for deterministic patch variation tied to building position
+	var patch_rng := RandomNumberGenerator.new()
+	patch_rng.seed = int(pos.x * 73856093) ^ int(pos.y * 19349663)
+
+	# Patch is centered explicitly on the building's center tile so all four
+	# sides have equal margin.  MIN_CLEAR tiles around the footprint are always
+	# included; JITTER additional tiles are added probabilistically for organic
+	# edges.
+	const MIN_CLEAR := 2
+	const JITTER    := 5
+	var cx := pos.x + size.x / 2
+	var cy := pos.y + size.y / 2
+
 	var building_cells: Array[Vector2i] = []
-	for y in range(pos.y - 1, pos.y + size.y + 1):
-		for x in range(pos.x - 1, pos.x + size.x + 1):
-			if x >= 0 and x < WIDTH and y >= 0 and y < HEIGHT:
+	for dy in range(-(size.y / 2 + MIN_CLEAR + JITTER), size.y / 2 + MIN_CLEAR + JITTER + 1):
+		for dx in range(-(size.x / 2 + MIN_CLEAR + JITTER), size.x / 2 + MIN_CLEAR + JITTER + 1):
+			var x := cx + dx
+			var y := cy + dy
+			if x < 0 or x >= WIDTH or y < 0 or y >= HEIGHT:
+				continue
+			# Manhattan distance outside the building footprint
+			var dist_x := 0
+			if x < pos.x:
+				dist_x = pos.x - x
+			elif x >= pos.x + size.x:
+				dist_x = x - (pos.x + size.x - 1)
+			var dist_y := 0
+			if y < pos.y:
+				dist_y = pos.y - y
+			elif y >= pos.y + size.y:
+				dist_y = y - (pos.y + size.y - 1)
+			var dist := dist_x + dist_y
+			if dist <= MIN_CLEAR:
 				building_cells.append(Vector2i(x, y))
+			elif dist <= MIN_CLEAR + JITTER:
+				var chance := 1.0 - float(dist - MIN_CLEAR) / float(JITTER + 1)
+				if patch_rng.randf() < chance:
+					building_cells.append(Vector2i(x, y))
+
 	var gterrain: String = sprite_def.get("ground", "dirt")
 	if TERRAINS.has(gterrain):
-		ground.set_cells_terrain_connect(building_cells, TERRAIN_SET_ID, TERRAINS[gterrain])
+		road.set_cells_terrain_connect(building_cells, TERRAIN_SET_ID, TERRAINS[gterrain])
 
 	# Clear foliage under the building
 	for cell in building_cells:
@@ -843,27 +1068,29 @@ func generate_road_between_buildings(building_a: Dictionary, building_b: Diction
 	var start = get_door_position_settlement(building_a)
 	var end = get_door_position_settlement(building_b)
 	
-	# Use simple line drawing to create road path
-	var path = get_path_between_settlements(start, end)
+	# Seeded RNG for deterministic variation unique to this road segment
+	var road_rng := RandomNumberGenerator.new()
+	road_rng.seed = int(start.x * 73856093) ^ int(start.y * 19349663) ^ int(end.x * 2654435761) ^ int(end.y * 805459861)
+	
+	var path = get_varied_path(start, end, road_rng)
 	
 	# Get appropriate road terrain type from the map config
 	var surface: String = _get_settlement_terrain()["paths"]
 	
-	# Collect road cells
+	# Collect road cells, varying width per cell for an organic look
 	var road_cells = []
-	var road_half_width = ROAD_WIDTH >> 1
-	
-	# Generate road positions
 	for pos in path:
-		for dx in range(-road_half_width, road_half_width + 1):
-			for dy in range(-road_half_width, road_half_width + 1):
+		# Width is mostly 1 tile each side, occasionally 2
+		var half_w: int = 1 if road_rng.randf() > 0.25 else 2
+		for dx in range(-half_w, half_w + 1):
+			for dy in range(-half_w, half_w + 1):
 				var road_pos = pos + Vector2i(dx, dy)
 				if road_pos.x >= 0 and road_pos.x < WIDTH and road_pos.y >= 0 and road_pos.y < HEIGHT:
 					road_cells.append(road_pos)
 	
 	# Apply terrain change using terrain sets for proper transitions
 	if road_cells.size() > 0:
-		ground.set_cells_terrain_connect(road_cells, TERRAIN_SET_ID, TERRAINS[surface])
+		road.set_cells_terrain_connect(road_cells, TERRAIN_SET_ID, TERRAINS[surface])
 
 func get_door_position_settlement(building: Dictionary) -> Vector2i:
 	# Returns the center of the south wall of the building as the door position
@@ -885,6 +1112,65 @@ func get_path_between_settlements(start: Vector2i, end: Vector2i) -> Array:
 		else:
 			current.y += sign(diff.y)
 			
+	path.append(end)
+	return path
+
+# Like get_path_between_settlements but adds winding, irregular drift for a
+# more organic, hand-laid road feel.  The road occasionally enters a "wander"
+# mode where it drifts perpendicular to the goal for 1–5 steps before
+# correcting, producing visible curves and bends.
+func get_varied_path(start: Vector2i, end: Vector2i, path_rng: RandomNumberGenerator) -> Array:
+	var path: Array = []
+	var current := start
+	var wander_steps := 0   # steps remaining in current sideways drift
+	var wander_dir := 1     # perpendicular drift direction: +1 or -1
+
+	# Safety cap: Manhattan distance × 4 so a very wandery road can't loop forever
+	var max_steps = (abs(end.x - start.x) + abs(end.y - start.y)) * 4 + 10
+
+	while current != end and path.size() < max_steps:
+		path.append(current)
+		var diff := end - current
+		var dominant_x = abs(diff.x) >= abs(diff.y)
+
+		# Occasionally start a new perpendicular wander burst
+		if wander_steps <= 0 and path_rng.randf() < 0.25:
+			wander_steps = path_rng.randi_range(2, 5)
+			wander_dir = 1 if path_rng.randf() > 0.5 else -1
+
+		if wander_steps > 0:
+			# Move sideways relative to the dominant travel axis
+			if dominant_x:
+				# Travelling mostly horizontally → wander in Y
+				var ny := current.y + wander_dir
+				if ny >= 0 and ny < HEIGHT:
+					current.y = ny
+					wander_steps -= 1
+				else:
+					wander_steps = 0  # hit the map edge, abort wander
+					current.x += sign(diff.x)
+			else:
+				# Travelling mostly vertically → wander in X
+				var nx := current.x + wander_dir
+				if nx >= 0 and nx < WIDTH:
+					current.x = nx
+					wander_steps -= 1
+				else:
+					wander_steps = 0
+					current.y += sign(diff.y)
+		else:
+			# Normal progress toward the goal with a small jitter chance
+			if dominant_x:
+				if abs(diff.y) > 0 and path_rng.randf() < 0.1:
+					current.y += sign(diff.y)
+				else:
+					current.x += sign(diff.x)
+			else:
+				if abs(diff.x) > 0 and path_rng.randf() < 0.1:
+					current.x += sign(diff.x)
+				else:
+					current.y += sign(diff.y)
+
 	path.append(end)
 	return path
 
@@ -936,13 +1222,19 @@ func generate_edge_roads() -> void:
 		surface = "dirt"
 	var road_terrain_id: int = TERRAINS[surface]
 
+	# Seeded RNG for deterministic edge-road variation
+	var edge_rng := RandomNumberGenerator.new()
+	edge_rng.seed = int(map_template.SEED) ^ 0xDEADBEEF
+
 	# Draw each road segment from the edge toward the centre
 	var road_cells: Array[Vector2i] = []
 	for ep: Vector2i in endpoints:
-		var path: Array = get_path_between_settlements(ep, center)
+		var path: Array = get_varied_path(ep, center, edge_rng)
 		for cell: Vector2i in path:
-			for dx in range(-road_half, road_half + 1):
-				for dy in range(-road_half, road_half + 1):
+			# Vary width: mostly road_half, occasionally one wider
+			var hw: int = road_half if edge_rng.randf() > 0.2 else road_half + 1
+			for dx in range(-hw, hw + 1):
+				for dy in range(-hw, hw + 1):
 					var rp := cell + Vector2i(dx, dy)
 					if rp.x >= 0 and rp.x < WIDTH and rp.y >= 0 and rp.y < HEIGHT:
 						road_cells.append(rp)
@@ -950,7 +1242,7 @@ func generate_edge_roads() -> void:
 	if road_cells.is_empty():
 		return
 
-	ground.set_cells_terrain_connect(road_cells, TERRAIN_SET_ID, road_terrain_id, false)
+	road.set_cells_terrain_connect(road_cells, TERRAIN_SET_ID, road_terrain_id, false)
 
 ## Process MapConfig.misc_features to place hamlets, farms, camps, etc.
 ## This replaces the old random 30% hamlet-chance logic with data-driven features.
