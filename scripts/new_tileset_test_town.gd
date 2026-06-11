@@ -1,4 +1,10 @@
-@tool
+#@tool
+
+# ==========
+# comment and un-comment the @tool annotation above to use this script in the editor for map design and testing, or as a runtime generator for local areas and settlements.  
+# When using in-editor, call the setup_and_generate_local() function with desired parameters to populate the TileMapLayers.  
+# When using at runtime, call setup_and_generate() with appropriate MapType and config values to generate either a local area or a settlement based on the provided MapConfig.
+# ==========
 extends Node2D
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
