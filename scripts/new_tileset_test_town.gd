@@ -1,4 +1,4 @@
-#@tool
+@tool
 
 # ==========
 # comment and un-comment the @tool annotation above to use this script in the editor for map design and testing, or as a runtime generator for local areas and settlements.  
@@ -20,7 +20,7 @@ extends Node2D
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, DIRT, WATER}
-enum FoliageTile {TREE, BUSH, ROCK}
+enum FoliageTile {TREE, BUSH}
 enum TerrainFeatureTile {
 	LARGE_DIRT_PATCH_1,
 	LARGE_DIRT_PATCH_2,
@@ -102,7 +102,7 @@ var terrain_cells = {
 const FOLIAGE_DATA = {
 	FoliageTile.TREE: {"atlas": Vector2i(35, 14), "size": Vector2i(8, 13)},
 	FoliageTile.BUSH: {"atlas": Vector2i(8, 38), "size": Vector2i(4, 3)},
-	FoliageTile.ROCK: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
+	# FoliageTile.ROCK: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
 }
 const TERRAIN_FEATURE_DATA = {
 	# TODO: update atlas coords and sizes
@@ -292,6 +292,7 @@ func _ready() -> void:
 	ground.clear()
 	road.clear()
 	terrain_features.clear()
+	foliage.clear()
 	structures_exterior.clear()
 	structures_interior.clear()
 	noise = FastNoiseLite.new()
@@ -328,6 +329,7 @@ func setup_and_generate(
 func build_settlement_from_dataset() -> void:
 	ground.clear()
 	road.clear()
+	foliage.clear()
 	terrain_features.clear()
 	structures_exterior.clear()
 	structures_interior.clear()
@@ -466,6 +468,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 
 	ground.clear()
 	road.clear()
+	foliage.clear()
 	terrain_features.clear()
 	structures_exterior.clear()
 	structures_interior.clear()
@@ -606,25 +609,25 @@ func add_foliage() -> void:
 				var local_tree_density: float = TREE_DENSITY_VALUES.get(
 					int(map_template.tree_density), 0.06)
 				var local_bush_density: float = map_template.bush_density * 0.4
-				var local_rock_density: float = map_template.rock_density
+				# var local_rock_density: float = map_template.rock_density
 
 				match ground_type:
 					GroundTile.DIRT:
 						local_tree_density *= 0.3
 						local_bush_density *= 0.5
-						local_rock_density *= 1.5
+						# local_rock_density *= 1.5
 					GroundTile.STONE:
 						local_tree_density *= 0.5
 						local_bush_density *= 0.7
-						local_rock_density *= 2.0
+						# local_rock_density *= 2.0
 
 				var foliage_type = -1
 				if detail_value < local_tree_density:
 					foliage_type = FoliageTile.TREE
 				elif detail_value < local_tree_density + local_bush_density:
 					foliage_type = FoliageTile.BUSH
-				elif detail_value < local_tree_density + local_bush_density + local_rock_density:
-					foliage_type = FoliageTile.ROCK
+				# elif detail_value < local_tree_density + local_bush_density + local_rock_density:
+				# 	foliage_type = FoliageTile.ROCK
 
 				if foliage_type != -1:
 					var fdata: Dictionary = FOLIAGE_DATA[foliage_type]

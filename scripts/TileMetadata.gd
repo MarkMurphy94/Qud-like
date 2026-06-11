@@ -1,6 +1,11 @@
 extends Resource
 class_name TileMetadata
 
+# Comprehensive metadata for a world map tile.
+# Used by the world generator and game systems to create environments within world map tiles. 
+# This includes static properties (terrain, biome, resources) and dynamic state (discovered, last visited, events). 
+# The world generator populates this data when creating tiles, and game systems read/update it as the player interacts with the world.
+
 @export var coords: Vector2i
 @export var seed: int
 @export var terrain: int
