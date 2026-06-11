@@ -72,7 +72,7 @@ enum TreeDensity {
 	FOREST,
 }
 @export_group("Technical Properties")
-@export var noise_scale: float = 20.0
+@export_range(1.0, 200.0, 0.5) var noise_scale: float = 20.0
 @export var overworld_tile: Vector2i
 @export var scene_path: String
 @export var SEED: int = 0
@@ -85,9 +85,14 @@ enum TreeDensity {
 @export var map_type: MapType = MapType.NON_SETTLEMENT
 @export var misc_features: Array[MiscFeatures] = []
 @export var tree_density: TreeDensity = TreeDensity.NONE
-@export var bush_density: float = 0.15
-@export var rock_density: float = 0.08
-@export var water_level: float = 0.4
+@export_range(0.0, 1.0, 0.01) var bush_density: float = 0.15
+@export_range(0.0, 1.0, 0.01) var rock_density: float = 0.08
+@export_range(0.0, 1.0, 0.01) var water_level: float = 0.4
+## Proportion of eligible ground cells that will attempt to place a terrain feature (0–1).
+@export_range(0.0, 1.0, 0.01) var terrain_feature_density: float = 0.15
+## Controls how widely varied the terrain features are.
+## 0 = only small/subtle features; 1 = full range including large patches and crevasses.
+@export_range(0.0, 1.0, 0.01) var terrain_feature_variation: float = 0.5
 @export var climate: Climate = Climate.TEMPERATE
 @export var terrain: TerrainType = TerrainType.PLAINS
 @export var culture: Culture = Culture.MIDLANDS

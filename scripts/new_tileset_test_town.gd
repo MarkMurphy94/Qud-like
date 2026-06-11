@@ -17,6 +17,7 @@ extends Node2D
 @onready var structures_interior: TileMapLayer = $structures_interior
 @onready var foliage: TileMapLayer = $foliage
 
+
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, DIRT, WATER}
@@ -473,20 +474,15 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	structures_exterior.clear()
 	structures_interior.clear()
 	
-	var settlement_terrain = _get_settlement_terrain()
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
 
 	for y in area_size.y:
 		for x in area_size.x:
-			var terrain_type: String
-			var rand = settlement_rng.randf()
-			if rand < 0.7:
-				terrain_type = settlement_terrain["primary"]
-			elif rand < 0.9:
-				terrain_type = settlement_terrain["secondary"]
-			else:
-				terrain_type = "grass"
+			var height = noise.get_noise_2d(x, y)
+			height = (height + 1) / 2
+			var ground_tile = get_ground_tile(x, y, height)
+			var terrain_type = GROUND_TERRAIN_MAP[ground_tile]
 			terrain_cells[terrain_type].append(Vector2i(x, y))
 	
 	for terrain in terrain_cells:
@@ -649,39 +645,59 @@ func add_foliage() -> void:
 
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 	# Features grouped by the ground type they suit
-	var grass_features: Array[int] = [
+	var grass_features_subtle: Array[int] = [
 		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1,
 		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2,
-		TerrainFeatureTile.LIGHT_GRASS_PATCH_1,
-		TerrainFeatureTile.LIGHT_GRASS_PATCH_2,
-		TerrainFeatureTile.DARK_GRASS_PATCH_1,
 		TerrainFeatureTile.FLOWER_PATCH_1,
 		TerrainFeatureTile.FLOWER_PATCH_2,
 		TerrainFeatureTile.SMALL_PUDDLE_1,
 		TerrainFeatureTile.SMALL_PUDDLE_2,
 	]
-	var dirt_features: Array[int] = [
-		TerrainFeatureTile.LARGE_DIRT_PATCH_1,
-		TerrainFeatureTile.LARGE_DIRT_PATCH_2,
-		TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES,
+	var grass_features_varied: Array[int] = [
+		TerrainFeatureTile.LIGHT_GRASS_PATCH_1,
+		TerrainFeatureTile.LIGHT_GRASS_PATCH_2,
+		TerrainFeatureTile.DARK_GRASS_PATCH_1,
+	]
+	var dirt_features_subtle: Array[int] = [
 		TerrainFeatureTile.SMALL_DIRT_PATCH_1,
 		TerrainFeatureTile.SMALL_DIRT_PATCH_2,
 		TerrainFeatureTile.SMALL_DIRT_PATCH_3,
 		TerrainFeatureTile.SMALL_DIRT_PATCH_4,
-		TerrainFeatureTile.ROCK_IN_DIRT_1,
-		TerrainFeatureTile.ROCK_IN_DIRT_2,
 		TerrainFeatureTile.ROCK_IN_DIRT_3,
 		TerrainFeatureTile.SMALL_PUDDLE_1,
 	]
-	var stone_features: Array[int] = [
-		TerrainFeatureTile.CREVASSE_1,
-		TerrainFeatureTile.CREVASSE_2,
+	var dirt_features_varied: Array[int] = [
+		TerrainFeatureTile.LARGE_DIRT_PATCH_1,
+		TerrainFeatureTile.LARGE_DIRT_PATCH_2,
+		TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES,
+		TerrainFeatureTile.ROCK_IN_DIRT_1,
+		TerrainFeatureTile.ROCK_IN_DIRT_2,
+	]
+	var stone_features_subtle: Array[int] = [
 		TerrainFeatureTile.SMALL_ROCKS_1,
 		TerrainFeatureTile.SMALL_ROCKS_2,
 		TerrainFeatureTile.SMALL_ROCKS_3,
 	]
+	var stone_features_varied: Array[int] = [
+		TerrainFeatureTile.CREVASSE_1,
+		TerrainFeatureTile.CREVASSE_2,
+	]
 
-	const FEATURE_DENSITY := 0.15
+	var variation: float = map_template.terrain_feature_variation
+	var grass_features: Array[int] = grass_features_subtle.duplicate()
+	var dirt_features: Array[int] = dirt_features_subtle.duplicate()
+	var stone_features: Array[int] = stone_features_subtle.duplicate()
+	if variation > 0.0:
+		for f in grass_features_varied:
+			if local_rng.randf() < variation:
+				grass_features.append(f)
+		for f in dirt_features_varied:
+			if local_rng.randf() < variation:
+				dirt_features.append(f)
+		for f in stone_features_varied:
+			if local_rng.randf() < variation:
+				stone_features.append(f)
+
 	var used_cells: Dictionary = {}
 
 	for y in HEIGHT:
@@ -698,7 +714,7 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			if ground_type == -1 or ground_type == GroundTile.WATER:
 				continue
 
-			if local_rng.randf() > FEATURE_DENSITY:
+			if local_rng.randf() > map_template.terrain_feature_density:
 				continue
 
 			# Pick a candidate list for this ground type
