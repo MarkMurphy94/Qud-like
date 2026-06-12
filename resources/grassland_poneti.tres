@@ -1530,6 +1530,8 @@ texture = ExtResource("3_8n541")
 6:48/0 = 0
 2:48/size_in_atlas = Vector2i(4, 4)
 2:48/0 = 0
+10:34/size_in_atlas = Vector2i(9, 6)
+10:34/0 = 0
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_lbt2p"]
 resource_name = "TreesAndBushes"

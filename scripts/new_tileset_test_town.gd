@@ -41,17 +41,39 @@ enum TerrainFeatureTile {
 	ROAD_PUDDLE_2,
 	ROAD_GRASS_1,
 	ROAD_GRASS_2,
+	SPARSE_GRASS_PATCH_1,
+	SPARSE_GRASS_PATCH_2,
+	SPARSE_GRASS_PATCH_3,
+	TALL_GRASS_PATCH_1,
+	TALL_GRASS_PATCH_2,
+	TALL_GRASS_PATCH_3,
+	SPARSE_LIGHT_GRASS_PATCH_1,
+	SPARSE_LIGHT_GRASS_PATCH_2,
+	SPARSE_LIGHT_GRASS_PATCH_3,
+	TALL_LIGHT_GRASS_PATCH_1,
+	TALL_LIGHT_GRASS_PATCH_2,
+	TALL_LIGHT_GRASS_PATCH_3,
 	SMALL_LIGHT_GRASS_PATCH_1,
 	SMALL_LIGHT_GRASS_PATCH_2,
 	LIGHT_GRASS_PATCH_1,
 	LIGHT_GRASS_PATCH_2,
 	DARK_GRASS_PATCH_1,
+	MUD_PATCH_1,
+	MUD_PATCH_2,
+	MUD_TRAIL_1,
 	FLOWER_PATCH_1,
 	FLOWER_PATCH_2,
+	FLOWER_PATCH_3,
+	FLOWER_PATCH_4,
+	FLOWER_PATCH_5,
+	FLOWER_PATCH_6,
+	FLOWER_PATCH_7,
+	FLOWER_PATCH_8,
 	SMALL_ROCKS_1,
 	SMALL_ROCKS_2,
 	SMALL_ROCKS_3,
 }
+enum DecorationTile {WALL_BANNER, WALL_TORCH, FLOOR_RUG, FLOOR_POTTERY}
 enum HamletStructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
 
 # Area generation types – mirrors MapConfig.MapType for backward compat.
@@ -67,6 +89,7 @@ enum MapType {
 # ── image Source IDs within grassland_poneti.tres ─────────────────────────────────
 const GROUND_SOURCE_ID = 0 # TileGrass.png – autotile terrain
 const TERRAIN_FEATURE_SOURCE_ID = 0
+const ROADS_AND_DECOR_SOURCE_ID = 2 # TileRoadsAndDecor.png – roads, paths, and small decorative features
 const FOLIAGE_SOURCE_ID = 6 # TreeAndStoneSprites.png – trees, rocks, bushes
 
 # ── image Source IDs within temperate_medieval_village.tres ───────────────────────
@@ -135,6 +158,27 @@ const TERRAIN_FEATURE_DATA = {
 	TerrainFeatureTile.SMALL_ROCKS_1: {"atlas": Vector2i(10, 6), "size": Vector2i(2, 2)},
 	TerrainFeatureTile.SMALL_ROCKS_2: {"atlas": Vector2i(10, 8), "size": Vector2i(2, 2)},
 	TerrainFeatureTile.SMALL_ROCKS_3: {"atlas": Vector2i(10, 10), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.SPARSE_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 40), "size": Vector2i(3, 2)},
+	TerrainFeatureTile.SPARSE_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(6, 42), "size": Vector2i(5, 4)},
+	TerrainFeatureTile.SPARSE_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(11, 40), "size": Vector2i(9, 6)},
+	TerrainFeatureTile.TALL_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 43), "size": Vector2i(4, 3)},
+	TerrainFeatureTile.TALL_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(5, 40), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.TALL_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(7, 41), "size": Vector2i(2, 1)},
+	TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(6, 48), "size": Vector2i(5, 4)},
+	TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(11, 46), "size": Vector2i(9, 5)},
+	TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 46), "size": Vector2i(3, 2)},
+	TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(10, 34), "size": Vector2i(9, 6)},
+	TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(5, 46), "size": Vector2i(2, 2)},
+	TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 48), "size": Vector2i(4, 4)},
+	TerrainFeatureTile.MUD_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(0, 61), "size": Vector2i(11, 6)},
+	TerrainFeatureTile.MUD_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(11, 62), "size": Vector2i(7, 5)},
+	TerrainFeatureTile.MUD_TRAIL_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(12, 57), "size": Vector2i(13, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(1, 53), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_4: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(4, 53), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_5: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(7, 53), "size": Vector2i(3, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_6: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(10, 53), "size": Vector2i(4, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_7: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(14, 53), "size": Vector2i(2, 3)},
+	TerrainFeatureTile.FLOWER_PATCH_8: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(16, 53), "size": Vector2i(2, 3)},
 }
 
 # ── Building sprite definitions (temperate_medieval_village.tres) ────────────
@@ -752,7 +796,7 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			if not area_free:
 				continue
 
-			terrain_features.set_cell(pos, TERRAIN_FEATURE_SOURCE_ID, fdata["atlas"])
+			terrain_features.set_cell(pos, fdata.get("source", TERRAIN_FEATURE_SOURCE_ID), fdata["atlas"])
 			for dy in fsize.y:
 				for dx in fsize.x:
 					used_cells[pos + Vector2i(dx, dy)] = true
