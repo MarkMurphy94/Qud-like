@@ -90,9 +90,14 @@ enum TreeDensity {
 @export_range(0.0, 1.0, 0.01) var water_level: float = 0.4
 ## Proportion of eligible ground cells that will attempt to place a terrain feature (0–1).
 @export_range(0.0, 1.0, 0.01) var terrain_feature_density: float = 0.15
-## Controls how widely varied the terrain features are.
-## 0 = only small/subtle features; 1 = full range including large patches and crevasses.
-@export_range(0.0, 1.0, 0.01) var terrain_feature_variation: float = 0.5
+## Per-type feature densities – probability that each category contributes candidates
+## for a given cell. 0 = never appears; 1 = always in the candidate pool.
+@export_range(0.0, 1.0, 0.01) var grass_feature_density: float = 0.4
+@export_range(0.0, 1.0, 0.01) var flower_density: float = 0.25
+@export_range(0.0, 1.0, 0.01) var puddle_density: float = 0.2
+@export_range(0.0, 1.0, 0.01) var dirt_feature_density: float = 0.4
+@export_range(0.0, 1.0, 0.01) var mud_feature_density: float = 0.15
+@export_range(0.0, 1.0, 0.01) var stone_feature_density: float = 0.3
 @export var climate: Climate = Climate.TEMPERATE
 @export var terrain: TerrainType = TerrainType.PLAINS
 @export var culture: Culture = Culture.MIDLANDS

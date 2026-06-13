@@ -21,7 +21,41 @@ extends Node2D
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, DIRT, WATER}
-enum FoliageTile {TREE, BUSH}
+enum FoliageTile {
+	TREE,
+	TREE_2,
+	TREE_3,
+	TREE_4,
+	TREE_5,
+	TREE_6,
+	TREE_7,
+	TREE_8,
+	TREE_9,
+	TREE_10,
+	TREE_11,
+	TREE_12,
+	TREE_13,
+	TREE_14,
+	TREE_15,
+	TREE_STUMP_1,
+	TREE_STUMP_2,
+	TREE_STUMP_3,
+	TREE_STUMP_4,
+	TREE_STUMP_5,
+	TREE_STUMP_6,
+	TREE_STUMP_7,
+	TREE_STUMP_8,
+	TREE_STUMP_9,
+	TREE_STUMP_10,
+	TREE_STUMP_11,
+	TREE_STUMP_12,
+	TREE_STUMP_13,
+	TREE_STUMP_14,
+	TREE_STUMP_15,
+	TREE_STUMP_16,
+	TREE_STUMP_17,
+	BUSH,
+	}
 enum TerrainFeatureTile {
 	LARGE_DIRT_PATCH_1,
 	LARGE_DIRT_PATCH_2,
@@ -688,59 +722,64 @@ func add_foliage() -> void:
 								used_cells[pos + Vector2i(dx, dy)] = true
 
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
-	# Features grouped by the ground type they suit
-	var grass_features_subtle: Array[int] = [
+	# Feature lists grouped by type – each controlled by its own density slider
+	var grass_patch_features: Array[int] = [
 		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1,
 		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2,
-		TerrainFeatureTile.FLOWER_PATCH_1,
-		TerrainFeatureTile.FLOWER_PATCH_2,
-		TerrainFeatureTile.SMALL_PUDDLE_1,
-		TerrainFeatureTile.SMALL_PUDDLE_2,
-	]
-	var grass_features_varied: Array[int] = [
 		TerrainFeatureTile.LIGHT_GRASS_PATCH_1,
 		TerrainFeatureTile.LIGHT_GRASS_PATCH_2,
 		TerrainFeatureTile.DARK_GRASS_PATCH_1,
+		TerrainFeatureTile.SPARSE_GRASS_PATCH_1,
+		TerrainFeatureTile.SPARSE_GRASS_PATCH_2,
+		TerrainFeatureTile.SPARSE_GRASS_PATCH_3,
+		TerrainFeatureTile.TALL_GRASS_PATCH_1,
+		TerrainFeatureTile.TALL_GRASS_PATCH_2,
+		TerrainFeatureTile.TALL_GRASS_PATCH_3,
+		TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_1,
+		TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_2,
+		TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_3,
+		TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_1,
+		TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_2,
+		TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_3,
 	]
-	var dirt_features_subtle: Array[int] = [
+	var flower_features: Array[int] = [
+		TerrainFeatureTile.FLOWER_PATCH_1,
+		TerrainFeatureTile.FLOWER_PATCH_2,
+		TerrainFeatureTile.FLOWER_PATCH_3,
+		TerrainFeatureTile.FLOWER_PATCH_4,
+		TerrainFeatureTile.FLOWER_PATCH_5,
+		TerrainFeatureTile.FLOWER_PATCH_6,
+		TerrainFeatureTile.FLOWER_PATCH_7,
+		TerrainFeatureTile.FLOWER_PATCH_8,
+	]
+	var puddle_features: Array[int] = [
+		TerrainFeatureTile.SMALL_PUDDLE_1,
+		TerrainFeatureTile.SMALL_PUDDLE_2,
+	]
+	var dirt_patch_features: Array[int] = [
 		TerrainFeatureTile.SMALL_DIRT_PATCH_1,
 		TerrainFeatureTile.SMALL_DIRT_PATCH_2,
 		TerrainFeatureTile.SMALL_DIRT_PATCH_3,
 		TerrainFeatureTile.SMALL_DIRT_PATCH_4,
-		TerrainFeatureTile.ROCK_IN_DIRT_3,
-		TerrainFeatureTile.SMALL_PUDDLE_1,
-	]
-	var dirt_features_varied: Array[int] = [
 		TerrainFeatureTile.LARGE_DIRT_PATCH_1,
 		TerrainFeatureTile.LARGE_DIRT_PATCH_2,
 		TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES,
 		TerrainFeatureTile.ROCK_IN_DIRT_1,
 		TerrainFeatureTile.ROCK_IN_DIRT_2,
+		TerrainFeatureTile.ROCK_IN_DIRT_3,
 	]
-	var stone_features_subtle: Array[int] = [
+	var mud_features: Array[int] = [
+		TerrainFeatureTile.MUD_PATCH_1,
+		TerrainFeatureTile.MUD_PATCH_2,
+		TerrainFeatureTile.MUD_TRAIL_1,
+	]
+	var stone_features: Array[int] = [
 		TerrainFeatureTile.SMALL_ROCKS_1,
 		TerrainFeatureTile.SMALL_ROCKS_2,
 		TerrainFeatureTile.SMALL_ROCKS_3,
-	]
-	var stone_features_varied: Array[int] = [
 		TerrainFeatureTile.CREVASSE_1,
 		TerrainFeatureTile.CREVASSE_2,
 	]
-
-	var variation: float = map_template.terrain_feature_variation
-	var grass_features: Array[int] = grass_features_subtle.duplicate()
-	var dirt_features: Array[int] = dirt_features_subtle.duplicate()
-	var stone_features: Array[int] = stone_features_subtle.duplicate()
-	if variation > 0.0:
-		for f in grass_features_varied:
-			if local_rng.randf() < variation:
-				grass_features.append(f)
-		for f in dirt_features_varied:
-			if local_rng.randf() < variation:
-				dirt_features.append(f)
-		for f in stone_features_varied:
-			if local_rng.randf() < variation:
-				stone_features.append(f)
 
 	var used_cells: Dictionary = {}
 
@@ -750,7 +789,6 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			if used_cells.has(pos):
 				continue
 
-			# Skip if this cell is on a road tile
 			if road.get_cell_source_id(pos) != -1:
 				continue
 
@@ -761,17 +799,29 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			if local_rng.randf() > map_template.terrain_feature_density:
 				continue
 
-			# Pick a candidate list for this ground type
-			var candidates: Array[int]
+			# Build candidate pool from whichever categories roll active for this cell
+			var candidates: Array[int] = []
 			match ground_type:
 				GroundTile.GRASS:
-					candidates = grass_features
+					if local_rng.randf() < map_template.grass_feature_density:
+						candidates.append_array(grass_patch_features)
+					if local_rng.randf() < map_template.flower_density:
+						candidates.append_array(flower_features)
+					if local_rng.randf() < map_template.puddle_density:
+						candidates.append_array(puddle_features)
 				GroundTile.DIRT:
-					candidates = dirt_features
+					if local_rng.randf() < map_template.dirt_feature_density:
+						candidates.append_array(dirt_patch_features)
+					if local_rng.randf() < map_template.mud_feature_density:
+						candidates.append_array(mud_features)
+					if local_rng.randf() < map_template.puddle_density:
+						candidates.append_array(puddle_features)
 				GroundTile.STONE:
-					candidates = stone_features
-				_:
-					continue
+					if local_rng.randf() < map_template.stone_feature_density:
+						candidates.append_array(stone_features)
+
+			if candidates.is_empty():
+				continue
 
 			var feature_type: int = candidates[local_rng.randi() % candidates.size()]
 			var fdata: Dictionary = TERRAIN_FEATURE_DATA[feature_type]
