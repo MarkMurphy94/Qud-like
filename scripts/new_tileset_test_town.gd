@@ -17,96 +17,9 @@ extends Node2D
 @onready var structures_interior: TileMapLayer = $structures_interior
 @onready var foliage: TileMapLayer = $foliage
 
-
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, DIRT, WATER}
-enum FoliageTile {
-	TREE,
-	TREE_2,
-	TREE_3,
-	TREE_4,
-	TREE_5,
-	TREE_6,
-	TREE_7,
-	TREE_8,
-	TREE_9,
-	TREE_10,
-	TREE_11,
-	TREE_12,
-	TREE_13,
-	TREE_14,
-	TREE_15,
-	TREE_STUMP_1,
-	TREE_STUMP_2,
-	TREE_STUMP_3,
-	TREE_STUMP_4,
-	TREE_STUMP_5,
-	TREE_STUMP_6,
-	TREE_STUMP_7,
-	TREE_STUMP_8,
-	TREE_STUMP_9,
-	TREE_STUMP_10,
-	TREE_STUMP_11,
-	TREE_STUMP_12,
-	TREE_STUMP_13,
-	TREE_STUMP_14,
-	TREE_STUMP_15,
-	TREE_STUMP_16,
-	TREE_STUMP_17,
-	BUSH,
-	}
-enum TerrainFeatureTile {
-	LARGE_DIRT_PATCH_1,
-	LARGE_DIRT_PATCH_2,
-	LARGE_DIRT_WITH_PUDDLES,
-	SMALL_DIRT_PATCH_1,
-	SMALL_DIRT_PATCH_2,
-	SMALL_DIRT_PATCH_3,
-	SMALL_DIRT_PATCH_4,
-	CREVASSE_1,
-	CREVASSE_2,
-	ROCK_IN_DIRT_1,
-	ROCK_IN_DIRT_2,
-	ROCK_IN_DIRT_3,
-	SMALL_PUDDLE_1,
-	SMALL_PUDDLE_2,
-	ROAD_PUDDLE_1,
-	ROAD_PUDDLE_2,
-	ROAD_GRASS_1,
-	ROAD_GRASS_2,
-	SPARSE_GRASS_PATCH_1,
-	SPARSE_GRASS_PATCH_2,
-	SPARSE_GRASS_PATCH_3,
-	TALL_GRASS_PATCH_1,
-	TALL_GRASS_PATCH_2,
-	TALL_GRASS_PATCH_3,
-	SPARSE_LIGHT_GRASS_PATCH_1,
-	SPARSE_LIGHT_GRASS_PATCH_2,
-	SPARSE_LIGHT_GRASS_PATCH_3,
-	TALL_LIGHT_GRASS_PATCH_1,
-	TALL_LIGHT_GRASS_PATCH_2,
-	TALL_LIGHT_GRASS_PATCH_3,
-	SMALL_LIGHT_GRASS_PATCH_1,
-	SMALL_LIGHT_GRASS_PATCH_2,
-	LIGHT_GRASS_PATCH_1,
-	LIGHT_GRASS_PATCH_2,
-	DARK_GRASS_PATCH_1,
-	MUD_PATCH_1,
-	MUD_PATCH_2,
-	MUD_TRAIL_1,
-	FLOWER_PATCH_1,
-	FLOWER_PATCH_2,
-	FLOWER_PATCH_3,
-	FLOWER_PATCH_4,
-	FLOWER_PATCH_5,
-	FLOWER_PATCH_6,
-	FLOWER_PATCH_7,
-	FLOWER_PATCH_8,
-	SMALL_ROCKS_1,
-	SMALL_ROCKS_2,
-	SMALL_ROCKS_3,
-}
 enum DecorationTile {WALL_BANNER, WALL_TORCH, FLOOR_RUG, FLOOR_POTTERY}
 enum HamletStructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
 
@@ -122,9 +35,8 @@ enum MapType {
 
 # ── image Source IDs within grassland_poneti.tres ─────────────────────────────────
 const GROUND_SOURCE_ID = 0 # TileGrass.png – autotile terrain
-const TERRAIN_FEATURE_SOURCE_ID = 0
-const ROADS_AND_DECOR_SOURCE_ID = 2 # TileRoadsAndDecor.png – roads, paths, and small decorative features
-const FOLIAGE_SOURCE_ID = 6 # TreeAndStoneSprites.png – trees, rocks, bushes
+# Foliage and terrain-feature tiles are discovered at runtime via _build_tile_catalog()
+# using the custom data layers in grassland_poneti.tres (category / type / tag_1 / tag_2).
 
 # ── image Source IDs within temperate_medieval_village.tres ───────────────────────
 const STRUCT_SOURCE_TOWERS = 1 # Towers.png
@@ -155,64 +67,6 @@ var terrain_cells = {
 	"grass": [],
 	"dirt": [],
 	"water": []
-}
-
-const FOLIAGE_DATA = {
-	FoliageTile.TREE: {"atlas": Vector2i(35, 14), "size": Vector2i(8, 13)},
-	FoliageTile.BUSH: {"atlas": Vector2i(8, 38), "size": Vector2i(4, 3)},
-	# FoliageTile.ROCK: {"atlas": Vector2i(17, 23), "size": Vector2i(3, 3)},
-}
-const TERRAIN_FEATURE_DATA = {
-	# TODO: update atlas coords and sizes
-	TerrainFeatureTile.LARGE_DIRT_PATCH_1: {"atlas": Vector2i(4, 6), "size": Vector2i(6, 6)},
-	TerrainFeatureTile.LARGE_DIRT_PATCH_2: {"atlas": Vector2i(8, 12), "size": Vector2i(6, 6)},
-	TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES: {"atlas": Vector2i(0, 0), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_1: {"atlas": Vector2i(18, 4), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_2: {"atlas": Vector2i(18, 6), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_3: {"atlas": Vector2i(18, 8), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_DIRT_PATCH_4: {"atlas": Vector2i(18, 10), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.CREVASSE_1: {"atlas": Vector2i(20, 12), "size": Vector2i(6, 8)},
-	TerrainFeatureTile.CREVASSE_2: {"atlas": Vector2i(14, 20), "size": Vector2i(12, 6)},
-	TerrainFeatureTile.ROCK_IN_DIRT_1: {"atlas": Vector2i(14, 16), "size": Vector2i(6, 4)},
-	TerrainFeatureTile.ROCK_IN_DIRT_2: {"atlas": Vector2i(8, 20), "size": Vector2i(6, 6)},
-	TerrainFeatureTile.ROCK_IN_DIRT_3: {"atlas": Vector2i(12, 18), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_PUDDLE_1: {"atlas": Vector2i(18, 12), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_PUDDLE_2: {"atlas": Vector2i(18, 14), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.ROAD_PUDDLE_1: {"atlas": Vector2i(22, 10), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.ROAD_PUDDLE_2: {"atlas": Vector2i(24, 10), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.ROAD_GRASS_1: {"atlas": Vector2i(20, 8), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.ROAD_GRASS_2: {"atlas": Vector2i(20, 10), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(2, 6), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(0, 6), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.LIGHT_GRASS_PATCH_1: {"atlas": Vector2i(0, 10), "size": Vector2i(4, 4)},
-	TerrainFeatureTile.LIGHT_GRASS_PATCH_2: {"atlas": Vector2i(0, 14), "size": Vector2i(4, 4)},
-	TerrainFeatureTile.DARK_GRASS_PATCH_1: {"atlas": Vector2i(0, 20), "size": Vector2i(8, 6)},
-	TerrainFeatureTile.FLOWER_PATCH_1: {"atlas": Vector2i(0, 8), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.FLOWER_PATCH_2: {"atlas": Vector2i(2, 8), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_ROCKS_1: {"atlas": Vector2i(10, 6), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_ROCKS_2: {"atlas": Vector2i(10, 8), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SMALL_ROCKS_3: {"atlas": Vector2i(10, 10), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.SPARSE_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 40), "size": Vector2i(3, 2)},
-	TerrainFeatureTile.SPARSE_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(6, 42), "size": Vector2i(5, 4)},
-	TerrainFeatureTile.SPARSE_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(11, 40), "size": Vector2i(9, 6)},
-	TerrainFeatureTile.TALL_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 43), "size": Vector2i(4, 3)},
-	TerrainFeatureTile.TALL_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(5, 40), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.TALL_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(7, 41), "size": Vector2i(2, 1)},
-	TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(6, 48), "size": Vector2i(5, 4)},
-	TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(11, 46), "size": Vector2i(9, 5)},
-	TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 46), "size": Vector2i(3, 2)},
-	TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(10, 34), "size": Vector2i(9, 6)},
-	TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(5, 46), "size": Vector2i(2, 2)},
-	TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(2, 48), "size": Vector2i(4, 4)},
-	TerrainFeatureTile.MUD_PATCH_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(0, 61), "size": Vector2i(11, 6)},
-	TerrainFeatureTile.MUD_PATCH_2: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(11, 62), "size": Vector2i(7, 5)},
-	TerrainFeatureTile.MUD_TRAIL_1: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(12, 57), "size": Vector2i(13, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_3: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(1, 53), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_4: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(4, 53), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_5: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(7, 53), "size": Vector2i(3, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_6: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(10, 53), "size": Vector2i(4, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_7: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(14, 53), "size": Vector2i(2, 3)},
-	TerrainFeatureTile.FLOWER_PATCH_8: {"source": ROADS_AND_DECOR_SOURCE_ID, "atlas": Vector2i(16, 53), "size": Vector2i(2, 3)},
 }
 
 # ── Building sprite definitions (temperate_medieval_village.tres) ────────────
@@ -361,6 +215,9 @@ var base_terrain_type: int = OverworldTile.GRASS
 var overworld_position: Vector2i
 # Deterministic map seed to decouple sub-feature seeding from RNG consumption order
 var current_map_seed: int = 0
+# Runtime tile catalog built from tileset custom data (category / type / tag_1 / tag_2).
+# Structure: tile_catalog[category][type] = Array[{source_id, atlas, size, tag_1, tag_2}]
+var tile_catalog: Dictionary = {}
 
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
@@ -375,9 +232,53 @@ func _ready() -> void:
 	structures_exterior.clear()
 	structures_interior.clear()
 	noise = FastNoiseLite.new()
+	_build_tile_catalog()
 	setup_and_generate()
 
-# Public function to generate either local areas or settlements
+	# category- tilemaplayer
+	# type - tile type- tree/bush/flower_patch etc
+	# tag_1 and tag_2
+
+# Scans all atlas sources in the ground TileSet and builds tile_catalog from custom data.
+# Call once after the tileset is loaded (i.e. from _ready()).
+func _build_tile_catalog() -> void:
+	tile_catalog.clear()
+	var ts := ground.tile_set
+	if not ts:
+		push_error("No TileSet on ground layer – tile catalog empty")
+		return
+	for i in ts.get_source_count():
+		var source_id := ts.get_source_id(i)
+		var source := ts.get_source(source_id)
+		if not source is TileSetAtlasSource:
+			continue
+		var atlas_source := source as TileSetAtlasSource
+		for t in atlas_source.get_tiles_count():
+			var coords := atlas_source.get_tile_id(t)
+			var tile_data := atlas_source.get_tile_data(coords, 0)
+			if not tile_data:
+				continue
+			var category: String = tile_data.get_custom_data("category")
+			var tile_type: String = tile_data.get_custom_data("type")
+			print("category: %s  type: %s  coords: %s" % [category, tile_type, coords])
+			if category.is_empty() or tile_type.is_empty():
+				continue
+			# Normalise typo present in some tileset entries
+			if category == "terain_features":
+				category = "terrain_features"
+			if not tile_catalog.has(category):
+				tile_catalog[category] = {}
+			if not tile_catalog[category].has(tile_type):
+				tile_catalog[category][tile_type] = []
+			tile_catalog[category][tile_type].append({
+				"source_id": source_id,
+				"atlas": coords,
+				"size": atlas_source.get_tile_size_in_atlas(coords),
+				"tag_1": tile_data.get_custom_data("tag_1"),
+				"tag_2": tile_data.get_custom_data("tag_2"),
+			})
+	print("Tile catalog built. Categories: ", tile_catalog.keys())
+
 func setup_and_generate(
 		map_type = map_template.map_type,
 		overworld_tile_type: int = OverworldTile.GRASS,
@@ -650,6 +551,12 @@ func add_foliage() -> void:
 	var derived_seed = int(current_map_seed) ^ (overworld_position.x * 73856093) ^ (overworld_position.y * 19349663) ^ int(base_terrain_type)
 	detail_noise.seed = derived_seed
 	detail_noise.frequency = 1.0 / (map_template.noise_scale * 0.5)
+	# Separate RNG for picking a random variant within a foliage type
+	var foliage_rng := RandomNumberGenerator.new()
+	foliage_rng.seed = derived_seed ^ 0x5A5A5A5A
+
+	var tree_tiles: Array = tile_catalog.get("foliage", {}).get("tree", [])
+	var bush_tiles: Array = tile_catalog.get("foliage", {}).get("bush", [])
 
 	# Track which cells are already covered by a placed multi-tile sprite
 	var used_cells: Dictionary = {}
@@ -683,28 +590,23 @@ func add_foliage() -> void:
 				var local_tree_density: float = TREE_DENSITY_VALUES.get(
 					int(map_template.tree_density), 0.06)
 				var local_bush_density: float = map_template.bush_density * 0.4
-				# var local_rock_density: float = map_template.rock_density
 
 				match ground_type:
 					GroundTile.DIRT:
 						local_tree_density *= 0.3
 						local_bush_density *= 0.5
-						# local_rock_density *= 1.5
 					GroundTile.STONE:
 						local_tree_density *= 0.5
 						local_bush_density *= 0.7
-						# local_rock_density *= 2.0
 
-				var foliage_type = -1
+				var candidates: Array = []
 				if detail_value < local_tree_density:
-					foliage_type = FoliageTile.TREE
+					candidates = tree_tiles
 				elif detail_value < local_tree_density + local_bush_density:
-					foliage_type = FoliageTile.BUSH
-				# elif detail_value < local_tree_density + local_bush_density + local_rock_density:
-				# 	foliage_type = FoliageTile.ROCK
+					candidates = bush_tiles
 
-				if foliage_type != -1:
-					var fdata: Dictionary = FOLIAGE_DATA[foliage_type]
+				if not candidates.is_empty():
+					var fdata: Dictionary = candidates[foliage_rng.randi() % candidates.size()]
 					var fsize: Vector2i = fdata["size"]
 					# Only place if the full sprite footprint is free
 					var area_free = true
@@ -716,70 +618,25 @@ func add_foliage() -> void:
 						if not area_free:
 							break
 					if area_free:
-						foliage.set_cell(pos, FOLIAGE_SOURCE_ID, fdata["atlas"])
+						foliage.set_cell(pos, fdata["source_id"], fdata["atlas"])
 						for dy in fsize.y:
 							for dx in fsize.x:
 								used_cells[pos + Vector2i(dx, dy)] = true
 
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
-	# Feature lists grouped by type – each controlled by its own density slider
-	var grass_patch_features: Array[int] = [
-		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_1,
-		TerrainFeatureTile.SMALL_LIGHT_GRASS_PATCH_2,
-		TerrainFeatureTile.LIGHT_GRASS_PATCH_1,
-		TerrainFeatureTile.LIGHT_GRASS_PATCH_2,
-		TerrainFeatureTile.DARK_GRASS_PATCH_1,
-		TerrainFeatureTile.SPARSE_GRASS_PATCH_1,
-		TerrainFeatureTile.SPARSE_GRASS_PATCH_2,
-		TerrainFeatureTile.SPARSE_GRASS_PATCH_3,
-		TerrainFeatureTile.TALL_GRASS_PATCH_1,
-		TerrainFeatureTile.TALL_GRASS_PATCH_2,
-		TerrainFeatureTile.TALL_GRASS_PATCH_3,
-		TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_1,
-		TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_2,
-		TerrainFeatureTile.SPARSE_LIGHT_GRASS_PATCH_3,
-		TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_1,
-		TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_2,
-		TerrainFeatureTile.TALL_LIGHT_GRASS_PATCH_3,
-	]
-	var flower_features: Array[int] = [
-		TerrainFeatureTile.FLOWER_PATCH_1,
-		TerrainFeatureTile.FLOWER_PATCH_2,
-		TerrainFeatureTile.FLOWER_PATCH_3,
-		TerrainFeatureTile.FLOWER_PATCH_4,
-		TerrainFeatureTile.FLOWER_PATCH_5,
-		TerrainFeatureTile.FLOWER_PATCH_6,
-		TerrainFeatureTile.FLOWER_PATCH_7,
-		TerrainFeatureTile.FLOWER_PATCH_8,
-	]
-	var puddle_features: Array[int] = [
-		TerrainFeatureTile.SMALL_PUDDLE_1,
-		TerrainFeatureTile.SMALL_PUDDLE_2,
-	]
-	var dirt_patch_features: Array[int] = [
-		TerrainFeatureTile.SMALL_DIRT_PATCH_1,
-		TerrainFeatureTile.SMALL_DIRT_PATCH_2,
-		TerrainFeatureTile.SMALL_DIRT_PATCH_3,
-		TerrainFeatureTile.SMALL_DIRT_PATCH_4,
-		TerrainFeatureTile.LARGE_DIRT_PATCH_1,
-		TerrainFeatureTile.LARGE_DIRT_PATCH_2,
-		TerrainFeatureTile.LARGE_DIRT_WITH_PUDDLES,
-		TerrainFeatureTile.ROCK_IN_DIRT_1,
-		TerrainFeatureTile.ROCK_IN_DIRT_2,
-		TerrainFeatureTile.ROCK_IN_DIRT_3,
-	]
-	var mud_features: Array[int] = [
-		TerrainFeatureTile.MUD_PATCH_1,
-		TerrainFeatureTile.MUD_PATCH_2,
-		TerrainFeatureTile.MUD_TRAIL_1,
-	]
-	var stone_features: Array[int] = [
-		TerrainFeatureTile.SMALL_ROCKS_1,
-		TerrainFeatureTile.SMALL_ROCKS_2,
-		TerrainFeatureTile.SMALL_ROCKS_3,
-		TerrainFeatureTile.CREVASSE_1,
-		TerrainFeatureTile.CREVASSE_2,
-	]
+	# Feature pools read from tileset custom data via tile_catalog.
+	# "terain_features" typo is normalised to "terrain_features" in _build_tile_catalog().
+	var tf: Dictionary = tile_catalog.get("terrain_features", {})
+	var fol: Dictionary = tile_catalog.get("foliage", {})
+
+	# Flowers are split across "terrain_features/flowers" (source 0) and
+	# "foliage/flowers" (source 2) in the tileset, so merge both pools.
+	var grass_patch_tiles: Array = tf.get("grass_patch", [])
+	var flower_tiles: Array = tf.get("flowers", []) + fol.get("flowers", [])
+	var puddle_tiles: Array = tf.get("puddle", [])
+	var dirt_patch_tiles: Array = tf.get("dirt_patch", [])
+	var mud_tiles: Array = tf.get("mud_patch", [])
+	var stone_tiles: Array = tf.get("rock_patch", []) + tf.get("crevasse", [])
 
 	var used_cells: Dictionary = {}
 
@@ -800,31 +657,30 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 				continue
 
 			# Build candidate pool from whichever categories roll active for this cell
-			var candidates: Array[int] = []
+			var candidates: Array = []
 			match ground_type:
 				GroundTile.GRASS:
 					if local_rng.randf() < map_template.grass_feature_density:
-						candidates.append_array(grass_patch_features)
+						candidates.append_array(grass_patch_tiles)
 					if local_rng.randf() < map_template.flower_density:
-						candidates.append_array(flower_features)
+						candidates.append_array(flower_tiles)
 					if local_rng.randf() < map_template.puddle_density:
-						candidates.append_array(puddle_features)
+						candidates.append_array(puddle_tiles)
 				GroundTile.DIRT:
 					if local_rng.randf() < map_template.dirt_feature_density:
-						candidates.append_array(dirt_patch_features)
+						candidates.append_array(dirt_patch_tiles)
 					if local_rng.randf() < map_template.mud_feature_density:
-						candidates.append_array(mud_features)
+						candidates.append_array(mud_tiles)
 					if local_rng.randf() < map_template.puddle_density:
-						candidates.append_array(puddle_features)
+						candidates.append_array(puddle_tiles)
 				GroundTile.STONE:
 					if local_rng.randf() < map_template.stone_feature_density:
-						candidates.append_array(stone_features)
+						candidates.append_array(stone_tiles)
 
 			if candidates.is_empty():
 				continue
 
-			var feature_type: int = candidates[local_rng.randi() % candidates.size()]
-			var fdata: Dictionary = TERRAIN_FEATURE_DATA[feature_type]
+			var fdata: Dictionary = candidates[local_rng.randi() % candidates.size()]
 			var fsize: Vector2i = fdata["size"]
 
 			# Verify the full footprint is free of existing features and roads
@@ -846,7 +702,7 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			if not area_free:
 				continue
 
-			terrain_features.set_cell(pos, fdata.get("source", TERRAIN_FEATURE_SOURCE_ID), fdata["atlas"])
+			terrain_features.set_cell(pos, fdata["source_id"], fdata["atlas"])
 			for dy in fsize.y:
 				for dx in fsize.x:
 					used_cells[pos + Vector2i(dx, dy)] = true
@@ -924,15 +780,23 @@ func get_cell_ground_type(coords: Vector2i) -> int:
 			return tile
 	return -1
 
-func get_cell_foliage_type(coords: Vector2i) -> int:
-	# Check the foliage layer for placed foliage
-	if foliage.get_cell_source_id(coords) != FOLIAGE_SOURCE_ID:
-		return -1
-	var atlas_coords = foliage.get_cell_atlas_coords(coords)
-	for foliage_type in FOLIAGE_DATA:
-		if FOLIAGE_DATA[foliage_type]["atlas"] == atlas_coords:
-			return foliage_type
-	return -1
+# Returns the tileset "type" custom data string for the foliage tile at coords,
+# or an empty string if no foliage is present.
+func get_cell_foliage_type(coords: Vector2i) -> String:
+	var source_id := foliage.get_cell_source_id(coords)
+	if source_id == -1:
+		return ""
+	var ts := ground.tile_set
+	if not ts:
+		return ""
+	var source := ts.get_source(source_id)
+	if not source is TileSetAtlasSource:
+		return ""
+	var tile_data := (source as TileSetAtlasSource).get_tile_data(
+			foliage.get_cell_atlas_coords(coords), 0)
+	if not tile_data:
+		return ""
+	return tile_data.get_custom_data("type")
 
 func is_walkable(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= WIDTH or pos.y < 0 or pos.y >= HEIGHT:
@@ -940,8 +804,8 @@ func is_walkable(pos: Vector2i) -> bool:
 	var ground_type = get_cell_ground_type(pos)
 	if ground_type == GroundTile.WATER:
 		return false
-	# Block if a foliage sprite root is at this position
-	if foliage.get_cell_source_id(pos) == FOLIAGE_SOURCE_ID:
+	# Block if any foliage sprite is at this position
+	if foliage.get_cell_source_id(pos) != -1:
 		return false
 	return true
 
