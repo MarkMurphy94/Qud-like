@@ -628,6 +628,10 @@ func add_foliage() -> void:
 
 	# Track which cells are already covered by a placed multi-tile sprite
 	var used_cells: Dictionary = {}
+	# Track origin positions per atlas tile to prevent identical sprites clustering.
+	# Key: "sourceId_atlasX_atlasY"  Value: Array[Vector2i] of placed origins
+	var placed_type_positions: Dictionary = {}
+	const FOLIAGE_SAME_TILE_MIN_DIST := 8
 
 	for y in HEIGHT:
 		for x in WIDTH:
@@ -720,11 +724,22 @@ func add_foliage() -> void:
 						if not area_free:
 							break
 					if area_free:
-						var flip_h := 4096 if foliage_rng.randf() < 0.5 else 0
-						foliage.set_cell(pos, fdata["source_id"], fdata["atlas"], flip_h)
-						for dy in fsize.y:
-							for dx in fsize.x:
-								used_cells[pos + Vector2i(dx, dy)] = true
+						var type_key := "%d_%d_%d" % [fdata["source_id"], fdata["atlas"].x, fdata["atlas"].y]
+						var too_close := false
+						if placed_type_positions.has(type_key):
+							for prev_pos: Vector2i in placed_type_positions[type_key]:
+								if maxi(absi(pos.x - prev_pos.x), absi(pos.y - prev_pos.y)) < FOLIAGE_SAME_TILE_MIN_DIST:
+									too_close = true
+									break
+						if not too_close:
+							var flip_h := 4096 if foliage_rng.randf() < 0.5 else 0
+							foliage.set_cell(pos, fdata["source_id"], fdata["atlas"], flip_h)
+							for dy in fsize.y:
+								for dx in fsize.x:
+									used_cells[pos + Vector2i(dx, dy)] = true
+							if not placed_type_positions.has(type_key):
+								placed_type_positions[type_key] = []
+							placed_type_positions[type_key].append(pos)
 
 func add_decor_exterior(placed_buildings: Array) -> void:
 	var decor_types: Dictionary = tile_catalog.get("decor_exterior", {})
