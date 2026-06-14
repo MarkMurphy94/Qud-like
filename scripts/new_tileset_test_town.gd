@@ -16,6 +16,7 @@ extends Node2D
 @onready var structures_exterior: TileMapLayer = $structures_exterior
 @onready var structures_interior: TileMapLayer = $structures_interior
 @onready var foliage: TileMapLayer = $foliage
+@onready var decor_exterior: TileMapLayer = $decor_exterior
 
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
@@ -231,8 +232,11 @@ func _ready() -> void:
 	foliage.clear()
 	structures_exterior.clear()
 	structures_interior.clear()
+	decor_exterior.clear()
 	noise = FastNoiseLite.new()
-	_build_tile_catalog()
+	tile_catalog.clear()
+	for ts in get_all_tile_sets():
+		_build_tile_catalog(ts)
 	setup_and_generate()
 
 	# category- tilemaplayer
@@ -241,9 +245,27 @@ func _ready() -> void:
 
 # Scans all atlas sources in the ground TileSet and builds tile_catalog from custom data.
 # Call once after the tileset is loaded (i.e. from _ready()).
-func _build_tile_catalog() -> void:
-	tile_catalog.clear()
-	var ts := ground.tile_set
+
+func parse_proc_gen_tags(tags_raw) -> Array:
+	var tags: Array = []
+	if not tags_raw is String:
+		return tags
+	for tag in tags_raw.split(" "):
+		var stripped: String = tag.strip_edges()
+		if not stripped.is_empty():
+			tags.append(stripped)
+	return tags
+
+func get_all_tile_sets() -> Array:
+	var tile_sets = []
+	for node in [ground, road, terrain_features, structures_exterior, decor_exterior, structures_interior, foliage]:
+		if node is TileMapLayer:
+			var ts = node.tile_set
+			if ts and not tile_sets.has(ts):
+				tile_sets.append(ts)
+	return tile_sets
+
+func _build_tile_catalog(ts: TileSet) -> void:
 	if not ts:
 		push_error("No TileSet on ground layer – tile catalog empty")
 		return
@@ -260,12 +282,10 @@ func _build_tile_catalog() -> void:
 				continue
 			var category: String = tile_data.get_custom_data("category")
 			var tile_type: String = tile_data.get_custom_data("type")
-			print("category: %s  type: %s  coords: %s" % [category, tile_type, coords])
 			if category.is_empty() or tile_type.is_empty():
 				continue
-			# Normalise typo present in some tileset entries
-			if category == "terain_features":
-				category = "terrain_features"
+			var tags := parse_proc_gen_tags(tile_data.get_custom_data("proc gen tags"))
+			print("category: %s  type: %s, tags: %s" % [category, tile_type, tags])
 			if not tile_catalog.has(category):
 				tile_catalog[category] = {}
 			if not tile_catalog[category].has(tile_type):
@@ -274,8 +294,7 @@ func _build_tile_catalog() -> void:
 				"source_id": source_id,
 				"atlas": coords,
 				"size": atlas_source.get_tile_size_in_atlas(coords),
-				"tag_1": tile_data.get_custom_data("tag_1"),
-				"tag_2": tile_data.get_custom_data("tag_2"),
+				"proc_gen_tags": tags,
 			})
 	print("Tile catalog built. Categories: ", tile_catalog.keys())
 
@@ -313,6 +332,7 @@ func build_settlement_from_dataset() -> void:
 	terrain_features.clear()
 	structures_exterior.clear()
 	structures_interior.clear()
+	decor_exterior.clear()
 
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var settlement_rng := RandomNumberGenerator.new()
@@ -366,6 +386,7 @@ func build_settlement_from_dataset() -> void:
 	generate_edge_roads()
 	add_terrain_features(RandomNumberGenerator.new())
 	add_foliage()
+	add_decor_exterior(placed_for_roads)
 
 func get_settlement_details() -> Dictionary:
 	var details := {
@@ -452,6 +473,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	terrain_features.clear()
 	structures_exterior.clear()
 	structures_interior.clear()
+	decor_exterior.clear()
 	
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
@@ -524,6 +546,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	generate_edge_roads()
 	add_terrain_features(settlement_rng)
 	add_foliage()
+	add_decor_exterior(placed_buildings)
 
 	var details := get_settlement_details()
 	details.type = int(map_template.map_type)
@@ -622,6 +645,93 @@ func add_foliage() -> void:
 						for dy in fsize.y:
 							for dx in fsize.x:
 								used_cells[pos + Vector2i(dx, dy)] = true
+
+func add_decor_exterior(placed_buildings: Array) -> void:
+	var decor_types: Dictionary = tile_catalog.get("decor_exterior", {})
+	if decor_types.is_empty():
+		return
+
+	# Split tiles into wall-adjacent and open pools
+	var wall_adjacent_tiles: Array = []
+	var open_tiles: Array = []
+	for tile_type in decor_types:
+		for entry in decor_types[tile_type]:
+			if "wall_adjacent" in entry.get("proc_gen_tags", []):
+				wall_adjacent_tiles.append(entry)
+			else:
+				open_tiles.append(entry)
+
+	var decor_rng := RandomNumberGenerator.new()
+	decor_rng.seed = current_map_seed ^ 0xBADC0FFE
+	var used_cells: Dictionary = {}
+
+	for building in placed_buildings:
+		var bpos: Vector2i = building["pos"]
+		var bsize: Vector2i = building["size"]
+
+		# Wall-adjacent tiles: place in the 1-tile border just outside the footprint
+		for dx in range(-1, bsize.x + 1):
+			for dy in range(-1, bsize.y + 1):
+				if dx >= 0 and dx < bsize.x and dy >= 0 and dy < bsize.y:
+					continue
+				var cell := bpos + Vector2i(dx, dy)
+				if cell.x < 0 or cell.x >= WIDTH or cell.y < 0 or cell.y >= HEIGHT:
+					continue
+				if used_cells.has(cell) or road.get_cell_source_id(cell) != -1:
+					continue
+				if structures_exterior.get_cell_source_id(cell) != -1:
+					continue
+				if wall_adjacent_tiles.is_empty() or decor_rng.randf() > 0.15:
+					continue
+				var entry: Dictionary = wall_adjacent_tiles[decor_rng.randi() % wall_adjacent_tiles.size()]
+				var esize: Vector2i = entry["size"]
+				var fits := true
+				for edy in esize.y:
+					for edx in esize.x:
+						var ec := cell + Vector2i(edx, edy)
+						if ec.x >= WIDTH or ec.y >= HEIGHT or used_cells.has(ec):
+							fits = false; break
+					if not fits: break
+				if fits:
+					decor_exterior.set_cell(cell, entry["source_id"], entry["atlas"])
+					for edy in esize.y:
+						for edx in esize.x:
+							used_cells[cell + Vector2i(edx, edy)] = true
+
+		# Open tiles: scatter in the 2–4 tile ring around the building
+		if open_tiles.is_empty():
+			continue
+		for dx in range(-4, bsize.x + 4):
+			for dy in range(-4, bsize.y + 4):
+				var dist_x := maxi(0, maxi(-dx, dx - bsize.x + 1))
+				var dist_y := maxi(0, maxi(-dy, dy - bsize.y + 1))
+				if dist_x + dist_y <= 1:
+					continue
+				var cell := bpos + Vector2i(dx, dy)
+				if cell.x < 0 or cell.x >= WIDTH or cell.y < 0 or cell.y >= HEIGHT:
+					continue
+				if used_cells.has(cell) or road.get_cell_source_id(cell) != -1:
+					continue
+				if structures_exterior.get_cell_source_id(cell) != -1:
+					continue
+				if decor_rng.randf() > 0.08:
+					continue
+				var entry: Dictionary = open_tiles[decor_rng.randi() % open_tiles.size()]
+				if "rare" in entry.get("proc_gen_tags", []) and decor_rng.randf() < 0.7:
+					continue
+				var esize: Vector2i = entry["size"]
+				var fits := true
+				for edy in esize.y:
+					for edx in esize.x:
+						var ec := cell + Vector2i(edx, edy)
+						if ec.x >= WIDTH or ec.y >= HEIGHT or used_cells.has(ec):
+							fits = false; break
+					if not fits: break
+				if fits:
+					decor_exterior.set_cell(cell, entry["source_id"], entry["atlas"])
+					for edy in esize.y:
+						for edx in esize.x:
+							used_cells[cell + Vector2i(edx, edy)] = true
 
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 	# Feature pools read from tileset custom data via tile_catalog.
