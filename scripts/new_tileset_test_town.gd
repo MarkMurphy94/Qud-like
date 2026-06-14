@@ -36,6 +36,7 @@ enum MapType {
 
 # ── image Source IDs within grassland_poneti.tres ─────────────────────────────────
 const GROUND_SOURCE_ID = 0 # TileGrass.png – autotile terrain
+const FOLIAGE_SOURCE_ID = 3 # TreesAndBushes – trees, bushes, flowers with proc-gen tags for runtime discovery
 # Foliage and terrain-feature tiles are discovered at runtime via _build_tile_catalog()
 # using the custom data layers in grassland_poneti.tres (category / type / tag_1 / tag_2).
 
@@ -559,18 +560,71 @@ func get_ground_tile(_x: int, _y: int, height: float) -> int:
 	if base_terrain_type == OverworldTile.WATER:
 		return GroundTile.WATER
 	return GroundTile.GRASS
+
+func flip_foliage_tile(source_id: int, atlas_coords: Vector2i) -> Dictionary:
+	# Example function to randomly flip foliage tiles for variation
+	var flipped = {
+		"source_id": source_id,
+		"atlas": atlas_coords,
+		"size": Vector2i(1, 1) # Assuming all foliage tiles are 1x1 for simplicity
+	}
+	if rng.randf() < 0.5:
+		flipped.atlas.x += 1 # Flip horizontally by moving to the adjacent tile in the atlas
+	if rng.randf() < 0.5:
+		flipped.atlas.y += 1 # Flip vertically by moving to the adjacent tile in the atlas
+	return flipped
 			
 func add_foliage() -> void:
-	var detail_noise = FastNoiseLite.new()
 	var derived_seed = int(current_map_seed) ^ (overworld_position.x * 73856093) ^ (overworld_position.y * 19349663) ^ int(base_terrain_type)
+
+	# High-frequency detail noise — fine-grained placement decisions within regions
+	var detail_noise := FastNoiseLite.new()
 	detail_noise.seed = derived_seed
 	detail_noise.frequency = 1.0 / (map_template.noise_scale * 0.5)
-	# Separate RNG for picking a random variant within a foliage type
+
+	# Low-frequency forest mask — large blobs defining where forest regions exist.
+	# High values = forest core, low values = open clearing.
+	var forest_noise := FastNoiseLite.new()
+	forest_noise.seed = derived_seed ^ 0x1A2B3C4D
+	forest_noise.frequency = 1.0 / (map_template.noise_scale * 4.0)
+
+	# Warp noise — displaces sample coordinates so forest edges become curved
+	# and irregular rather than axis-aligned bands.
+	var warp_noise := FastNoiseLite.new()
+	warp_noise.seed = derived_seed ^ 0xDEAD1234
+	warp_noise.frequency = 1.0 / (map_template.noise_scale * 1.5)
+
+	# Bark color noise — large slow-changing regions share a dominant bark color
+	# so birch groves, oak stands, etc. cluster naturally.
+	var bark_noise := FastNoiseLite.new()
+	bark_noise.seed = derived_seed ^ 0x7E3F9A1B
+	bark_noise.frequency = 1.0 / (map_template.noise_scale * 3.0)
+
 	var foliage_rng := RandomNumberGenerator.new()
 	foliage_rng.seed = derived_seed ^ 0x5A5A5A5A
 
 	var tree_tiles: Array = tile_catalog.get("foliage", {}).get("tree", [])
 	var bush_tiles: Array = tile_catalog.get("foliage", {}).get("bush", [])
+
+	# Split tree tiles by bark color tag and alive/dead status.
+	var brown_bark_tiles: Array = []
+	var white_bark_tiles: Array = []
+	var grey_bark_tiles: Array = []
+	var dead_tree_tiles: Array = []
+	var other_tree_tiles: Array = []
+	for _td in tree_tiles:
+		var _tags: Array = _td.get("proc_gen_tags", [])
+		if "dead" in _tags or "broken" in _tags:
+			dead_tree_tiles.append(_td)
+		elif "brown_bark" in _tags:
+			brown_bark_tiles.append(_td)
+		elif "white_bark" in _tags:
+			white_bark_tiles.append(_td)
+		elif "grey_bark" in _tags:
+			grey_bark_tiles.append(_td)
+		else:
+			other_tree_tiles.append(_td)
+	var all_live_trees: Array = brown_bark_tiles + grey_bark_tiles + white_bark_tiles + other_tree_tiles
 
 	# Track which cells are already covered by a placed multi-tile sprite
 	var used_cells: Dictionary = {}
@@ -598,12 +652,22 @@ func add_foliage() -> void:
 				print("Could not determine ground type for cell %s, skipping foliage" % pos)
 				continue
 
-			var detail_value = (detail_noise.get_noise_2d(x, y) + 1) / 2
-
 			if ground_type in [GroundTile.GRASS, GroundTile.DIRT, GroundTile.STONE]:
 				var local_tree_density: float = TREE_DENSITY_VALUES.get(
 					int(map_template.tree_density), 0.06)
 				var local_bush_density: float = map_template.bush_density * 0.4
+
+				# Forest mask (0–1): scales tree density so trees cluster in forest
+				# cores and thin to zero in open clearings.
+				var forest_mask := (forest_noise.get_noise_2d(x, y) + 1.0) / 2.0
+				local_tree_density *= forest_mask * 2.0
+
+				# Domain warping: offset the detail noise sample coords using a
+				# perpendicular warp so forest edges curve organically.
+				var warp_strength := map_template.noise_scale * 0.35
+				var wx := x + warp_strength * warp_noise.get_noise_2d(x * 0.5, y * 0.5)
+				var wy := y + warp_strength * warp_noise.get_noise_2d(x * 0.5 + 31.7, y * 0.5 + 17.3)
+				var detail_value := (detail_noise.get_noise_2d(wx, wy) + 1.0) / 2.0
 
 				match ground_type:
 					GroundTile.DIRT:
@@ -613,9 +677,33 @@ func add_foliage() -> void:
 						local_tree_density *= 0.5
 						local_bush_density *= 0.7
 
+				# Bark-color region: sample once per cell so all trees at this
+				# location share the same preferred species.
+				var bark_val := (bark_noise.get_noise_2d(x, y) + 1.0) / 2.0
+				var dominant_bark: Array
+				if bark_val < 0.33:
+					dominant_bark = brown_bark_tiles
+				elif bark_val < 0.66:
+					dominant_bark = grey_bark_tiles
+				else:
+					dominant_bark = white_bark_tiles
+				if dominant_bark.is_empty():
+					dominant_bark = all_live_trees
+
 				var candidates: Array = []
 				if detail_value < local_tree_density:
-					candidates = tree_tiles
+					var tree_roll := foliage_rng.randf()
+					if tree_roll < 0.03 and not dead_tree_tiles.is_empty():
+						# ~3 % chance: rare dead/broken tree regardless of region
+						candidates = dead_tree_tiles
+					elif tree_roll < 0.75 and not dominant_bark.is_empty():
+						# ~72 % chance: dominant bark color for this region
+						candidates = dominant_bark
+					elif not all_live_trees.is_empty():
+						# ~25 % chance: any live tree (fringe / mixed edge)
+						candidates = all_live_trees
+					else:
+						candidates = tree_tiles
 				elif detail_value < local_tree_density + local_bush_density:
 					candidates = bush_tiles
 
@@ -632,7 +720,8 @@ func add_foliage() -> void:
 						if not area_free:
 							break
 					if area_free:
-						foliage.set_cell(pos, fdata["source_id"], fdata["atlas"])
+						var flip_h := 4096 if foliage_rng.randf() < 0.5 else 0
+						foliage.set_cell(pos, fdata["source_id"], fdata["atlas"], flip_h)
 						for dy in fsize.y:
 							for dx in fsize.x:
 								used_cells[pos + Vector2i(dx, dy)] = true
@@ -726,18 +815,17 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 	# Feature pools read from tileset custom data via tile_catalog.
-	# "terain_features" typo is normalised to "terrain_features" in _build_tile_catalog().
 	var tf: Dictionary = tile_catalog.get("terrain_features", {})
 	var fol: Dictionary = tile_catalog.get("foliage", {})
 
 	# Flowers are split across "terrain_features/flowers" (source 0) and
 	# "foliage/flowers" (source 2) in the tileset, so merge both pools.
-	var grass_patch_tiles: Array = tf.get("grass_patch", [])
+	var grass_patch_tiles: Array = tf.get("grass patch", [])
 	var flower_tiles: Array = tf.get("flowers", []) + fol.get("flowers", [])
 	var puddle_tiles: Array = tf.get("puddle", [])
-	var dirt_patch_tiles: Array = tf.get("dirt_patch", [])
-	var mud_tiles: Array = tf.get("mud_patch", [])
-	var stone_tiles: Array = tf.get("rock_patch", []) + tf.get("crevasse", [])
+	var dirt_patch_tiles: Array = tf.get("dirt patch", [])
+	var mud_tiles: Array = tf.get("mud patch", [])
+	var stone_tiles: Array = tf.get("rock patch", []) + tf.get("crevasse", [])
 
 	var used_cells: Dictionary = {}
 
