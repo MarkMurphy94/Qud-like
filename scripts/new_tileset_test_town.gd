@@ -220,19 +220,22 @@ var current_map_seed: int = 0
 # Structure: tile_catalog[category][type] = Array[{source_id, atlas, size, tag_1, tag_2}]
 var tile_catalog: Dictionary = {}
 
+func clear_all_layers() -> void:
+	ground.clear()
+	road.clear()
+	foliage.clear()
+	terrain_features.clear()
+	structures_exterior.clear()
+	structures_interior.clear()
+	decor_exterior.clear()
+
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
 	for layer_node in [ground, road, terrain_features, structures_exterior, structures_interior]:
 		if not layer_node:
 			push_error("Missing TileMapLayer node in new_tileset_test_town scene!")
 			return
-	ground.clear()
-	road.clear()
-	terrain_features.clear()
-	foliage.clear()
-	structures_exterior.clear()
-	structures_interior.clear()
-	decor_exterior.clear()
+	clear_all_layers()
 	noise = FastNoiseLite.new()
 	tile_catalog.clear()
 	for ts in get_all_tile_sets():
@@ -326,13 +329,7 @@ func setup_and_generate(
 
 # Build a settlement from a saved dataset (no randomness in placement)
 func build_settlement_from_dataset() -> void:
-	ground.clear()
-	road.clear()
-	foliage.clear()
-	terrain_features.clear()
-	structures_exterior.clear()
-	structures_interior.clear()
-	decor_exterior.clear()
+	clear_all_layers()
 
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var settlement_rng := RandomNumberGenerator.new()
@@ -467,13 +464,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	var building_counts: Dictionary = BUILDING_COUNTS_BY_DENSITY.get(density, {})
 	print("Generating settlement '%s' density=%d  counts=%s" % [map_template.map_name, density, building_counts])
 
-	ground.clear()
-	road.clear()
-	foliage.clear()
-	terrain_features.clear()
-	structures_exterior.clear()
-	structures_interior.clear()
-	decor_exterior.clear()
+	clear_all_layers()
 	
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
