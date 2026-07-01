@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://bqqeqpi5a04w5" path="res://assets/poneti assets/PixelWorldSprites/PixelWorldSprites/Tiles/TileCliff.png" id="4_cyw5l"]
 [ext_resource type="Texture2D" uid="uid://cc1dueonocry0" path="res://assets/poneti assets/PixelWorldSprites/PixelWorldSprites/ObjectsSprites/TreeAndStoneSprites.png" id="5_cyw5l"]
 [ext_resource type="Texture2D" uid="uid://dym0pindb36sl" path="res://assets/poneti assets/PixelWorldSprites/PixelWorldSprites/ObjectsSprites/Stone.png" id="5_lthgb"]
+[ext_resource type="Texture2D" uid="uid://b3knhye2ye4uh" path="res://assets/poneti assets/PixelWorldSprites/PixelWorldSprites/ObjectsSprites/Trees.png" id="7_lbt2p"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_lthgb"]
 
@@ -1654,6 +1655,68 @@ texture = ExtResource("3_8n541")
 10:34/0/custom_data_1 = "grass patch"
 10:34/0/custom_data_2 = "sparse light"
 
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_o1wwo"]
+resource_name = "Trees"
+texture = ExtResource("7_lbt2p")
+1:0/size_in_atlas = Vector2i(9, 5)
+1:0/0 = 0
+10:0/size_in_atlas = Vector2i(7, 5)
+10:0/0 = 0
+0:5/size_in_atlas = Vector2i(9, 5)
+0:5/0 = 0
+17:4/size_in_atlas = Vector2i(6, 9)
+17:4/0 = 0
+23:4/size_in_atlas = Vector2i(6, 9)
+23:4/0 = 0
+29:4/size_in_atlas = Vector2i(6, 9)
+29:4/0 = 0
+35:4/size_in_atlas = Vector2i(6, 9)
+35:4/0 = 0
+41:5/size_in_atlas = Vector2i(2, 2)
+41:5/0 = 0
+41:7/size_in_atlas = Vector2i(2, 2)
+41:7/0 = 0
+41:10/size_in_atlas = Vector2i(2, 2)
+41:10/0 = 0
+0:12/size_in_atlas = Vector2i(12, 19)
+0:12/0 = 0
+13:13/size_in_atlas = Vector2i(12, 18)
+13:13/0 = 0
+25:14/size_in_atlas = Vector2i(12, 17)
+25:14/0 = 0
+37:14/size_in_atlas = Vector2i(7, 15)
+37:14/0 = 0
+4:31/size_in_atlas = Vector2i(5, 5)
+4:31/0 = 0
+1:36/size_in_atlas = Vector2i(9, 15)
+1:36/0 = 0
+22:32/size_in_atlas = Vector2i(8, 12)
+22:32/0 = 0
+30:31/size_in_atlas = Vector2i(7, 13)
+30:31/0 = 0
+37:30/size_in_atlas = Vector2i(7, 16)
+37:30/0 = 0
+12:49/size_in_atlas = Vector2i(2, 2)
+12:49/0 = 0
+14:48/size_in_atlas = Vector2i(4, 4)
+14:48/0 = 0
+18:49/size_in_atlas = Vector2i(2, 2)
+18:49/0 = 0
+10:33/size_in_atlas = Vector2i(11, 15)
+10:33/0 = 0
+21:47/size_in_atlas = Vector2i(5, 5)
+21:47/0 = 0
+26:45/size_in_atlas = Vector2i(3, 7)
+26:45/0 = 0
+30:48/size_in_atlas = Vector2i(2, 2)
+30:48/0 = 0
+32:48/size_in_atlas = Vector2i(2, 2)
+32:48/0 = 0
+34:48/size_in_atlas = Vector2i(2, 2)
+34:48/0 = 0
+11:6/size_in_atlas = Vector2i(5, 5)
+11:6/0 = 0
+
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_lbt2p"]
 resource_name = "TreesAndBushes"
 texture = ExtResource("5_cyw5l")
@@ -2080,3 +2143,4 @@ sources/6 = SubResource("TileSetAtlasSource_lbt2p")
 sources/14 = SubResource("TileSetAtlasSource_lthgb")
 sources/15 = SubResource("TileSetAtlasSource_6guyo")
 sources/16 = SubResource("TileSetAtlasSource_ttkg3")
+sources/3 = SubResource("TileSetAtlasSource_o1wwo")

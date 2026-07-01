@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://pfwyd6imhagw"]
+
+[ext_resource type="TileSet" uid="uid://dfjp0pq15tyd1" path="res://resources/temperate_medieval_village.tres" id="1_7vrod"]
+[ext_resource type="Script" uid="uid://7ah047boy747" path="res://scripts/building_interior.gd" id="1_8sym1"]
+
+[node name="building_interior" type="Node2D" unique_id=587225007]
+script = ExtResource("1_8sym1")
+
+[node name="structure_interior" type="TileMapLayer" parent="." unique_id=1667098386]
+tile_map_data = PackedByteArray(0, 0, 255, 255, 252, 255, 3, 0, 1, 0, 58, 0, 0, 0, 252, 255, 246, 255, 11, 0, 4, 0, 1, 0, 0, 0)
+tile_set = ExtResource("1_7vrod")
+
+[node name="floor" type="TileMapLayer" parent="." unique_id=1565686239]
+tile_map_data = PackedByteArray(0, 0, 253, 255, 250, 255, 9, 0, 17, 0, 19, 0, 0, 0)
+tile_set = ExtResource("1_7vrod")
+collision_enabled = false
+
+[node name="interior_props" type="TileMapLayer" parent="." unique_id=1834629317]
+tile_map_data = PackedByteArray(0, 0, 254, 255, 245, 255, 11, 0, 1, 0, 1, 0, 0, 0, 249, 255, 245, 255, 9, 0, 37, 0, 7, 0, 0, 0, 251, 255, 247, 255, 9, 0, 12, 0, 15, 0, 0, 0, 255, 255, 247, 255, 9, 0, 16, 0, 8, 0, 0, 0, 250, 255, 251, 255, 9, 0, 12, 0, 6, 0, 0, 0)
+tile_set = ExtResource("1_7vrod")
