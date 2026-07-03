@@ -11,7 +11,7 @@
 
 [sub_resource type="Resource" id="Resource_0tnpc"]
 script = ExtResource("7_gee14")
-coords = Vector2i(13, 21)
+coords = Vector2i(11, 18)
 metadata/_custom_type_script = "uid://dex54ja7a1in3"
 
 [sub_resource type="Resource" id="Resource_u5sy4"]
@@ -52,6 +52,11 @@ z_index = 1
 [node name="town_1_tile" parent="town_tiles" unique_id=1767324013 instance=ExtResource("6_p57ef")]
 position = Vector2(216, 344)
 scene_path = "res://scenes/town_1_new.tscn"
+tile_metadata = SubResource("Resource_0tnpc")
+
+[node name="town_2_new_tileset" parent="town_tiles" unique_id=1193277896 instance=ExtResource("6_p57ef")]
+position = Vector2(184, 296)
+scene_path = "res://scenes/new_tileset_test_town.tscn"
 tile_metadata = SubResource("Resource_0tnpc")
 
 [node name="city_tiles" type="Node2D" parent="." unique_id=111666021]

@@ -5,6 +5,26 @@
 # When using in-editor, call the setup_and_generate_local() function with desired parameters to populate the TileMapLayers.  
 # When using at runtime, call setup_and_generate() with appropriate MapType and config values to generate either a local area or a settlement based on the provided MapConfig.
 # ==========
+
+
+#  temperate_medieval_village.tres and grassland_poneti.tres custom data layers:
+	# category              (String) – tilemaplayer grouping; top-level tile_catalog key
+	# layers                (String) – space-separated list of relevant TileMapLayer names
+	# type                  (String) – tile type, e.g. tree/bush/flower_patch/house; tile_catalog sub-key
+	# subtype               (String) – finer-grained variant of `type`
+	# building_id           (String) – layer named "building_id" in grassland_poneti.tres,
+	#                                  "building id" in temperate_medieval_village.tres
+	# tags                  (String) – space-separated proc-gen tags (formerly "proc gen tags")
+	# interior              (bool)   – true if this tile belongs to a building interior
+	# associated buildings  (String) – space-separated building types this tile is associated with
+	# affiliations          (String) – space-separated faction/affiliation tags
+	# classes               (String) – space-separated class tags
+	# cultures              (String) – space-separated culture tags
+	# climates              (String) – space-separated climate tags
+	# biomes                (String) – space-separated biome tags
+	# placeholder           (String) – placeholder marker, if any
+
+	
 extends Node2D
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
@@ -17,6 +37,15 @@ extends Node2D
 @onready var structures_interior: TileMapLayer = $structures_interior
 @onready var foliage: TileMapLayer = $foliage
 @onready var decor_exterior: TileMapLayer = $decor_exterior
+@onready var tilemaps = {
+	"GROUND": ground,
+	"INTERIOR_FLOOR": structures_interior,
+	"WALLS": structures_interior,
+	"FURNITURE": structures_interior,
+	"ITEMS": structures_interior,
+	"DOORS": structures_interior,
+	"ROOF": structures_interior
+}
 
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
@@ -250,15 +279,28 @@ func _ready() -> void:
 # Scans all atlas sources in the ground TileSet and builds tile_catalog from custom data.
 # Call once after the tileset is loaded (i.e. from _ready()).
 
-func parse_proc_gen_tags(tags_raw) -> Array:
-	var tags: Array = []
-	if not tags_raw is String:
-		return tags
-	for tag in tags_raw.split(" "):
-		var stripped: String = tag.strip_edges()
+# Looks up a custom data value trying each name in order, returning the first
+# non-null result. Used where a layer's name differs slightly between
+# tilesets (e.g. "building_id" vs "building id").
+func _get_custom_data_any(tile_data: TileData, names: Array):
+	for n in names:
+		var v = tile_data.get_custom_data(n)
+		if v != null:
+			return v
+	return null
+
+# Parses a space-separated custom data String into an Array of tags.
+# Used for "tags", "associated buildings", "affiliations", "classes",
+# "cultures", "climates", and "biomes" layers, which all share this format.
+func _parse_string_list(raw) -> Array:
+	var list: Array = []
+	if not raw is String:
+		return list
+	for entry in raw.split(" "):
+		var stripped: String = entry.strip_edges()
 		if not stripped.is_empty():
-			tags.append(stripped)
-	return tags
+			list.append(stripped)
+	return list
 
 func get_all_tile_sets() -> Array:
 	var tile_sets = []
@@ -284,11 +326,30 @@ func _build_tile_catalog(ts: TileSet) -> void:
 			var tile_data := atlas_source.get_tile_data(coords, 0)
 			if not tile_data:
 				continue
-			var category: String = tile_data.get_custom_data("category")
-			var tile_type: String = tile_data.get_custom_data("type")
+			# Not every TileSet defines the "category"/"type" custom data layers
+			# (e.g. the premade building tileset) — get_custom_data() returns
+			# null in that case, so guard before assigning to a String var.
+			var category_raw = tile_data.get_custom_data("category")
+			var tile_type_raw = tile_data.get_custom_data("type")
+			if category_raw == null or tile_type_raw == null:
+				continue
+			var category: String = category_raw
+			var tile_type: String = tile_type_raw
 			if category.is_empty() or tile_type.is_empty():
 				continue
-			var tags := parse_proc_gen_tags(tile_data.get_custom_data("proc gen tags"))
+
+			var subtype_raw = tile_data.get_custom_data("subtype")
+			# "building_id"/"building id" layer name differs between tilesets — check both.
+			var building_id_raw = _get_custom_data_any(tile_data, ["building_id", "building id"])
+			var tags := _parse_string_list(tile_data.get_custom_data("tags"))
+			var interior_raw = tile_data.get_custom_data("interior")
+			var associated_buildings := _parse_string_list(tile_data.get_custom_data("associated buildings"))
+			var affiliations := _parse_string_list(tile_data.get_custom_data("affiliations"))
+			var classes := _parse_string_list(tile_data.get_custom_data("classes"))
+			var cultures := _parse_string_list(tile_data.get_custom_data("cultures"))
+			var climates := _parse_string_list(tile_data.get_custom_data("climates"))
+			var biomes := _parse_string_list(tile_data.get_custom_data("biomes"))
+
 			print("category: %s  type: %s, tags: %s" % [category, tile_type, tags])
 			if not tile_catalog.has(category):
 				tile_catalog[category] = {}
@@ -298,7 +359,16 @@ func _build_tile_catalog(ts: TileSet) -> void:
 				"source_id": source_id,
 				"atlas": coords,
 				"size": atlas_source.get_tile_size_in_atlas(coords),
-				"proc_gen_tags": tags,
+				"subtype": subtype_raw if subtype_raw is String else "",
+				"building_id": building_id_raw if building_id_raw is String else "",
+				"tags": tags,
+				"interior": bool(interior_raw) if interior_raw != null else false,
+				"associated_buildings": associated_buildings,
+				"affiliations": affiliations,
+				"classes": classes,
+				"cultures": cultures,
+				"climates": climates,
+				"biomes": biomes,
 			})
 	print("Tile catalog built. Categories: ", tile_catalog.keys())
 
@@ -613,7 +683,7 @@ func add_foliage() -> void:
 	var dead_tree_tiles: Array = []
 	var other_tree_tiles: Array = []
 	for _td in tree_tiles:
-		var _tags: Array = _td.get("proc_gen_tags", [])
+		var _tags: Array = _td.get("tags", [])
 		if "dead" in _tags or "broken" in _tags:
 			dead_tree_tiles.append(_td)
 		elif "brown_bark" in _tags:
@@ -751,7 +821,7 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 	var open_tiles: Array = []
 	for tile_type in decor_types:
 		for entry in decor_types[tile_type]:
-			if "wall_adjacent" in entry.get("proc_gen_tags", []):
+			if "wall_adjacent" in entry.get("tags", []):
 				wall_adjacent_tiles.append(entry)
 			else:
 				open_tiles.append(entry)
@@ -812,7 +882,7 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 				if decor_rng.randf() > 0.08:
 					continue
 				var entry: Dictionary = open_tiles[decor_rng.randi() % open_tiles.size()]
-				if "rare" in entry.get("proc_gen_tags", []) and decor_rng.randf() < 0.7:
+				if "rare" in entry.get("tags", []) and decor_rng.randf() < 0.7:
 					continue
 				var esize: Vector2i = entry["size"]
 				var fits := true
