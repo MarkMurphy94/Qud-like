@@ -1,0 +1,144 @@
+[gd_scene format=4 uid="uid://pfwyd6imhagw"]
+
+[ext_resource type="Script" uid="uid://7ah047boy747" path="res://scripts/building_interior.gd" id="1_uvy8r"]
+[ext_resource type="TileSet" uid="uid://dfjp0pq15tyd1" path="res://resources/temperate_medieval_village.tres" id="2_ejq8p"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_uvy8r"]
+size = Vector2(39, 19.875)
+
+[node name="buildings" type="Node2D" unique_id=587225007]
+script = ExtResource("1_uvy8r")
+
+[node name="tavern_1" type="Node2D" parent="." unique_id=665976900]
+visible = false
+
+[node name="pre_drawn_decor" type="Node2D" parent="tavern_1" unique_id=480666293]
+
+[node name="structure_interior" type="TileMapLayer" parent="tavern_1/pre_drawn_decor" unique_id=1667098386]
+tile_map_data = PackedByteArray("AAD8//b/CwAEAAEAAAD///z/AwABACkAAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="blank_interior" type="Node2D" parent="tavern_1" unique_id=1938406449]
+visible = false
+
+[node name="structure_interior" type="TileMapLayer" parent="tavern_1/blank_interior" unique_id=1521033485]
+tile_map_data = PackedByteArray("AAD+//X/CwABAAEAAAD5//X/CQAlAAcAAAD7//f/CQAMAA8AAAD///f/CQAQAAgAAAD6//v/CQAMAAYAAAD///z/AwABADoAAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="interior_props" type="TileMapLayer" parent="tavern_1/blank_interior" unique_id=1834629317]
+tile_map_data = PackedByteArray("AAD+//X/CwABAAEAAAD5//X/CQAlAAcAAAD7//f/CQAMAA8AAAD///f/CQAQAAgAAAD6//v/CQAMAAYAAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="floor" type="TileMapLayer" parent="tavern_1/blank_interior" unique_id=1565686239]
+tile_map_data = PackedByteArray("AAD9//r/CQARABMAAAA=")
+tile_set = ExtResource("2_ejq8p")
+collision_enabled = false
+
+[node name="exterior" type="Node2D" parent="tavern_1" unique_id=1075676900]
+
+[node name="exterior_layer" type="TileMapLayer" parent="tavern_1/exterior" unique_id=1895759916]
+tile_map_data = PackedByteArray("AAD///z/AwACABkAAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="threshold" type="Area2D" parent="tavern_1" unique_id=930057466]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="tavern_1/threshold" unique_id=967317203]
+position = Vector2(91, -6.125)
+shape = SubResource("RectangleShape2D_uvy8r")
+
+[node name="house_1" type="Node2D" parent="." unique_id=1997512372]
+visible = false
+
+[node name="pre_drawn_decor" type="Node2D" parent="house_1" unique_id=395488057]
+
+[node name="structure_interior" type="TileMapLayer" parent="house_1/pre_drawn_decor" unique_id=1335712597]
+tile_map_data = PackedByteArray("AAD/////AwAAAAoAAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="blank_interior" type="Node2D" parent="house_1" unique_id=1277395971]
+
+[node name="structure_interior" type="TileMapLayer" parent="house_1/blank_interior" unique_id=1010257457]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="interior_props" type="TileMapLayer" parent="house_1/blank_interior" unique_id=324221990]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="floor" type="TileMapLayer" parent="house_1/blank_interior" unique_id=1336911015]
+tile_set = ExtResource("2_ejq8p")
+collision_enabled = false
+
+[node name="exterior" type="Node2D" parent="house_1" unique_id=105512345]
+
+[node name="exterior_layer" type="TileMapLayer" parent="house_1/exterior" unique_id=35549328]
+tile_map_data = PackedByteArray("AAD///3/AwAAAAAAAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="threshold" type="Area2D" parent="house_1" unique_id=1667782316]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="house_1/threshold" unique_id=513228997]
+position = Vector2(-36, 26)
+shape = SubResource("RectangleShape2D_uvy8r")
+
+[node name="node_hierarchy_template" type="Node2D" parent="." unique_id=1259286271]
+visible = false
+
+[node name="pre_drawn_decor" type="Node2D" parent="node_hierarchy_template" unique_id=628138922]
+
+[node name="structure_interior" type="TileMapLayer" parent="node_hierarchy_template/pre_drawn_decor" unique_id=737462330]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="blank_interior" type="Node2D" parent="node_hierarchy_template" unique_id=1756457573]
+
+[node name="structure_interior" type="TileMapLayer" parent="node_hierarchy_template/blank_interior" unique_id=1197672271]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="interior_props" type="TileMapLayer" parent="node_hierarchy_template/blank_interior" unique_id=402170087]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="floor" type="TileMapLayer" parent="node_hierarchy_template/blank_interior" unique_id=1283063203]
+tile_set = ExtResource("2_ejq8p")
+collision_enabled = false
+
+[node name="exterior" type="Node2D" parent="node_hierarchy_template" unique_id=713809485]
+
+[node name="exterior_layer" type="TileMapLayer" parent="node_hierarchy_template/exterior" unique_id=54089898]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="threshold" type="Area2D" parent="node_hierarchy_template" unique_id=595025345]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="node_hierarchy_template/threshold" unique_id=2052472731]
+position = Vector2(91, -6.125)
+shape = SubResource("RectangleShape2D_uvy8r")
+
+[node name="log_cabin_1" type="Node2D" parent="." unique_id=322386362]
+
+[node name="pre_drawn_decor" type="Node2D" parent="log_cabin_1" unique_id=313212366]
+
+[node name="structure_interior" type="TileMapLayer" parent="log_cabin_1/pre_drawn_decor" unique_id=1227732132]
+tile_map_data = PackedByteArray("AAAAAP7/AwAaACsAAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="blank_interior" type="Node2D" parent="log_cabin_1" unique_id=566854466]
+visible = false
+
+[node name="structure_interior" type="TileMapLayer" parent="log_cabin_1/blank_interior" unique_id=573477591]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="interior_props" type="TileMapLayer" parent="log_cabin_1/blank_interior" unique_id=1378198303]
+tile_set = ExtResource("2_ejq8p")
+
+[node name="floor" type="TileMapLayer" parent="log_cabin_1/blank_interior" unique_id=1023329791]
+tile_set = ExtResource("2_ejq8p")
+collision_enabled = false
+
+[node name="exterior" type="Node2D" parent="log_cabin_1" unique_id=1537603219]
+
+[node name="exterior_layer" type="TileMapLayer" parent="log_cabin_1/exterior" unique_id=1828302003]
+tile_map_data = PackedByteArray("AAD///3/AwAaAB4AAAA=")
+tile_set = ExtResource("2_ejq8p")
+
+[node name="threshold" type="Area2D" parent="log_cabin_1" unique_id=1101236653]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="log_cabin_1/threshold" unique_id=1369713183]
+position = Vector2(-45.5, 53.9375)
+shape = SubResource("RectangleShape2D_uvy8r")

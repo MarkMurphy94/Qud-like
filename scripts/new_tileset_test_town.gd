@@ -24,7 +24,7 @@
 	# biomes                (String) – space-separated biome tags
 	# placeholder           (String) – placeholder marker, if any
 
-	
+
 extends Node2D
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
@@ -36,6 +36,7 @@ extends Node2D
 @onready var structures_exterior: TileMapLayer = $structures_exterior
 @onready var structures_interior: TileMapLayer = $structures_interior
 @onready var foliage: TileMapLayer = $foliage
+@onready var structures: Node2D = $structures
 @onready var decor_exterior: TileMapLayer = $decor_exterior
 @onready var tilemaps = {
 	"GROUND": ground,
@@ -231,24 +232,62 @@ const TREE_DENSITY_VALUES = {
 	MapConfig.TreeDensity.FOREST: 0.30,
 }
 
+# Tiles of "worn ground" influence around each building footprint — used to
+# skew settlement ground toward the secondary (trampled) terrain near walls.
+const WEAR_RADIUS := 6
+
 # Road generation parameters
 const ROAD_WIDTH = 2
 const PLAZA_MIN_SIZE = 4
 const PLAZA_MAX_SIZE = 8
 const PLAZA_DISTANCE_THRESHOLD = 10
 
+# Unified building scene (building.tscn): contains one child Node2D per
+# building_id (e.g. "house_1", "tavern_1"), each holding both its exterior
+# and interior sub-hierarchy. building_ids_by_type is built at runtime by
+# inspecting this scene's children, keyed by Structure.StructureType inferred
+# from each child's name (see _structure_type_from_name()).
+const BUILDING_SCENE: PackedScene = preload("res://scenes/building.tscn")
+# Authoring-only placeholder child in building.tscn; never a valid variant.
+const BUILDING_TEMPLATE_NODE_NAME := "node_hierarchy_template"
+
+# Maps a building.tscn child's name (with any trailing "_<n>" suffix
+# stripped) to the Structure.StructureType it represents.
+const STRUCTURE_TYPE_NAME_MAP := {
+	"house": Structure.StructureType.HOUSE,
+	"tavern": Structure.StructureType.TAVERN,
+	"shop": Structure.StructureType.SHOP,
+	"church": Structure.StructureType.CHURCH,
+	"wall": Structure.StructureType.WALL,
+	"manor": Structure.StructureType.MANOR,
+	"barracks": Structure.StructureType.BARRACKS,
+	"castle_keep": Structure.StructureType.CASTLE_KEEP,
+}
+
 @export var map_template: MapConfig
 
 var noise: FastNoiseLite
 var rng = RandomNumberGenerator.new()
+
 # Overworld tile type enum value (OverworldTile); named to avoid clash with $base_terrain node
 var base_terrain_type: int = OverworldTile.GRASS
 var overworld_position: Vector2i
+
 # Deterministic map seed to decouple sub-feature seeding from RNG consumption order
 var current_map_seed: int = 0
+
 # Runtime tile catalog built from tileset custom data (category / type / tag_1 / tag_2).
 # Structure: tile_catalog[category][type] = Array[{source_id, atlas, size, tag_1, tag_2}]
 var tile_catalog: Dictionary = {}
+
+# Registry of available building.tscn variants, built at runtime by
+# _build_building_registry(). Keyed by Structure.StructureType -> Array[String]
+# of matching child node names (building_ids) found in building.tscn.
+var building_ids_by_type: Dictionary = {}
+
+# Instantiated building.tscn scenes, one per placed building; tracked so
+# clear_all_layers() can free them before each regeneration.
+var building_instances: Array = []
 
 func clear_all_layers() -> void:
 	ground.clear()
@@ -258,6 +297,10 @@ func clear_all_layers() -> void:
 	structures_exterior.clear()
 	structures_interior.clear()
 	decor_exterior.clear()
+	for instance in building_instances:
+		if is_instance_valid(instance):
+			instance.queue_free()
+	building_instances.clear()
 
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
@@ -270,6 +313,7 @@ func _ready() -> void:
 	tile_catalog.clear()
 	for ts in get_all_tile_sets():
 		_build_tile_catalog(ts)
+	_build_building_registry()
 	setup_and_generate()
 
 	# category- tilemaplayer
@@ -288,6 +332,35 @@ func _get_custom_data_any(tile_data: TileData, names: Array):
 		if v != null:
 			return v
 	return null
+
+# Strips a trailing "_<digits>" suffix from a building.tscn child name (e.g.
+# "house_1" -> "house", "log_cabin_1" -> "log_cabin") and looks it up in
+# STRUCTURE_TYPE_NAME_MAP. Returns -1 if the name doesn't map to a known type.
+func _structure_type_from_name(node_name: String) -> int:
+	var parts := node_name.split("_")
+	if parts.size() > 1 and parts[-1].is_valid_int():
+		parts.remove_at(parts.size() - 1)
+	return STRUCTURE_TYPE_NAME_MAP.get("_".join(parts), -1)
+
+# Discovers available building variants by instantiating BUILDING_SCENE once
+# and grouping its direct children (building_ids) by the Structure.StructureType
+# inferred from each child's name. Skips BUILDING_TEMPLATE_NODE_NAME. Rebuilding
+# this way (rather than hardcoding) means new building_id variants added to
+# building.tscn are picked up automatically, no script changes required.
+func _build_building_registry() -> void:
+	building_ids_by_type.clear()
+	var temp := BUILDING_SCENE.instantiate()
+	for child in temp.get_children():
+		if child.name == BUILDING_TEMPLATE_NODE_NAME:
+			continue
+		var struct_type := _structure_type_from_name(child.name)
+		if struct_type == -1:
+			continue
+		if not building_ids_by_type.has(struct_type):
+			building_ids_by_type[struct_type] = []
+		building_ids_by_type[struct_type].append(String(child.name))
+	temp.queue_free()
+	print("Building registry built: ", building_ids_by_type)
 
 # Parses a space-separated custom data String into an Array of tags.
 # Used for "tags", "associated buildings", "affiliations", "classes",
@@ -403,27 +476,42 @@ func build_settlement_from_dataset() -> void:
 	clear_all_layers()
 
 	var area_size = Vector2i(WIDTH, HEIGHT)
-	var settlement_rng := RandomNumberGenerator.new()
-	settlement_rng.seed = int(map_template.SEED)
 	var settlement_terrain = _get_settlement_terrain()
+	current_map_seed = int(map_template.SEED)
+	_configure_ground_noise(current_map_seed)
+
+	# Building footprints are known up front here, so ground wear can be
+	# computed before any terrain is painted.
+	var building_rects: Array[Rect2i] = []
+	for b: Structure in map_template.important_buildings + map_template.buildings:
+		if b == null:
+			continue
+		var b_sprite_def = BUILDING_SPRITES.get(int(b.TYPE))
+		if b_sprite_def:
+			building_rects.append(Rect2i(b.POSITION, b_sprite_def["size"]))
+	var wear := _build_wear_grid(building_rects)
+
+	# Low-frequency patch noise: secondary terrain forms connected worn patches
+	# instead of per-cell speckle, skewed toward buildings where the ground is
+	# trampled bare.
+	var patch_noise := FastNoiseLite.new()
+	patch_noise.seed = current_map_seed ^ 0x51A7E5
+	patch_noise.frequency = 1.0 / (map_template.noise_scale * 1.5)
+	patch_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	patch_noise.fractal_octaves = 3
+
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
 	for y in area_size.y:
 		for x in area_size.x:
-			var terrain_type: String
-			var rand = settlement_rng.randf()
-			if rand < 0.7:
-				terrain_type = settlement_terrain["primary"]
-			elif rand < 0.9:
-				terrain_type = settlement_terrain["secondary"]
-			else:
-				terrain_type = "grass"
-			terrain_cells[terrain_type].append(Vector2i(x, y))
+			var pos := Vector2i(x, y)
+			var patch_val := (patch_noise.get_noise_2d(x, y) + 1.0) / 2.0
+			patch_val += float(wear.get(pos, 0.0)) * 0.35
+			var terrain_type: String = settlement_terrain["secondary"] if patch_val > 0.62 else settlement_terrain["primary"]
+			terrain_cells[terrain_type].append(pos)
 	for terrain in terrain_cells:
 		if not terrain_cells[terrain].is_empty():
 			ground.set_cells_terrain_connect(terrain_cells[terrain], TERRAIN_SET_ID, TERRAINS[terrain], false)
-
-	current_map_seed = int(map_template.SEED)
 
 	var placed_for_roads: Array = []
 	for b: Structure in map_template.important_buildings:
@@ -452,7 +540,9 @@ func build_settlement_from_dataset() -> void:
 
 	generate_roads_between_buildings(placed_for_roads, RandomNumberGenerator.new())
 	generate_edge_roads()
-	add_terrain_features(RandomNumberGenerator.new())
+	var feature_rng := RandomNumberGenerator.new()
+	feature_rng.seed = current_map_seed ^ 0x7EA7F00D
+	add_terrain_features(feature_rng)
 	add_foliage()
 	add_decor_exterior(placed_for_roads)
 
@@ -498,8 +588,7 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 	var map_seed = generate_seed(world_position, overworld_tile_type)
 	current_map_seed = map_seed
 	local_rng.seed = map_seed
-	noise.seed = map_seed
-	noise.frequency = 1.0 / map_template.noise_scale
+	_configure_ground_noise(map_seed)
 	print("local area seed: ", map_seed, " for terrain: ", base_terrain_type)
 	
 	for terrain in terrain_cells:
@@ -536,7 +625,10 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	print("Generating settlement '%s' density=%d  counts=%s" % [map_template.map_name, density, building_counts])
 
 	clear_all_layers()
-	
+	# Seed the ground noise explicitly — previously generate_settlement sampled
+	# whatever state the noise object happened to be in.
+	_configure_ground_noise(int(map_template.SEED))
+
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
 
@@ -644,19 +736,92 @@ func flip_foliage_tile(source_id: int, atlas_coords: Vector2i) -> Dictionary:
 		flipped.atlas.y += 1 # Flip vertically by moving to the adjacent tile in the atlas
 	return flipped
 			
+# ── Generation helpers ──────────────────────────────────────────────────────
+
+# Configures the shared ground noise. fBm octaves roughen terrain boundaries
+# (coastline-like edges instead of smooth blobs) and domain warp breaks up the
+# round, axis-agnostic shapes single-frequency noise produces.
+func _configure_ground_noise(seed_value: int) -> void:
+	noise.seed = seed_value
+	noise.frequency = 1.0 / map_template.noise_scale
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 4
+	noise.domain_warp_enabled = true
+	noise.domain_warp_amplitude = map_template.noise_scale
+
+# Stable per-area seed shared by the foliage and terrain-feature passes so
+# their noise fields line up (e.g. flowers avoiding the same forest cores).
+func _foliage_derived_seed() -> int:
+	return int(current_map_seed) ^ (overworld_position.x * 73856093) ^ (overworld_position.y * 19349663) ^ int(base_terrain_type)
+
+# Low-frequency forest mask — large blobs defining where forest regions exist.
+# High values = forest core, low values = open clearing.
+func _make_forest_noise(derived_seed: int) -> FastNoiseLite:
+	var forest_noise := FastNoiseLite.new()
+	forest_noise.seed = derived_seed ^ 0x1A2B3C4D
+	forest_noise.frequency = 1.0 / (map_template.noise_scale * 4.0)
+	return forest_noise
+
+# Mid-frequency mask used to gather a terrain-feature family into patches.
+func _make_cluster_noise(seed_value: int) -> FastNoiseLite:
+	var cluster_noise := FastNoiseLite.new()
+	cluster_noise.seed = seed_value
+	cluster_noise.frequency = 1.0 / (map_template.noise_scale * 2.5)
+	return cluster_noise
+
+# Converts a cluster-noise sample into a density weight in [0, 2]: near zero
+# outside the family's patches, up to 2x inside, averaging ~1 map-wide.
+func _cluster_weight(cluster_noise: FastNoiseLite, pos: Vector2i) -> float:
+	var v := (cluster_noise.get_noise_2d(pos.x, pos.y) + 1.0) / 2.0
+	return smoothstep(0.35, 0.65, v) * 2.0
+
+func _has_neighbor_of_type(pos: Vector2i, target_type: int) -> bool:
+	for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		if get_cell_ground_type(pos + offset) == target_type:
+			return true
+	return false
+
+# All map cells in a deterministic shuffled order (Fisher–Yates driven by the
+# supplied RNG; Array.shuffle() would use the global RNG and break seeding).
+func _shuffled_cells(shuffle_rng: RandomNumberGenerator) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in HEIGHT:
+		for x in WIDTH:
+			cells.append(Vector2i(x, y))
+	for i in range(cells.size() - 1, 0, -1):
+		var j := shuffle_rng.randi_range(0, i)
+		var tmp := cells[i]
+		cells[i] = cells[j]
+		cells[j] = tmp
+	return cells
+
+# Ground-wear map around building footprints: 1.0 at the walls, falling to 0
+# at WEAR_RADIUS tiles out (Chebyshev distance).
+func _build_wear_grid(building_rects: Array[Rect2i]) -> Dictionary:
+	var wear: Dictionary = {}
+	for rect in building_rects:
+		for y in range(rect.position.y - WEAR_RADIUS, rect.end.y + WEAR_RADIUS):
+			for x in range(rect.position.x - WEAR_RADIUS, rect.end.x + WEAR_RADIUS):
+				if x < 0 or x >= WIDTH or y < 0 or y >= HEIGHT:
+					continue
+				var dx := maxi(0, maxi(rect.position.x - x, x - rect.end.x + 1))
+				var dy := maxi(0, maxi(rect.position.y - y, y - rect.end.y + 1))
+				var w := 1.0 - float(maxi(dx, dy)) / float(WEAR_RADIUS)
+				if w <= 0.0:
+					continue
+				var cell := Vector2i(x, y)
+				wear[cell] = maxf(float(wear.get(cell, 0.0)), w)
+	return wear
+
 func add_foliage() -> void:
-	var derived_seed = int(current_map_seed) ^ (overworld_position.x * 73856093) ^ (overworld_position.y * 19349663) ^ int(base_terrain_type)
+	var derived_seed := _foliage_derived_seed()
 
 	# High-frequency detail noise — fine-grained placement decisions within regions
 	var detail_noise := FastNoiseLite.new()
 	detail_noise.seed = derived_seed
 	detail_noise.frequency = 1.0 / (map_template.noise_scale * 0.5)
 
-	# Low-frequency forest mask — large blobs defining where forest regions exist.
-	# High values = forest core, low values = open clearing.
-	var forest_noise := FastNoiseLite.new()
-	forest_noise.seed = derived_seed ^ 0x1A2B3C4D
-	forest_noise.frequency = 1.0 / (map_template.noise_scale * 4.0)
+	var forest_noise := _make_forest_noise(derived_seed)
 
 	# Warp noise — displaces sample coordinates so forest edges become curved
 	# and irregular rather than axis-aligned bands.
@@ -703,113 +868,124 @@ func add_foliage() -> void:
 	var placed_type_positions: Dictionary = {}
 	const FOLIAGE_SAME_TILE_MIN_DIST := 8
 
-	for y in HEIGHT:
-		for x in WIDTH:
-			var pos = Vector2i(x, y)
-			if used_cells.has(pos):
-				continue
+	# Visit cells in shuffled order — a fixed top-left scan lets earlier cells
+	# greedily claim multi-tile footprints, skewing forests toward the top-left
+	# of every eligible region.
+	for pos: Vector2i in _shuffled_cells(foliage_rng):
+		var x := pos.x
+		var y := pos.y
+		if used_cells.has(pos):
+			continue
 
-			# Skip if a road tile is present at this cell or within 1 tile
-			var near_road := false
-			for check_dy in range(-1, 2):
-				for check_dx in range(-1, 2):
-					if road.get_cell_source_id(pos + Vector2i(check_dx, check_dy)) != -1:
-						near_road = true
-						break
-				if near_road:
+		# Skip if a road tile is present at this cell or within 1 tile
+		var near_road := false
+		for check_dy in range(-1, 2):
+			for check_dx in range(-1, 2):
+				if road.get_cell_source_id(pos + Vector2i(check_dx, check_dy)) != -1:
+					near_road = true
 					break
 			if near_road:
-				continue
+				break
+		if near_road:
+			continue
 
-			var ground_type = get_cell_ground_type(pos)
-			if ground_type == -1:
-				print("Could not determine ground type for cell %s, skipping foliage" % pos)
-				continue
+		var ground_type = get_cell_ground_type(pos)
+		if ground_type == -1:
+			print("Could not determine ground type for cell %s, skipping foliage" % pos)
+			continue
 
-			if ground_type in [GroundTile.GRASS, GroundTile.DIRT, GroundTile.STONE]:
-				var local_tree_density: float = TREE_DENSITY_VALUES.get(
-					int(map_template.tree_density), 0.06)
-				var local_bush_density: float = map_template.bush_density * 0.4
+		if ground_type in [GroundTile.GRASS, GroundTile.DIRT, GroundTile.STONE]:
+			var local_tree_density: float = TREE_DENSITY_VALUES.get(
+				int(map_template.tree_density), 0.06)
+			var local_bush_density: float = map_template.bush_density * 0.4
 
-				# Forest mask (0–1): scales tree density so trees cluster in forest
-				# cores and thin to zero in open clearings.
-				var forest_mask := (forest_noise.get_noise_2d(x, y) + 1.0) / 2.0
-				local_tree_density *= forest_mask * 2.0
+			# Forest mask (0–1), smoothstepped so clearings stay genuinely clear
+			# and cores stay dense, instead of a linear haze of trees everywhere.
+			var forest_mask := (forest_noise.get_noise_2d(x, y) + 1.0) / 2.0
+			local_tree_density *= smoothstep(0.35, 0.7, forest_mask) * 2.0
 
-				# Domain warping: offset the detail noise sample coords using a
-				# perpendicular warp so forest edges curve organically.
-				var warp_strength := map_template.noise_scale * 0.35
-				var wx := x + warp_strength * warp_noise.get_noise_2d(x * 0.5, y * 0.5)
-				var wy := y + warp_strength * warp_noise.get_noise_2d(x * 0.5 + 31.7, y * 0.5 + 17.3)
-				var detail_value := (detail_noise.get_noise_2d(wx, wy) + 1.0) / 2.0
+			# Bushes are the forest-edge understory: they peak in the transition
+			# band around the mask midpoint and thin out in deep forest and open
+			# ground, leaving a shrubby fringe around each stand of trees.
+			var edge_band := 1.0 - clampf(absf(forest_mask - 0.5) / 0.25, 0.0, 1.0)
+			local_bush_density *= 0.3 + 1.4 * edge_band
 
-				match ground_type:
-					GroundTile.DIRT:
-						local_tree_density *= 0.3
-						local_bush_density *= 0.5
-					GroundTile.STONE:
-						local_tree_density *= 0.5
-						local_bush_density *= 0.7
+			# Domain warping: offset the detail noise sample coords using a
+			# perpendicular warp so forest edges curve organically.
+			var warp_strength := map_template.noise_scale * 0.35
+			var wx := x + warp_strength * warp_noise.get_noise_2d(x * 0.5, y * 0.5)
+			var wy := y + warp_strength * warp_noise.get_noise_2d(x * 0.5 + 31.7, y * 0.5 + 17.3)
+			var detail_value := (detail_noise.get_noise_2d(wx, wy) + 1.0) / 2.0
 
-				# Bark-color region: sample once per cell so all trees at this
-				# location share the same preferred species.
-				var bark_val := (bark_noise.get_noise_2d(x, y) + 1.0) / 2.0
-				var dominant_bark: Array
-				if bark_val < 0.33:
-					dominant_bark = brown_bark_tiles
-				elif bark_val < 0.66:
-					dominant_bark = grey_bark_tiles
+			match ground_type:
+				GroundTile.DIRT:
+					local_tree_density *= 0.3
+					local_bush_density *= 0.5
+				GroundTile.STONE:
+					local_tree_density *= 0.5
+					local_bush_density *= 0.7
+
+			# Bark-color region: sample once per cell so all trees at this
+			# location share the same preferred species.
+			var bark_val := (bark_noise.get_noise_2d(x, y) + 1.0) / 2.0
+			var dominant_bark: Array
+			if bark_val < 0.33:
+				dominant_bark = brown_bark_tiles
+			elif bark_val < 0.66:
+				dominant_bark = grey_bark_tiles
+			else:
+				dominant_bark = white_bark_tiles
+			if dominant_bark.is_empty():
+				dominant_bark = all_live_trees
+
+			var candidates: Array = []
+			if detail_value < local_tree_density:
+				var tree_roll := foliage_rng.randf()
+				# Dead/broken trees are rare in the open but more common deep
+				# in the forest where old growth crowds itself out.
+				var dead_chance := 0.015 + 0.05 * smoothstep(0.55, 0.85, forest_mask)
+				if tree_roll < dead_chance and not dead_tree_tiles.is_empty():
+					candidates = dead_tree_tiles
+				elif tree_roll < 0.75 and not dominant_bark.is_empty():
+					# dominant bark color for this region
+					candidates = dominant_bark
+				elif not all_live_trees.is_empty():
+					# ~25 % chance: any live tree (fringe / mixed edge)
+					candidates = all_live_trees
 				else:
-					dominant_bark = white_bark_tiles
-				if dominant_bark.is_empty():
-					dominant_bark = all_live_trees
+					candidates = tree_tiles
+			elif detail_value < local_tree_density + local_bush_density:
+				candidates = bush_tiles
 
-				var candidates: Array = []
-				if detail_value < local_tree_density:
-					var tree_roll := foliage_rng.randf()
-					if tree_roll < 0.03 and not dead_tree_tiles.is_empty():
-						# ~3 % chance: rare dead/broken tree regardless of region
-						candidates = dead_tree_tiles
-					elif tree_roll < 0.75 and not dominant_bark.is_empty():
-						# ~72 % chance: dominant bark color for this region
-						candidates = dominant_bark
-					elif not all_live_trees.is_empty():
-						# ~25 % chance: any live tree (fringe / mixed edge)
-						candidates = all_live_trees
-					else:
-						candidates = tree_tiles
-				elif detail_value < local_tree_density + local_bush_density:
-					candidates = bush_tiles
-
-				if not candidates.is_empty():
-					var fdata: Dictionary = candidates[foliage_rng.randi() % candidates.size()]
-					var fsize: Vector2i = fdata["size"]
-					# Only place if the full sprite footprint is free
-					var area_free = true
-					for dy in fsize.y:
-						for dx in fsize.x:
-							if used_cells.has(pos + Vector2i(dx, dy)):
-								area_free = false
-								break
-						if not area_free:
+			if not candidates.is_empty():
+				var fdata: Dictionary = candidates[foliage_rng.randi() % candidates.size()]
+				var fsize: Vector2i = fdata["size"]
+				# Only place if the full sprite footprint is free
+				var area_free = true
+				for dy in fsize.y:
+					for dx in fsize.x:
+						if used_cells.has(pos + Vector2i(dx, dy)):
+							area_free = false
 							break
-					if area_free:
-						var type_key := "%d_%d_%d" % [fdata["source_id"], fdata["atlas"].x, fdata["atlas"].y]
-						var too_close := false
-						if placed_type_positions.has(type_key):
-							for prev_pos: Vector2i in placed_type_positions[type_key]:
-								if maxi(absi(pos.x - prev_pos.x), absi(pos.y - prev_pos.y)) < FOLIAGE_SAME_TILE_MIN_DIST:
-									too_close = true
-									break
-						if not too_close:
-							var flip_h := 4096 if foliage_rng.randf() < 0.5 else 0
-							foliage.set_cell(pos, fdata["source_id"], fdata["atlas"], flip_h)
-							for dy in fsize.y:
-								for dx in fsize.x:
-									used_cells[pos + Vector2i(dx, dy)] = true
-							if not placed_type_positions.has(type_key):
-								placed_type_positions[type_key] = []
-							placed_type_positions[type_key].append(pos)
+					if not area_free:
+						break
+				if area_free:
+					var type_key := "%d_%d_%d" % [fdata["source_id"], fdata["atlas"].x, fdata["atlas"].y]
+					var too_close := false
+					if placed_type_positions.has(type_key):
+						for prev_pos: Vector2i in placed_type_positions[type_key]:
+							if maxi(absi(pos.x - prev_pos.x), absi(pos.y - prev_pos.y)) < FOLIAGE_SAME_TILE_MIN_DIST:
+								too_close = true
+								break
+					if not too_close:
+						var flip_h := 4096 if foliage_rng.randf() < 0.5 else 0
+						foliage.set_cell(pos, fdata["source_id"], fdata["atlas"], flip_h)
+						for dy in fsize.y:
+							for dx in fsize.x:
+								used_cells[pos + Vector2i(dx, dy)] = true
+						if not placed_type_positions.has(type_key):
+							placed_type_positions[type_key] = []
+						placed_type_positions[type_key].append(pos)
 
 func add_decor_exterior(placed_buildings: Array) -> void:
 	var decor_types: Dictionary = tile_catalog.get("decor_exterior", {})
@@ -914,72 +1090,95 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 
 	var used_cells: Dictionary = {}
 
-	for y in HEIGHT:
-		for x in WIDTH:
-			var pos := Vector2i(x, y)
-			if used_cells.has(pos):
-				continue
+	# Per-family cluster masks: each feature family gets its own low-frequency
+	# noise so features drift into patches (flower drifts, rock fields, wet
+	# hollows) instead of an even sprinkle across the whole map.
+	var derived_seed := _foliage_derived_seed()
+	var flower_mask := _make_cluster_noise(derived_seed ^ 0x0F10)
+	var scruff_mask := _make_cluster_noise(derived_seed ^ 0x5C2F)
+	var wet_mask := _make_cluster_noise(derived_seed ^ 0x0DD1)
+	var rock_mask := _make_cluster_noise(derived_seed ^ 0x50CC)
+	# Flowers favour open clearings, so sample the same forest mask foliage uses.
+	var forest_noise := _make_forest_noise(derived_seed)
 
-			if road.get_cell_source_id(pos) != -1:
-				continue
+	# Shuffled visit order so multi-tile features don't systematically win
+	# contested space toward the top-left (same fix as add_foliage).
+	for pos: Vector2i in _shuffled_cells(local_rng):
+		if used_cells.has(pos):
+			continue
 
-			var ground_type := get_cell_ground_type(pos)
-			if ground_type == -1 or ground_type == GroundTile.WATER:
-				continue
+		if road.get_cell_source_id(pos) != -1:
+			continue
 
-			if local_rng.randf() > map_template.terrain_feature_density:
-				continue
+		var ground_type := get_cell_ground_type(pos)
+		if ground_type == -1 or ground_type == GroundTile.WATER:
+			continue
 
-			# Build candidate pool from whichever categories roll active for this cell
-			var candidates: Array = []
-			match ground_type:
-				GroundTile.GRASS:
-					if local_rng.randf() < map_template.grass_feature_density:
-						candidates.append_array(grass_patch_tiles)
-					if local_rng.randf() < map_template.flower_density:
-						candidates.append_array(flower_tiles)
-					if local_rng.randf() < map_template.puddle_density:
-						candidates.append_array(puddle_tiles)
-				GroundTile.DIRT:
-					if local_rng.randf() < map_template.dirt_feature_density:
-						candidates.append_array(dirt_patch_tiles)
-					if local_rng.randf() < map_template.mud_feature_density:
-						candidates.append_array(mud_tiles)
-					if local_rng.randf() < map_template.puddle_density:
-						candidates.append_array(puddle_tiles)
-				GroundTile.STONE:
-					if local_rng.randf() < map_template.stone_feature_density:
-						candidates.append_array(stone_tiles)
+		if local_rng.randf() > map_template.terrain_feature_density:
+			continue
 
-			if candidates.is_empty():
-				continue
+		# Puddles and mud collect in low, wet ground: gate on the ground height
+		# noise so wet features pool in hollows rather than on rises.
+		var height := (noise.get_noise_2d(pos.x, pos.y) + 1.0) / 2.0
+		var wet_weight := _cluster_weight(wet_mask, pos) * (1.0 if height < 0.5 else 0.25)
 
-			var fdata: Dictionary = candidates[local_rng.randi() % candidates.size()]
-			var fsize: Vector2i = fdata["size"]
+		# Build candidate pool from whichever categories roll active for this cell
+		var candidates: Array = []
+		match ground_type:
+			GroundTile.GRASS:
+				# Grass tufts thicken along grass↔dirt boundaries (scruffy fringes)
+				var grass_weight := _cluster_weight(scruff_mask, pos)
+				if _has_neighbor_of_type(pos, GroundTile.DIRT):
+					grass_weight = maxf(grass_weight, 1.5)
+				if local_rng.randf() < map_template.grass_feature_density * grass_weight:
+					candidates.append_array(grass_patch_tiles)
+				# Flowers cluster in drifts and favour clearings over forest floor
+				var forest_mask := (forest_noise.get_noise_2d(pos.x, pos.y) + 1.0) / 2.0
+				var clearing := 1.0 - smoothstep(0.35, 0.7, forest_mask)
+				if local_rng.randf() < map_template.flower_density * _cluster_weight(flower_mask, pos) * (0.25 + 0.75 * clearing):
+					candidates.append_array(flower_tiles)
+				if local_rng.randf() < map_template.puddle_density * wet_weight:
+					candidates.append_array(puddle_tiles)
+			GroundTile.DIRT:
+				if local_rng.randf() < map_template.dirt_feature_density * _cluster_weight(scruff_mask, pos):
+					candidates.append_array(dirt_patch_tiles)
+				if local_rng.randf() < map_template.mud_feature_density * wet_weight:
+					candidates.append_array(mud_tiles)
+				if local_rng.randf() < map_template.puddle_density * wet_weight:
+					candidates.append_array(puddle_tiles)
+			GroundTile.STONE:
+				if local_rng.randf() < map_template.stone_feature_density * _cluster_weight(rock_mask, pos):
+					candidates.append_array(stone_tiles)
 
-			# Verify the full footprint is free of existing features and roads
-			var area_free := true
-			for dy in fsize.y:
-				for dx in fsize.x:
-					var check := pos + Vector2i(dx, dy)
-					if check.x >= WIDTH or check.y >= HEIGHT:
-						area_free = false
-						break
-					if used_cells.has(check):
-						area_free = false
-						break
-					if road.get_cell_source_id(check) != -1:
-						area_free = false
-						break
-				if not area_free:
+		if candidates.is_empty():
+			continue
+
+		var fdata: Dictionary = candidates[local_rng.randi() % candidates.size()]
+		var fsize: Vector2i = fdata["size"]
+
+		# Verify the full footprint is free of existing features and roads
+		var area_free := true
+		for dy in fsize.y:
+			for dx in fsize.x:
+				var check := pos + Vector2i(dx, dy)
+				if check.x >= WIDTH or check.y >= HEIGHT:
+					area_free = false
+					break
+				if used_cells.has(check):
+					area_free = false
+					break
+				if road.get_cell_source_id(check) != -1:
+					area_free = false
 					break
 			if not area_free:
-				continue
+				break
+		if not area_free:
+			continue
 
-			terrain_features.set_cell(pos, fdata["source_id"], fdata["atlas"])
-			for dy in fsize.y:
-				for dx in fsize.x:
-					used_cells[pos + Vector2i(dx, dy)] = true
+		terrain_features.set_cell(pos, fdata["source_id"], fdata["atlas"])
+		for dy in fsize.y:
+			for dx in fsize.x:
+				used_cells[pos + Vector2i(dx, dy)] = true
 
 func maybe_add_water_features(local_rng = null) -> void:
 	# 30% chance to add a water feature
@@ -1164,7 +1363,7 @@ func place_building(pos: Vector2i, size: Vector2i, hamlet_type: int) -> void:
 		push_warning("No BUILDING_SPRITES entry for hamlet type %d" % hamlet_type)
 		return
 	print("Placing hamlet building type %d at %s" % [hamlet_type, pos])
-	_place_building_sprite(pos, size, sprite_def)
+	_place_building_sprite(pos, size, sprite_def, struct_type)
 
 # Settlement-specific building functions
 func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, settlement_rng: RandomNumberGenerator, building_type: int) -> Vector2i:
@@ -1229,14 +1428,14 @@ func place_building_settlement(pos: Vector2i, size: Vector2i, building_type: int
 		push_warning("No BUILDING_SPRITES entry for building type %d" % building_type)
 		return
 	print("Placing settlement building type %d at %s" % [building_type, pos])
-	_place_building_sprite(pos, size, sprite_def)
+	_place_building_sprite(pos, size, sprite_def, building_type)
 
 # ── Shared sprite placement ────────────────────────────────────────────────
-# Paints ground terrain under the footprint, clears foliage, then stamps the
-# exterior and interior sprites onto their respective TileMapLayers.
-# Both structure layers share the same coordinate space as the ground layer
-# provided both tilesets use the same tile_size (default 16 × 16 px).
-func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary) -> void:
+# Paints ground terrain under the footprint, clears foliage, then instances
+# the unified building scene (exterior + interior) for this building.
+# structures_exterior/structures_interior share the same coordinate space as
+# the ground layer provided both tilesets use the same tile_size (16 × 16 px).
+func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary, building_type: int) -> void:
 	# Seeded RNG for deterministic patch variation tied to building position
 	var patch_rng := RandomNumberGenerator.new()
 	patch_rng.seed = int(pos.x * 73856093) ^ int(pos.y * 19349663)
@@ -1285,12 +1484,44 @@ func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionar
 		if foliage.get_cell_source_id(cell) != -1:
 			foliage.set_cell(cell, -1)
 
-	# Exterior sprite (what the player sees from outside / on the overworld layer)
-	structures_exterior.set_cell(pos, sprite_def["exterior_source"], sprite_def["exterior_atlas"])
+	# Spawn the unified building scene (exterior + interior in one), picking a
+	# building_id variant discovered for this Structure.StructureType.
+	_spawn_building_instance(pos, building_type, patch_rng)
 
-	# Interior sprite (floor/interior view shown when player enters)
-	if sprite_def.has("interior_atlas"):
-		structures_interior.set_cell(pos, sprite_def["interior_source"], sprite_def["interior_atlas"])
+# Picks a building_id variant registered for `building_type` (deterministically
+# via `variant_rng`, seeded from position by the caller) and instantiates
+# BUILDING_SCENE, positioning it to align with the ground/structure layers.
+func _spawn_building_instance(pos: Vector2i, building_type: int, variant_rng: RandomNumberGenerator) -> void:
+	var variants: Array = building_ids_by_type.get(building_type, [])
+	if variants.is_empty():
+		push_warning("No building scene variant found for building type %d" % building_type)
+		return
+	var building_id: String = variants[variant_rng.randi() % variants.size()]
+
+	var instance := BUILDING_SCENE.instantiate()
+	instance.building_id = building_id
+	instance.name = "building_%s_%d" % [building_id, building_instances.size()]
+	instance.position = structures_exterior.map_to_local(pos)
+	structures.add_child(instance)
+	# Newly added nodes have no `owner` by default, so they won't appear in the
+	# editor's Scene panel (or get saved with the scene) even though they
+	# render correctly. Setting owner to the edited scene root fixes this when
+	# running as a @tool script; at runtime we fall back to this node's own
+	# owner (which is null unless this generator is itself part of a larger
+	# scene, in which case setting owner is harmless).
+	var scene_root: Node = get_tree().edited_scene_root if Engine.is_editor_hint() else owner
+	if scene_root:
+		instance.owner = scene_root
+		_set_owner_recursive(instance, scene_root)
+	building_instances.append(instance)
+
+# Recursively sets `owner` on every descendant of `node` so procedurally
+# instantiated scenes appear in the editor's Scene panel and are persisted
+# when the containing scene is saved.
+func _set_owner_recursive(node: Node, new_owner: Node) -> void:
+	for child in node.get_children():
+		child.owner = new_owner
+		_set_owner_recursive(child, new_owner)
 
 func generate_roads_between_buildings(placed_buildings: Array, _settlement_rng: RandomNumberGenerator) -> void:
 	# Simple implementation - just connect buildings with paths

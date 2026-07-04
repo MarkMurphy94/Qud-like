@@ -8,7 +8,7 @@ var sprite_node_pos_tween: Tween
 @onready var left: RayCast2D = $left
 @onready var right: RayCast2D = $right
 
-@onready var overworld = $"../OverworldMap"
+@onready var overworld: Node2D = $"../OverworldMap"
 @onready var camera = $Camera2D
 @onready var area_container: Node2D = $"../AreaContainer"
 @onready var hud = $HUD
