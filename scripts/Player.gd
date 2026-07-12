@@ -3,6 +3,7 @@ extends CharacterBody2D
 @export var move_speed: float = 200.0
 @export var tile_size: int = 16
 var sprite_node_pos_tween: Tween
+@onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var up: RayCast2D = $up
 @onready var down: RayCast2D = $down
 @onready var left: RayCast2D = $left
@@ -87,7 +88,10 @@ func _ready() -> void:
 	# target_position = global_position
 	add_to_group("Player")
 	add_to_group("player")  # Lowercase for WorldItem detection
-	update_camera_limits()
+	# Defer so OverworldMap._ready() (which computes WIDTH/HEIGHT) runs first —
+	# Player is earlier in the scene tree than OverworldMap, so without this
+	# the camera limits would be clamped to 0,0 (the still-uncomputed bounds).
+	update_camera_limits.call_deferred()
 	hud.pause_requested.connect(_on_pause_requested)
 	# Cancel point-and-click path at the end of each player turn so the
 	# player must choose a fresh destination every turn.
@@ -230,15 +234,42 @@ func _move(dir: Vector2):
 		if not CombatManager.spend_mp(CombatManager.MP_COST_PER_TILE):
 			return
 		CombatManager._log("Player moves.", "move")
+	_update_facing(dir)
 	global_position += dir * tile_size
-	$Sprite2D.global_position -= dir * tile_size
+	animated_sprite.global_position -= dir * tile_size
 	# print("current_tile:", get_current_tile())
 
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()
 	sprite_node_pos_tween = create_tween()
 	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	sprite_node_pos_tween.tween_property($Sprite2D, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+	sprite_node_pos_tween.tween_property(animated_sprite, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+	_play_animation("walk")
+	sprite_node_pos_tween.finished.connect(_on_move_tween_finished, CONNECT_ONE_SHOT)
+
+## Flip the sprite to face the direction of the last horizontal move.
+## Vertical-only moves keep the previous horizontal facing.
+func _update_facing(dir: Vector2) -> void:
+	if dir.x > 0:
+		animated_sprite.flip_h = false
+	elif dir.x < 0:
+		animated_sprite.flip_h = true
+
+## Play an animation on the AnimatedSprite2D if it isn't already the current one.
+func _play_animation(anim_name: StringName) -> void:
+	if animated_sprite.animation != anim_name:
+		animated_sprite.play(anim_name)
+
+## Return to idle once a move step's tween finishes, unless another
+## animation (e.g. attack) has since taken over.
+func _on_move_tween_finished() -> void:
+	if animated_sprite.animation == "walk":
+		_play_animation("idle")
+
+## Return to idle once the (looping) attack animation completes its first cycle.
+func _on_attack_animation_finished() -> void:
+	if animated_sprite.animation == "attack":
+		_play_animation("idle")
 
 ## Returns true if the player is allowed to move right now.
 ## Outside combat: always true. Inside combat: only on the player's turn.
@@ -261,6 +292,7 @@ func take_damage(amount: int, source: Node2D = null) -> void:
 		CombatManager._log("Player takes %d damage. (%d/%d HP)" % [amount, current_health, max_health], "attack")
 	if current_health <= 0:
 		print("Player died!")
+		_play_animation("fall")
 		if CombatManager.in_combat:
 			CombatManager._log("Player has been defeated!", "death")
 		# TODO: game-over handling
@@ -277,6 +309,9 @@ func combat_attack_npc() -> void:
 	if not CombatManager.spend_ap(CombatManager.AP_COST_ATTACK):
 		print("Not enough AP to attack!")
 		return
+	_play_animation("attack")
+	if not animated_sprite.animation_finished.is_connected(_on_attack_animation_finished):
+		animated_sprite.animation_finished.connect(_on_attack_animation_finished, CONNECT_ONE_SHOT)
 	# Find the closest NPC in melee range
 	var best_npc: NPC = null
 	var best_dist := tile_size * 1.6   # ~1 tile diagonal

@@ -1,3 +1,25 @@
+## MapConfig
+##
+## A Resource describing how a single local map (settlement or wilderness tile)
+## should be generated and displayed. Consumed by MapGenerator (scripts/map_generator.gd)
+## to build the tilemap layout, and by OverworldMap/MainGameState to track where a
+## tile sits on the overworld grid and whether it's a settlement or wilderness.
+##
+## Usage:
+## - Create a new .tres resource (e.g. via the editor Inspector or
+##   MapConfig.create_and_save(path, init_dict)) and configure its exported properties:
+##   map_name, map_type, building_density, climate/terrain/culture, noise/feature
+##   density settings, and road_exits.
+## - overworld_tile must match the coordinates used to register this map (e.g. in
+##   OverworldMap's settlement list or a LocalMapTile's TileMetadata) so settlement
+##   layouts can be looked up via MainGameState.make_settlement_key().
+## - Assign the resource to a MapGenerator scene's `config` (or similar) export, then
+##   use the editor tool buttons (Generate / Clear / Bake To Scene) to produce the
+##   final map, or call MapGenerator.generate_local_map(metadata) at runtime for
+##   wilderness tiles.
+## - road_exits is a bitmask (NORTH=1, EAST=2, SOUTH=4, WEST=8) indicating which edges
+##   connect to a road; for non-settlement tiles this is auto-assigned by the world
+##   generator, for settlement maps set it manually so neighbouring tiles line up.
 extends Resource
 
 class_name MapConfig
