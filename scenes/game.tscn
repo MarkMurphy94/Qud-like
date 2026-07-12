@@ -38,15 +38,15 @@ layer = 10
 
 [node name="pause" parent="CanvasLayer" unique_id=1467729943 instance=ExtResource("5_iywne")]
 
-[node name="OverworldMap" parent="." unique_id=868024379 instance=ExtResource("2_3ygxx")]
-settlements_list = Dictionary[Vector2i, String]({
-Vector2i(13, 21): "res://scenes/town_1_new.tscn"
-})
-
 [node name="Player" parent="." unique_id=1738736863 instance=ExtResource("1_obwjb")]
 z_index = 2
 position = Vector2(4696, 3088)
 scale = Vector2(0.5, 0.5)
+
+[node name="OverworldMap" parent="." unique_id=868024379 instance=ExtResource("2_3ygxx")]
+settlements_list = Dictionary[Vector2i, String]({
+Vector2i(13, 21): "res://scenes/town_1_new.tscn"
+})
 
 [node name="AreaContainer" parent="." unique_id=476275943 instance=ExtResource("7_u5sy4")]
 
