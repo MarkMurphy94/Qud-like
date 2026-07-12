@@ -8,3 +8,4 @@ addons/
 assets/
 *.exe
 CLAUDE.md
+.claude/
