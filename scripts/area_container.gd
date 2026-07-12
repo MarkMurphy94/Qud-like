@@ -3,7 +3,7 @@ extends Node2D
 @onready var area: Node2D = $area
 @onready var spawn_tile: Area2D = $spawn_tile
 
-var _local_area_packed: PackedScene = preload("res://scenes/local_area_generator.tscn")
+var _local_area_packed: PackedScene = preload("res://scenes/wilderness_area.tscn")
 var _npc_spawner_packed: PackedScene = preload("res://scenes/npc_spawner.tscn")
 
 var current_area: Node2D = null
@@ -32,7 +32,7 @@ func load_area(scene_path: String = "", metadata: TileMetadata = null) -> void:
 	elif metadata != null:
 		area_key = "%d,%d" % [metadata.coords.x, metadata.coords.y]
 		current_area = _local_area_packed.instantiate()
-		current_area.auto_generate_on_ready = false
+		current_area.generate_on_ready = false
 		area.add_child(current_area)
 		current_area.generate_local_map(metadata)
 		_attach_npc_spawner(false, metadata)

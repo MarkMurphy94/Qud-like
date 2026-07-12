@@ -28,15 +28,28 @@ func activate_building(target_building_id: String) -> void:
 	for child in get_children():
 		if child.name == TEMPLATE_NODE_NAME:
 			child.visible = false
+			_set_collision_enabled(child, false)
 			continue
 		var is_match: bool = child.name == target_building_id
 		child.visible = is_match
+		_set_collision_enabled(child, is_match)
 		found = found or is_match
 		if is_match:
 			_connect_threshold(child)
 
 	if not found:
 		push_warning("building_interior: no building node found for building id '%s'" % target_building_id)
+
+
+# Hidden variants must not collide: TileMapLayer physics stays active even
+# when a node is invisible, so without this every inactive variant would stack
+# its collision polygons on top of the active building's (phantom raycast hits
+# with no visible collision shape).
+func _set_collision_enabled(node: Node, enabled: bool) -> void:
+	if node is TileMapLayer:
+		node.collision_enabled = enabled
+	for child in node.get_children():
+		_set_collision_enabled(child, enabled)
 
 
 # Connects the given building node's "threshold" Area2D (if present) so

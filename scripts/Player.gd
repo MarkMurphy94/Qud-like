@@ -14,7 +14,6 @@ var sprite_node_pos_tween: Tween
 @onready var hud = $HUD
 @onready var pause_menu: Control = $"../CanvasLayer/pause"
 
-var local_area_scene = preload("res://scenes/local_area_generator.tscn")
 var current_local_area: Node2D = null
 var map_rect = null
 var in_local_area: bool = false
@@ -378,6 +377,12 @@ func _rebuild_nav_grid() -> void:
 		return
 	if in_local_area and area_container and area_container.current_area and map_rect:
 		var area: Node2D = area_container.current_area
+		# Walkability point-queries the physics space, which only registers a
+		# freshly loaded area's tile colliders on the next physics step — wait
+		# one physics frame so building walls are solid in the nav grid.
+		await get_tree().physics_frame
+		if not (in_local_area and area_container and area_container.current_area == area):
+			return # area changed while waiting
 		path_overlay.setup_grid(
 			map_rect,
 			func(tile: Vector2i) -> bool: return _local_area_is_walkable(area, tile)
@@ -391,9 +396,9 @@ func _rebuild_nav_grid() -> void:
 		)
 
 func _local_area_is_walkable(area: Node2D, tile: Vector2i) -> bool:
-	"""Walkability check that works for both LocationGenerator subclasses
+	"""Walkability check that works for both MapGenerator scenes
 	(procedural maps) and plain settlement Node2D scenes (e.g. town_1_new.gd)."""
-	# LocationGenerator subclasses expose is_walkable directly
+	# MapGenerator scenes expose is_walkable directly
 	if area.has_method("is_walkable"):
 		return area.is_walkable(tile)
 	# Fallback: read tilemaps directly — blocked if there's a wall tile or no ground
@@ -423,7 +428,12 @@ func descend_to_local_area() -> void:
 	else:
 		overworld_tile = Vector2i(overworld.world_to_map(global_position))
 		scene_path = overworld.settlement_at_tile(overworld_tile)
-		metadata = get_parent().world_tile_data.get(overworld_tile)
+		if scene_path == "":
+			# Procedural wilderness: first visit rolls & locks the tile's
+			# permanent seed; revisits reuse it (persisted via save system).
+			metadata = get_parent().prepare_tile_visit(overworld_tile)
+		else:
+			metadata = get_parent().world_tile_data.get(overworld_tile)
 
 	if scene_path == "" and metadata == null:
 		push_warning("No world data for tile %s" % overworld_tile)
@@ -438,11 +448,11 @@ func descend_to_local_area() -> void:
 	area_container.load_area(scene_path, metadata)
 
 	await get_tree().process_frame
+	current_local_area = area_container.current_area
 	map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
 	position = get_spawn_tile()
 	_connect_to_existing_npcs()
-	
-	# TODO: call show_or_hide_overworld_scene()
+
 	overworld.hide()
 	in_local_area = true
 	update_camera_limits()
@@ -452,6 +462,7 @@ func return_to_overworld() -> void:
 	if in_local_area:
 		area_container.clear()
 		map_rect = null
+	current_local_area = null
 	overworld.show()
 	in_local_area = false
 	position = overworld_tile_pos
@@ -461,48 +472,6 @@ func return_to_overworld() -> void:
 
 func get_spawn_tile():
 	return area_container.spawn_tile.position
-
-func find_valid_local_position() -> void:
-	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
-		return
-	
-	# Calculate bottom center of the map
-	var bottom_center = Vector2i(
-		map_rect.position.x + map_rect.size.x / 2,
-		map_rect.position.y + map_rect.size.y - 1
-	)
-	
-	# Start with closest distance as infinity
-	var closest_distance = INF
-	var closest_valid_position = Vector2i(map_rect.position)
-	var found_valid_position = false
-	
-	# Search all positions in the map to find the closest valid one to bottom center
-	for y in map_rect.size.y:
-		for x in map_rect.size.x:
-			var test_pos = map_rect.position + Vector2i(x, y)
-			if is_tile_within_bounds(test_pos):
-				var distance = bottom_center.distance_to(test_pos)
-				if distance < closest_distance:
-					closest_distance = distance
-					closest_valid_position = test_pos
-					found_valid_position = true
-	
-	# Set position to the closest valid position found, or fallback to map start
-	if found_valid_position:
-		position = Vector2(closest_valid_position) * tile_size
-	else:
-		position = Vector2(map_rect.position) * tile_size
-
-func is_tile_within_bounds(pos: Vector2i) -> bool:
-	if not current_local_area or not current_local_area.tilemaps or not current_local_area.tilemaps.has("GROUND"):
-		return false
-	if pos.x < map_rect.position.x or pos.x >= map_rect.end.x or \
-	   pos.y < map_rect.position.y or pos.y >= map_rect.end.y:
-		print("Position out of bounds: ", pos)
-		return false
-	# print('map_rect position: ', pos)
-	return current_local_area.is_walkable(pos)
 
 func get_current_tile() -> Vector2i:
 	"""Get the player's current tile position based on their world position and context."""

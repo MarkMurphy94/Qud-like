@@ -1,9 +1,15 @@
 @tool
 
 # ==========
-# comment and un-comment the @tool annotation above to use this script in the editor for map design and testing, or as a runtime generator for local areas and settlements.  
-# When using in-editor, call the setup_and_generate_local() function with desired parameters to populate the TileMapLayers.  
-# When using at runtime, call setup_and_generate() with appropriate MapType and config values to generate either a local area or a settlement based on the provided MapConfig.
+# Canonical map generator for local areas and settlements (dungeons/special
+# locations to follow). Serves both authoring and runtime:
+#  - In-editor: with generate_on_ready enabled the scene regenerates on open;
+#    hand-edit the result and save it as a static scene.
+#  - Runtime settlements: scenes using this script + a MapConfig generate on
+#    load via setup_and_generate(). Baked static scenes set
+#    generate_on_ready = false and keep their painted tiles.
+#  - Runtime wilderness: AreaContainer instantiates wilderness_area.tscn with
+#    generate_on_ready = false and calls generate_local_map(metadata).
 # ==========
 
 
@@ -26,6 +32,7 @@
 
 
 extends Node2D
+class_name MapGenerator
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
 # grassland_poneti.tres  → ground terrain, road, and terrain features
@@ -255,6 +262,7 @@ const BUILDING_TEMPLATE_NODE_NAME := "node_hierarchy_template"
 # stripped) to the Structure.StructureType it represents.
 const STRUCTURE_TYPE_NAME_MAP := {
 	"house": Structure.StructureType.HOUSE,
+	"log_cabin": Structure.StructureType.HOUSE, # cabin variant placed as a house
 	"tavern": Structure.StructureType.TAVERN,
 	"shop": Structure.StructureType.SHOP,
 	"church": Structure.StructureType.CHURCH,
@@ -266,8 +274,83 @@ const STRUCTURE_TYPE_NAME_MAP := {
 
 @export var map_template: MapConfig
 
+## When true (authoring scenes, runtime settlement scenes) the map regenerates
+## in _ready(). Baked static scenes and the runtime wilderness scene set this
+## false: baked scenes keep their saved tiles, wilderness waits for
+## generate_local_map(metadata).
+@export var generate_on_ready: bool = true
+
+# ── Editor tools (inspector buttons) ────────────────────────────────────────
+@export_group("Editor Tools")
+## Folder that Bake To Scene writes to; the filename comes from
+## map_template.map_name (snake_cased).
+@export_dir var bake_dir: String = "res://scenes/generated"
+@export_tool_button("Generate") var btn_generate = _editor_generate
+@export_tool_button("Clear") var btn_clear = _editor_clear
+@export_tool_button("Bake To Scene") var btn_bake = _editor_bake
+@export_group("")
+
+## Regenerate in place — replaces the old "Scene > Reload Saved Scene" ritual.
+func _editor_generate() -> void:
+	if not Engine.is_editor_hint():
+		return
+	if noise == null:
+		noise = FastNoiseLite.new()
+	clear_all_layers()
+	tile_catalog.clear()
+	for ts in get_all_tile_sets():
+		_build_tile_catalog(ts)
+	_build_building_registry()
+	setup_and_generate()
+
+func _editor_clear() -> void:
+	if not Engine.is_editor_hint():
+		return
+	clear_all_layers()
+
+## Saves the current (generated + hand-edited) map as a standalone static
+## scene at bake_dir/<map_name>.tscn. The baked scene keeps this script with
+## generate_on_ready = false, so it loads its painted tiles verbatim while
+## still satisfying the loader contract (tilemaps dict, is_walkable,
+## map_template for the NPC spawner).
+func _editor_bake() -> void:
+	if not Engine.is_editor_hint():
+		return
+	if map_template == null or map_template.map_name.strip_edges().is_empty():
+		push_error("MapGenerator bake: set map_template.map_name first — it becomes the scene filename.")
+		return
+
+	var original_template := map_template
+	var original_flag := generate_on_ready
+	# The baked scene owns a deep copy of the config so runtime layout
+	# mutations can't leak between scenes sharing an embedded subresource.
+	map_template = original_template.duplicate(true)
+	generate_on_ready = false
+
+	# Everything under this node must be owned by it to survive pack().
+	for child in get_children():
+		child.owner = self
+		_set_owner_recursive(child, self)
+
+	var packed := PackedScene.new()
+	var err := packed.pack(self)
+	if err != OK:
+		push_error("MapGenerator bake: pack failed (error %d)" % err)
+	else:
+		DirAccess.make_dir_recursive_absolute(bake_dir)
+		var path := "%s/%s.tscn" % [bake_dir, map_template.map_name.to_snake_case()]
+		err = ResourceSaver.save(packed, path)
+		if err != OK:
+			push_error("MapGenerator bake: save failed (error %d) -> %s" % [err, path])
+		else:
+			print_rich("[b]Baked[/b] static scene -> %s" % path)
+			print("Next: in game.tscn add a LocalMapTile (under town_tiles/city_tiles) with scene_path=\"%s\" and a TileMetadata whose coords match overworld_tile %s." % [path, map_template.overworld_tile])
+
+	# Restore live authoring state.
+	map_template = original_template
+	generate_on_ready = original_flag
+
 var noise: FastNoiseLite
-var rng = RandomNumberGenerator.new()
 
 # Overworld tile type enum value (OverworldTile); named to avoid clash with $base_terrain node
 var base_terrain_type: int = OverworldTile.GRASS
@@ -289,6 +372,10 @@ var building_ids_by_type: Dictionary = {}
 # clear_all_layers() can free them before each regeneration.
 var building_instances: Array = []
 
+# Normalized copy of the TileMetadata dict passed to generate_local_map()
+# (runtime wilderness path); empty for settlement/editor generation.
+var current_metadata: Dictionary = {}
+
 func clear_all_layers() -> void:
 	ground.clear()
 	road.clear()
@@ -306,19 +393,16 @@ func _ready() -> void:
 	# Validate required TileMapLayer nodes
 	for layer_node in [ground, road, terrain_features, structures_exterior, structures_interior]:
 		if not layer_node:
-			push_error("Missing TileMapLayer node in new_tileset_test_town scene!")
+			push_error("Missing TileMapLayer node in MapGenerator scene '%s'!" % name)
 			return
-	clear_all_layers()
 	noise = FastNoiseLite.new()
 	tile_catalog.clear()
 	for ts in get_all_tile_sets():
 		_build_tile_catalog(ts)
 	_build_building_registry()
-	setup_and_generate()
-
-	# category- tilemaplayer
-	# type - tile type- tree/bush/flower_patch etc
-	# tag_1 and tag_2
+	if generate_on_ready:
+		clear_all_layers()
+		setup_and_generate()
 
 # Scans all atlas sources in the ground TileSet and builds tile_catalog from custom data.
 # Call once after the tileset is loaded (i.e. from _ready()).
@@ -462,14 +546,80 @@ func setup_and_generate(
 		MapType.NON_SETTLEMENT:
 			generate_local_area(overworld_tile_type, world_position, local_rng)
 		MapType.SETTLEMENT, MapType.CASTLE_INTERIOR:
-			# Ensure a config exists (seed/type/size/pos), then decide build vs generate
-			# comment out the below block + indent generate_settlement() to use in editor
-			if map_template.buildings and map_template.buildings.size() > 0:
+			# Layout priority: MainGameState stored layout (persisted from a
+			# previous visit this save) > authored dataset baked into the
+			# MapConfig > fresh generation.
+			if not Engine.is_editor_hint() and _restore_settlement_layout():
+				build_settlement_from_dataset()
+			elif map_template.buildings and map_template.buildings.size() > 0:
 				build_settlement_from_dataset()
 			else:
 				generate_settlement(local_rng)
-			# npc_spawner.spawn_settlement_npcs(self)
 	print("area seed is: ", local_rng.seed)
+
+# Resolves the MainGameState autoload without a compile-time global, so this
+# @tool script stays loadable in the editor and headless script contexts
+# where autoload singletons aren't registered.
+func _main_game_state() -> Node:
+	if not is_inside_tree():
+		return null
+	return get_tree().root.get_node_or_null("MainGameState")
+
+## Rebuilds map_template.SEED + buildings from the MainGameState entry for
+## this settlement, if a previous visit stored one. Returns true when a stored
+## layout was applied. Keyed by map_template.overworld_tile.
+func _restore_settlement_layout() -> bool:
+	if map_template.overworld_tile == Vector2i.ZERO:
+		return false
+	var mgs := _main_game_state()
+	if mgs == null:
+		return false
+	var key: String = mgs.make_settlement_key(int(map_template.map_type), map_template.overworld_tile)
+	var entry: Dictionary = mgs.get_settlement(key)
+	var stored = entry.get("buildings")
+	if not stored is Array or (stored as Array).is_empty():
+		return false
+	map_template.SEED = int(entry.get("seed", map_template.SEED))
+	map_template.buildings.clear()
+	for bd in stored:
+		if not bd is Dictionary:
+			continue
+		var s := Structure.new()
+		s.TYPE = int(bd.get("type", Structure.StructureType.HOUSE)) as Structure.StructureType
+		s.POSITION = bd.get("pos", Vector2i.ZERO)
+		s.INTERIOR_SIZE = bd.get("size", Vector2i.ZERO)
+		map_template.buildings.append(s)
+	print("Restored settlement layout '%s' (%d buildings) from MainGameState" % [key, map_template.buildings.size()])
+	return true
+
+## Persists the generated layout into MainGameState.settlements (which the
+## save system already serializes), so revisits and save/load rebuild the
+## identical settlement via build_settlement_from_dataset(). Requires
+## map_template.overworld_tile to be set on the settlement's MapConfig.
+func _store_settlement_layout(seed_used: int) -> void:
+	if Engine.is_editor_hint():
+		return # autoloads aren't available in the editor; authoring uses bake instead
+	if map_template.overworld_tile == Vector2i.ZERO:
+		push_warning("MapGenerator: map_template.overworld_tile not set — settlement layout won't persist between visits")
+		return
+	var mgs := _main_game_state()
+	if mgs == null:
+		return
+	var entry: Dictionary = mgs.ensure_settlement_config(
+		int(map_template.map_type), map_template.overworld_tile, seed_used)
+	entry["seed"] = seed_used
+	if map_template.map_name != "":
+		entry["name"] = map_template.map_name
+	var stored_buildings: Array = []
+	for b: Structure in map_template.buildings:
+		if b == null:
+			continue
+		stored_buildings.append({
+			"type": int(b.TYPE),
+			"pos": b.POSITION,
+			"size": b.INTERIOR_SIZE,
+		})
+	entry["buildings"] = stored_buildings
 
 # Build a settlement from a saved dataset (no randomness in placement)
 func build_settlement_from_dataset() -> void:
@@ -478,6 +628,8 @@ func build_settlement_from_dataset() -> void:
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	var settlement_terrain = _get_settlement_terrain()
 	current_map_seed = int(map_template.SEED)
+	# Terrain variant picking consumes the global RNG (see generate_local_area).
+	seed(current_map_seed)
 	_configure_ground_noise(current_map_seed)
 
 	# Building footprints are known up front here, so ground wear can be
@@ -580,20 +732,96 @@ func get_settlement_details() -> Dictionary:
 func setup_and_generate_local(overworld_tile_type: int, world_position: Vector2i, seed_value: int = 0) -> void:
 	setup_and_generate(MapType.NON_SETTLEMENT, overworld_tile_type, world_position, seed_value)
 
-func generate_local_area(overworld_tile_type: int, world_position: Vector2i, local_rng: RandomNumberGenerator) -> void:
+## Runtime entry point for wilderness tiles (called by AreaContainer).
+## Accepts a TileMetadata Resource or Dictionary from the world generator,
+## merges it into map_template, and generates using the metadata's persisted
+## seed so revisits reproduce the same map.
+func generate_local_map(metadata) -> void:
+	if typeof(metadata) == TYPE_OBJECT and metadata is TileMetadata:
+		current_metadata = (metadata as TileMetadata).to_dict()
+	elif metadata is Dictionary:
+		current_metadata = metadata
+	else:
+		current_metadata = {}
+
+	var world_pos: Vector2i = current_metadata.get("coords", Vector2i.ZERO)
+	var terrain: int = current_metadata.get("terrain", OverworldTile.GRASS)
+	var map_seed: int = int(current_metadata.get("seed", 0))
+
+	_apply_metadata_to_config()
+
+	clear_all_layers()
+	var local_rng := RandomNumberGenerator.new()
+	generate_local_area(terrain, world_pos, local_rng, map_seed)
+
+## Push relevant world-generator metadata fields into map_template so every
+## generation helper (add_foliage, generate_edge_roads, _generate_misc_features)
+## reads from a single authoritative source.
+func _apply_metadata_to_config() -> void:
+	# Seed: generate_edge_roads and other helpers derive sub-seeds from
+	# map_template.SEED, so it must match the metadata seed for determinism.
+	map_template.SEED = int(current_metadata.get("seed", 0))
+
+	# Road exits & surface
+	map_template.road_exits = current_metadata.get("road_exits", 0)
+	map_template.road_terrain = current_metadata.get("road_terrain", "dirt")
+
+	# Foliage profile → tree_density enum + bush/rock floats
+	var foliage_profile: Dictionary = current_metadata.get("foliage_profile", {})
+	if foliage_profile.has("tree_density"):
+		var td: float = foliage_profile["tree_density"]
+		if td <= 0.0:
+			map_template.tree_density = MapConfig.TreeDensity.NONE
+		elif td < 0.25:
+			map_template.tree_density = MapConfig.TreeDensity.SPARSE
+		else:
+			map_template.tree_density = MapConfig.TreeDensity.FOREST
+	if foliage_profile.has("bush_density"):
+		map_template.bush_density = foliage_profile["bush_density"]
+	if foliage_profile.has("rock_density"):
+		map_template.rock_density = foliage_profile["rock_density"]
+		# The new tileset expresses rocks as clustered stone terrain features.
+		map_template.stone_feature_density = foliage_profile["rock_density"]
+
+	# Misc features — translate structured TileMetadata dicts into the enum
+	# array that _generate_misc_features() reads.
+	var features: Array[MapConfig.MiscFeatures] = []
+	if current_metadata.get("hamlet", false):
+		features.append(MapConfig.MiscFeatures.HAMLET)
+	var farm_data = current_metadata.get("farm_plot", null)
+	if farm_data is Dictionary and farm_data.get("exists", false):
+		features.append(MapConfig.MiscFeatures.FARM)
+	var dungeon_data = current_metadata.get("dungeon_entrance", null)
+	if dungeon_data is Dictionary and dungeon_data.get("exists", false):
+		features.append(MapConfig.MiscFeatures.DUNGEON_ENTRANCE)
+	var camp_data = current_metadata.get("camp", null)
+	if camp_data is Dictionary and camp_data.get("exists", false):
+		features.append(MapConfig.MiscFeatures.CAMP)
+	var ruins_data = current_metadata.get("ruins", null)
+	if ruins_data is Dictionary and ruins_data.get("exists", false):
+		features.append(MapConfig.MiscFeatures.RUIN)
+	map_template.misc_features = features
+
+func generate_local_area(overworld_tile_type: int, world_position: Vector2i, local_rng: RandomNumberGenerator, seed_override: int = 0) -> void:
 	base_terrain_type = overworld_tile_type
 	overworld_position = world_position
 	print("Generating local area at position: ", world_position, " with terrain type: ", base_terrain_type)
-	
-	var map_seed = generate_seed(world_position, overworld_tile_type)
+
+	# Seed priority: explicit override (runtime metadata seed) > the RNG's
+	# existing seed (assigned by setup_and_generate from map_template.SEED,
+	# or randi() when SEED is 0).
+	var map_seed: int = seed_override if seed_override != 0 else int(local_rng.seed)
 	current_map_seed = map_seed
 	local_rng.seed = map_seed
+	# set_cells_terrain_connect picks among same-terrain variant tiles using
+	# the GLOBAL RNG — seed it so revisits repaint identical tile variants.
+	seed(map_seed)
 	_configure_ground_noise(map_seed)
 	print("local area seed: ", map_seed, " for terrain: ", base_terrain_type)
-	
+
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
-	
+
 	var area_size = Vector2i(WIDTH, HEIGHT)
 	for y in area_size.y:
 		for x in area_size.x:
@@ -602,15 +830,15 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 			var ground_tile = get_ground_tile(x, y, height)
 			var terrain_type = GROUND_TERRAIN_MAP[ground_tile]
 			terrain_cells[terrain_type].append(Vector2i(x, y))
-	
+
 	for terrain in terrain_cells:
 		if not terrain_cells[terrain].is_empty():
 			ground.set_cells_terrain_connect(
 				terrain_cells[terrain], TERRAIN_SET_ID, TERRAINS[terrain], false)
-	
+
 	if base_terrain_type == OverworldTile.GRASS:
-		maybe_add_water_features()
-	
+		maybe_add_water_features(local_rng)
+
 	_generate_misc_features(local_rng)
 	generate_edge_roads()
 	add_terrain_features(local_rng)
@@ -625,6 +853,12 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	print("Generating settlement '%s' density=%d  counts=%s" % [map_template.map_name, density, building_counts])
 
 	clear_all_layers()
+	# The MainGameState entry (written below) is the durable copy of the
+	# layout; clear anything a previous in-session generation appended to the
+	# shared embedded MapConfig so regeneration can't duplicate buildings.
+	map_template.buildings.clear()
+	# Terrain variant picking consumes the global RNG (see generate_local_area).
+	seed(int(map_template.SEED))
 	# Seed the ground noise explicitly — previously generate_settlement sampled
 	# whatever state the noise object happened to be in.
 	_configure_ground_noise(int(map_template.SEED))
@@ -702,9 +936,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	add_foliage()
 	add_decor_exterior(placed_buildings)
 
-	var details := get_settlement_details()
-	details.type = int(map_template.map_type)
-	details.seed = settlement_rng.seed
+	_store_settlement_layout(int(map_template.SEED))
 
 	print_rich("Generated settlement with ", map_template.buildings.size(), " buildings")
 
@@ -723,19 +955,6 @@ func get_ground_tile(_x: int, _y: int, height: float) -> int:
 		return GroundTile.WATER
 	return GroundTile.GRASS
 
-func flip_foliage_tile(source_id: int, atlas_coords: Vector2i) -> Dictionary:
-	# Example function to randomly flip foliage tiles for variation
-	var flipped = {
-		"source_id": source_id,
-		"atlas": atlas_coords,
-		"size": Vector2i(1, 1) # Assuming all foliage tiles are 1x1 for simplicity
-	}
-	if rng.randf() < 0.5:
-		flipped.atlas.x += 1 # Flip horizontally by moving to the adjacent tile in the atlas
-	if rng.randf() < 0.5:
-		flipped.atlas.y += 1 # Flip vertically by moving to the adjacent tile in the atlas
-	return flipped
-			
 # ── Generation helpers ──────────────────────────────────────────────────────
 
 # Configures the shared ground noise. fBm octaves roughen terrain boundaries
@@ -1180,65 +1399,70 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			for dx in fsize.x:
 				used_cells[pos + Vector2i(dx, dy)] = true
 
-func maybe_add_water_features(local_rng = null) -> void:
-	# 30% chance to add a water feature
-	if not local_rng:
-		if rng.randf() > 0.3:
-			return
-		
-		# Decide between lake or river
-		if rng.randf() > 0.5:
-			generate_lake()
-		else:
-			generate_river()
+# Water features are gated OFF until water tiles exist in grassland_poneti.tres
+# (the "water" terrain set index is a placeholder). Flip this on once the water
+# terrain is painted — the generation below is already deterministic.
+const WATER_FEATURES_ENABLED := false
 
-func generate_lake() -> void:
+func maybe_add_water_features(local_rng: RandomNumberGenerator) -> void:
+	if not WATER_FEATURES_ENABLED:
+		return
+	# 30% chance to add a water feature
+	if local_rng.randf() > 0.3:
+		return
+	# Decide between lake or river
+	if local_rng.randf() > 0.5:
+		generate_lake(local_rng)
+	else:
+		generate_river(local_rng)
+
+func generate_lake(local_rng: RandomNumberGenerator) -> void:
 	var center = Vector2i(
-		rng.randi_range(10, WIDTH - 10),
-		rng.randi_range(10, HEIGHT - 10)
+		local_rng.randi_range(10, WIDTH - 10),
+		local_rng.randi_range(10, HEIGHT - 10)
 	)
-	var size = rng.randi_range(3, 8)
-	
+	var size = local_rng.randi_range(3, 8)
+
 	var water_cells = []
-	
+
 	for y in range(-size, size + 1):
 		for x in range(-size, size + 1):
 			var pos = center + Vector2i(x, y)
 			if pos.x < 0 or pos.x >= WIDTH or pos.y < 0 or pos.y >= HEIGHT:
 				continue
-			
+
 			var dist = sqrt(x * x + y * y)
-			if dist <= size + rng.randf() * 2 - 1: # Irregular edges
+			if dist <= size + local_rng.randf() * 2 - 1: # Irregular edges
 				water_cells.append(pos)
-	
+
 	# Apply water terrain to all cells at once using the terrain system
 	if water_cells.size() > 0:
 		ground.set_cells_terrain_connect(water_cells, TERRAIN_SET_ID, TERRAINS["water"])
 
-func generate_river() -> void:
+func generate_river(local_rng: RandomNumberGenerator) -> void:
 	var start = Vector2i(
-		rng.randi_range(0, WIDTH),
-		0 if rng.randi() % 2 == 0 else HEIGHT - 1
+		local_rng.randi_range(0, WIDTH),
+		0 if local_rng.randi() % 2 == 0 else HEIGHT - 1
 	)
 	var end = Vector2i(
-		rng.randi_range(0, WIDTH),
+		local_rng.randi_range(0, WIDTH),
 		HEIGHT - 1 if start.y == 0 else 0
 	)
-	
+
 	var river_cells = []
 	var current = start
 	while current != end:
 		river_cells.append(current)
-		
+
 		# Move towards end with some randomness
 		var dir = Vector2(end - current).normalized()
 		current += Vector2i(
-			sign(dir.x) if rng.randf() > 0.3 else rng.randi_range(-1, 1),
+			sign(dir.x) if local_rng.randf() > 0.3 else local_rng.randi_range(-1, 1),
 			sign(dir.y)
 		)
 		current.x = clamp(current.x, 0, WIDTH - 1)
 		current.y = clamp(current.y, 0, HEIGHT - 1)
-	
+
 	# Apply water terrain to all river cells at once using the terrain system
 	if river_cells.size() > 0:
 		ground.set_cells_terrain_connect(river_cells, TERRAIN_SET_ID, TERRAINS["water"])
@@ -1280,7 +1504,33 @@ func is_walkable(pos: Vector2i) -> bool:
 	# Block if any foliage sprite is at this position
 	if foliage.get_cell_source_id(pos) != -1:
 		return false
+	# Block if static collision geometry (building walls, props) covers the tile
+	if _is_physics_blocked(pos):
+		return false
 	return true
+
+## Point-queries the 2D physics space at the tile centre so navigation and
+## walkability respect the same tileset collision polygons the movement
+## raycasts hit (building walls, blocking props). Only static geometry counts:
+## CharacterBody2D colliders (player, NPCs) are ignored so moving actors don't
+## poison the nav grid. Note the physics space registers freshly added
+## TileMapLayers on the next physics step — query after a physics frame when
+## building grids for a just-loaded area.
+func _is_physics_blocked(pos: Vector2i) -> bool:
+	if Engine.is_editor_hint() or not is_inside_tree():
+		return false
+	var space := get_world_2d().direct_space_state
+	if space == null:
+		return false
+	var params := PhysicsPointQueryParameters2D.new()
+	params.position = ground.to_global(ground.map_to_local(pos))
+	params.collide_with_areas = false
+	params.collide_with_bodies = true
+	for hit in space.intersect_point(params, 4):
+		var collider = hit.get("collider")
+		if collider is TileMapLayer or collider is StaticBody2D:
+			return true
+	return false
 
 func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> void:
 	var building_count = 0
@@ -1647,9 +1897,6 @@ func get_varied_path(start: Vector2i, end: Vector2i, path_rng: RandomNumberGener
 
 	path.append(end)
 	return path
-
-func generate_seed(world_position: Vector2i, terrain_type: int) -> int:
-	return abs(world_position.x * 16777619 + world_position.y * 65537 + terrain_type * 257)
 
 # ═══════════════════════════════════════════════════════════════════════
 #  MAP-CONFIG DRIVEN HELPERS

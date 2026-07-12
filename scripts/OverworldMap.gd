@@ -42,7 +42,6 @@ class CustomTileData:
 @onready var mountains: TileMapLayer = $Mountains
 @onready var settlements: TileMapLayer = $settlements
 
-#@export var settlements_list: Array[MapConfig] = []
 @export var settlements_list: Dictionary[Vector2i, String]
 
 var map_data: Array[Array] = []
@@ -168,12 +167,6 @@ func get_settlement_type(tile_pos: Vector2i) -> int:
 	if not is_valid_position(tile_pos):
 		return Settlement.NONE
 	return map_data[tile_pos.y][tile_pos.x].settlement
-
-# func settlement_at_tile(tile_pos: Vector2i):
-# 	for s in settlements_list:
-# 		if s == tile_pos:
-# 			return s
-# 	return null
 
 func debug_print_tile(tile_pos: Vector2i) -> void:
 	if not is_valid_position(tile_pos):

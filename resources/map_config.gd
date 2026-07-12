@@ -107,7 +107,7 @@ enum TreeDensity {
 ## for settlement maps you can set it manually in the editor.
 @export_flags("North:1", "East:2", "South:4", "West:8") var road_exits: int = 0
 ## Terrain type used to paint roads on the ground layer.
-## Matches the keys in LocationGenerator.TERRAINS ("dirt", "stone").
+## Matches the keys in MapGenerator.TERRAINS ("dirt", "stone").
 @export_enum("dirt", "stone") var road_terrain: String = "dirt"
 
 # TODO - coastal properties

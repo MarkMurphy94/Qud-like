@@ -1,8 +1,0 @@
-[gd_resource type="Resource" script_class="MapConfig" format=3 uid="uid://qh5fn8627tmx"]
-
-[ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="1_qebw0"]
-[ext_resource type="Script" path="res://resources/area_config.gd" id="2_qebw0"]
-
-[resource]
-script = ExtResource("2_qebw0")
-metadata/_custom_type_script = "uid://ct70kc27fm6x4"

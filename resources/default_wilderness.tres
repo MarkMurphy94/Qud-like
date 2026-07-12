@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="MapConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://ena8k3p3ftwd" path="res://resources/map_config.gd" id="1_mapcfg"]
+
+[resource]
+script = ExtResource("1_mapcfg")
+noise_scale = 32.0
+overworld_tile = Vector2i(0, 0)
+scene_path = ""
+SEED = 0
+map_name = "Wilderness"
+building_density = 0
+map_type = 0
+tree_density = 1
+bush_density = 0.15
+rock_density = 0.08
+water_level = 0.4
+terrain_feature_density = 0.15
+grass_feature_density = 0.4
+flower_density = 0.25
+puddle_density = 0.2
+dirt_feature_density = 0.4
+mud_feature_density = 0.15
+stone_feature_density = 0.3
+climate = 0
+terrain = 0
+culture = 0
+road_exits = 0
+road_terrain = "dirt"

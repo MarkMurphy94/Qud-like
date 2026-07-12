@@ -1,7 +1,7 @@
 [gd_scene format=4 uid="uid://c8ldhbg1au1py"]
 
 [ext_resource type="TileSet" uid="uid://drkmimxrnjapf" path="res://resources/grassland_poneti.tres" id="1_4g7a8"]
-[ext_resource type="Script" uid="uid://ctxr4sf3xyv72" path="res://scripts/new_tileset_test_town.gd" id="1_l2jp0"]
+[ext_resource type="Script" uid="uid://ctxr4sf3xyv72" path="res://scripts/map_generator.gd" id="1_l2jp0"]
 [ext_resource type="Script" uid="uid://pdrfjxp7wiey" path="res://scripts/structure.gd" id="2_cm8ll"]
 [ext_resource type="TileSet" uid="uid://dfjp0pq15tyd1" path="res://resources/temperate_medieval_village.tres" id="2_xcgwg"]
 [ext_resource type="Script" uid="uid://dmxba4w6hdk8e" path="res://resources/npc_config.gd" id="3_8q4po"]
@@ -10,6 +10,8 @@
 [sub_resource type="Resource" id="Resource_yvj7v"]
 script = ExtResource("4_4d3p3")
 noise_scale = 32.0
+overworld_tile = Vector2i(11, 18)
+map_name = "test_town"
 building_density = 4
 map_type = 1
 tree_density = 2

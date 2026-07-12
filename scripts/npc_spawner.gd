@@ -11,7 +11,7 @@ var wilderness_metadata: TileMetadata = null
 var spawned_npcs: Array = []
 var rng := RandomNumberGenerator.new()
 
-# Pixel bounds of the local map (LocationGenerator.WIDTH/HEIGHT * TILE_SIZE).
+# Pixel bounds of the local map (MapGenerator.WIDTH/HEIGHT * TILE_SIZE).
 const MAP_PIXELS_X: int = 80 * 16
 const MAP_PIXELS_Y: int = 80 * 16
 # Margin so NPCs don't spawn right on the edge.

@@ -37,42 +37,6 @@ func _deterministic_seed(settlement_type: int, pos: Vector2i) -> int:
 	var v := int(settlement_type) * 83492791 ^ (pos.x * 73856093) ^ (pos.y * 19349663)
 	return abs(v) # stable across runs
 
-func get_all_settlements() -> Array:
-	var out: Array = []
-	for s in MainGameState.settlements.values():
-		print("Found settlement: ", s)
-		var t: int = s.type
-		var p: Vector2i = s.pos
-		out.append({
-			"type": t,
-			"pos": p,
-			"seed": _deterministic_seed(t, p)
-		})
-	return out
-
-func create_new_settlement_config():
-	var config := MapConfig.new()
-	# Decide a filename using your existing key maker
-	var pos := Vector2i(13, 21)
-	var stype := MapConfig.MapType.SETTLEMENT
-	var key := MainGameState.make_settlement_key(stype, pos) # MapConfig.MapType value
-	var path := "res://resources/settlements/%s.tres" % key
-
-	# Create and save
-	var result := MapConfig.create_and_save(path, {
-		"map_type": MapConfig.MapType.SETTLEMENT,
-		"map_name": "Ravenford",
-		"climate": "temperate",
-		"culture": "midlands"
-	})
-	if result.error == OK:
-		print("Saved: ", path)
-		var cfg := load(path) as MapConfig
-		print("Loaded settlement name: ", cfg.map_name)
-	else:
-		push_error("Failed to save MapConfig: %s" % result.error)
-	return config
-
 func create_or_load_save():
 	# On a fresh "New Game" there is no slot yet — just initialise defaults.
 	# When the player explicitly picks "Load Game" from the menu / pause screen
@@ -83,11 +47,22 @@ func create_or_load_save():
 	area_picked_up_items.clear()  # fresh world — nothing picked up yet
 	generate_world_metadata()
 
-func show_or_hide_overworld_scene(_scene_path: String, _show: bool) -> void:
-	pass
-
-func load_or_generate_local_map():
-	pass
+## First-visit hook for procedural wilderness tiles. Rolls the tile's
+## permanent seed on the first descent (replacing the derived placeholder from
+## generate_world_metadata) and stamps discovery state. Rolled seeds are saved
+## with discovered tiles and restored on load, so an already-visited area
+## survives future changes to worldgen formulas or the overworld map.
+func prepare_tile_visit(tile: Vector2i) -> TileMetadata:
+	var meta: TileMetadata = world_tile_data.get(tile)
+	if meta == null:
+		return null
+	var now := int(Time.get_unix_time_from_system())
+	if not meta.discovered:
+		meta.seed = randi()
+		meta.discovered = true
+		meta.generated_at = now
+	meta.last_visited = now
+	return meta
 
 # ═══════════════════════════════════════════════════════════════════════
 #  SAVE / LOAD — MULTI-SLOT
@@ -199,6 +174,11 @@ func load_game_from_slot(slot: int) -> bool:
 				meta.last_visited = saved_meta.get("last_visited", 0)
 				meta.dynamic_state = saved_meta.get("dynamic_state", meta.dynamic_state)
 				meta.flags = saved_meta.get("flags", meta.flags)
+				# Restore the seed rolled on first visit so already-explored
+				# areas regenerate identically in this save, even if worldgen
+				# formulas or the overworld map change between game versions.
+				meta.seed = saved_meta.get("seed", meta.seed)
+				meta.generated_at = saved_meta.get("generated_at", meta.generated_at)
 
 	# ── Player stats ───────────────────────────────────────────
 	player.current_health = _save.player_health
