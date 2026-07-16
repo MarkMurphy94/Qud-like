@@ -474,11 +474,15 @@ func descend_to_local_area() -> void:
 		push_warning("No world data for tile %s" % overworld_tile)
 		return
 
-	# Water check
-	var tile_data = overworld.get_tile_data(overworld_tile)
-	if tile_data.terrain == overworld.Terrain.WATER:
-		print("Can't descend on water")
-		return
+	# Water check — only blocks descending into procedurally-generated
+	# wilderness. Hand-crafted settlement scenes (scene_path set, e.g. via a
+	# LocalMapTile) are always enterable even if their overworld tile's base
+	# terrain is painted as water (coastal towns, docks, etc.).
+	if scene_path == "":
+		var tile_data = overworld.get_tile_data(overworld_tile)
+		if tile_data.terrain == overworld.Terrain.WATER:
+			print("Can't descend on water")
+			return
 
 	area_container.load_area(scene_path, metadata)
 

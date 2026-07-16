@@ -9,11 +9,6 @@
 [ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/area_container.tscn" id="7_u5sy4"]
 [ext_resource type="PackedScene" uid="uid://0ow0juc2fpg5" path="res://scenes/point_and_click_path.tscn" id="8_navov"]
 
-[sub_resource type="Resource" id="Resource_town1meta"]
-script = ExtResource("7_gee14")
-coords = Vector2i(13, 21)
-metadata/_custom_type_script = "uid://dex54ja7a1in3"
-
 [sub_resource type="Resource" id="Resource_0tnpc"]
 script = ExtResource("7_gee14")
 coords = Vector2i(11, 18)
@@ -55,26 +50,21 @@ z_index = 1
 
 [node name="town_tiles" type="Node2D" parent="." unique_id=1715855552]
 
-[node name="town_1_tile" parent="town_tiles" unique_id=1767324013 instance=ExtResource("6_p57ef")]
-position = Vector2(4936, 3032)
-scene_path = "res://scenes/town_1_new.tscn"
-tile_metadata = SubResource("Resource_town1meta")
-
 [node name="poneti_town" parent="town_tiles" unique_id=1193277896 instance=ExtResource("6_p57ef")]
-position = Vector2(4656, 3224)
+position = Vector2(4632, 3192)
 scene_path = "res://scenes/poneti_town.tscn"
 tile_metadata = SubResource("Resource_0tnpc")
 
 [node name="city_tiles" type="Node2D" parent="." unique_id=111666021]
 
 [node name="city_1" parent="city_tiles" unique_id=64096099 instance=ExtResource("6_p57ef")]
-position = Vector2(4560, 3224)
+position = Vector2(4568, 3216)
 scene_path = "res://scenes/city_1.tscn"
 tile_metadata = SubResource("Resource_u5sy4")
 
 [node name="test_tiles" type="Node2D" parent="." unique_id=473904430]
 
 [node name="local_map_tile" parent="test_tiles" unique_id=344870519 instance=ExtResource("6_p57ef")]
-position = Vector2(4632, 3094)
+position = Vector2(4664, 3032)
 scene_path = "res://scenes/test_battle_field.tscn"
 tile_metadata = SubResource("Resource_gee14")

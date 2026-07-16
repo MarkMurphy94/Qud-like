@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://bcqrj7uwxyr8x"]
+
+[ext_resource type="Texture2D" uid="uid://h23f0qovgm3m" path="res://assets/world maps/Las 2026-07-07-15-44.jpeg" id="1_2yu2u"]
+
+[node name="Sprite2D" type="Sprite2D" unique_id=710181589]
+self_modulate = Color(1, 1, 1, 0.52156866)
+top_level = true
+scale = Vector2(2.7850912, 3.1934962)
+texture = ExtResource("1_2yu2u")
