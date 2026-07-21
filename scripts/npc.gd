@@ -1,8 +1,39 @@
 extends CharacterBody2D
 class_name NPC
 
+## NPC — unified, data-driven non-player character controller.
+##
+## Drives every non-player character in the game (peasants, soldiers,
+## merchants, nobles, bandits, animals, monsters) through a single state
+## machine (see NPCState) covering wandering, scheduled routines (work/eat/
+## sleep), combat, fleeing, following, and dialogue/trade interaction.
+##
+## HOW TO USE:
+## - Instance `npc.tscn` (or a scene that extends it) and place it in a local
+##   area (NPCs currently only operate within local area maps, not the
+##   overworld).
+## - Set `npc_type` (MainGameState.NpcType) and optionally `npc_variant` in the
+##   Inspector; `apply_type_profile()` and `set_sprite()` (called from
+##   `_ready()`) pull move speed, stats, faction, sprite region, spells, and
+##   trade behavior from the `npc_properties` table for that type/variant.
+##   Add new types/variants by extending that dictionary — no script changes
+##   needed for basic stat/sprite tuning.
+## - Optionally call `set_locations(home, work)` after spawning to configure
+##   its wander/work anchor points, and assign a `schedule` if it should
+##   follow hourly routines.
+## - The NPCSpawner (`scripts/npc_spawner.gd`) is the normal way NPCs get
+##   created at runtime based on settlement density tiers — prefer that over
+##   manually instancing NPCs for populated areas.
+## - Outside of combat, `_physics_process()` runs the free-roam AI loop
+##   (perception → behavior decision → state execution). During
+##   `CombatManager.in_combat`, the CombatManager drives this NPC's turn
+##   directly via `combat_attack()`, `combat_cast_spell()`, and
+##   `_combat_move_towards()` instead.
+## - Player interaction (dialogue/trade) goes through `start_interaction()` /
+##   `end_interaction()`, triggered by the Player's interact-radius detection.
+
 ## Optional config resource to auto-apply settings from a config resource (useful for type templates, unique NPCs, or loading an NPC programmatically from a saved config)
-@export var auto_set_config: NPCConfig 
+# @export var auto_set_config: NPCConfig 
 
 # === EXPORTS AND CONFIGURATION ===
 @export_group("Basic Properties")
@@ -44,6 +75,7 @@ class_name NPC
 @onready var down: RayCast2D = $down
 @onready var left: RayCast2D = $left
 @onready var right: RayCast2D = $right
+@onready var npc_sprite: Node2D = $npc_sprite
 
 
 # === STATE MACHINE ===
