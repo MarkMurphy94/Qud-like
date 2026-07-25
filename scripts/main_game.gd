@@ -1,8 +1,13 @@
 extends Node
-@onready var overworld_map = $OverworldMap
+## The stripped-back world runs on `world_map` (scenes/alternate_mode) with no
+## local areas. The old OverworldMap and AreaContainer nodes are gone from
+## game.tscn, so both are looked up optionally: the descent / wilderness-
+## metadata paths below stay dormant until local areas are rebuilt.
+@onready var world_map = get_node_or_null("world_map")
+@onready var overworld_map = get_node_or_null("OverworldMap")
 @onready var player: CharacterBody2D = $Player
 @onready var pause: Control = $CanvasLayer/pause
-@onready var area_container: Node2D = $AreaContainer
+@onready var area_container = get_node_or_null("AreaContainer")
 
 var _save := SaveGameResource.new()
 var world_tile_data: Dictionary = {}
@@ -17,7 +22,8 @@ var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = n
 # ═══════════════════════════════════════════════════════════════════════
 
 func _ready() -> void:
-	area_container.area_loaded.connect(_on_area_loaded)
+	if area_container:
+		area_container.area_loaded.connect(_on_area_loaded)
 	create_or_load_save()
 	# Check if the main menu requested we load a specific slot
 	if MainGameState.has_meta("pending_load_slot"):
@@ -205,7 +211,7 @@ func load_game_from_slot(slot: int) -> bool:
 			player.learned_spells.append(spell)
 
 	# ── Position & local-area re-entry ─────────────────────────
-	if _save.player_in_local_area:
+	if _save.player_in_local_area and area_container:
 		# Put the player on the overworld tile first, then descend
 		player.global_position = _save.player_overworld_position
 		player.overworld_tile = _save.player_overworld_tile
@@ -218,16 +224,21 @@ func load_game_from_slot(slot: int) -> bool:
 		await get_tree().process_frame
 		player.map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
 		player.global_position = _save.player_local_position
-		overworld_map.hide()
+		if overworld_map:
+			overworld_map.hide()
 		player.in_local_area = true
 		player.update_camera_limits()
 	else:
-		# Overworld
+		# Overworld. A save taken inside a local area lands the player back on
+		# the overworld tile they descended from, since local areas are gone.
 		if player.in_local_area:
-			area_container.clear()
-			overworld_map.show()
+			if area_container:
+				area_container.clear()
+			if overworld_map:
+				overworld_map.show()
 			player.in_local_area = false
 		player.global_position = _save.player_overworld_position
+		player.snap_to_grid()
 		player.update_camera_limits()
 
 	print("[SaveSystem] Loaded slot %d  (%s)" % [slot, _save.slot_name])
@@ -248,6 +259,10 @@ func load_game() -> void:
 
 func generate_world_metadata() -> void:
 	world_tile_data.clear()
+	# Per-tile wilderness metadata describes local maps, which the stripped-back
+	# world does not generate yet. Nothing to build without the old OverworldMap.
+	if overworld_map == null:
+		return
 	var width = int(overworld_map.WIDTH)
 	var height = int(overworld_map.HEIGHT)
 	print("Creating local maps for %d tiles" % (width * height))

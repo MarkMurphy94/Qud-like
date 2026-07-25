@@ -1,38 +1,79 @@
 extends CharacterBody2D
 
-@export var move_speed: float = 200.0
+# ═══════════════════════════════════════════════════════════════════════
+#  BASIC PLAYER — movement, collision, camera
+#
+#  The player moves one 16 px tile at a time. Two input sources feed the
+#  same single-step primitive (try_step), so they can never disagree:
+#    • WASD / arrow keys — hold a key to keep stepping
+#    • left mouse button — walks an A* route to the clicked tile
+#
+#  Collision and pathfinding lean on the engine rather than on custom code:
+#    • each step is cleared with CharacterBody2D.test_move(), which asks the
+#      physics server directly instead of using hand-placed RayCast2Ds
+#    • the step itself is played out by move_and_slide()
+#    • routes come from AStarGrid2D (via the PointAndClickPath overlay)
+#    • terrain walkability is read off the world map's TileMapLayers
+# ═══════════════════════════════════════════════════════════════════════
+
 @export var tile_size: int = 16
-var sprite_node_pos_tween: Tween
-@onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
-@onready var up: RayCast2D = $up
-@onready var down: RayCast2D = $down
-@onready var left: RayCast2D = $left
-@onready var right: RayCast2D = $right
+## Pixels per second while sliding between two tiles.
+@export var move_speed: float = 90.0
+## Extra pause between steps while a movement key is held. 0 = keep walking
+## at move_speed for as long as the key is down.
+@export var key_repeat_delay: float = 0.0
 
-@onready var overworld: Node2D = $"../OverworldMap"
-@onready var camera = $Camera2D
-@onready var area_container: Node2D = $"../AreaContainer"
+# ── Scene references ─────────────────────────────────────────────────────
+# The cross-scene ones are deliberately untyped: they are reached by path and
+# resolved dynamically, so a missing node degrades to null instead of failing
+# to load the script.
+@onready var camera: Camera2D = $Camera2D
+@onready var sprite: Sprite2D = $Sprite2D
 @onready var hud = $HUD
-@onready var pause_menu: Control = $"../CanvasLayer/pause"
+## Optional — the scene currently shows the static Sprite2D instead.
+@onready var animated_sprite: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D")
 
-var current_local_area: Node2D = null
-var map_rect = null
+## Supplies terrain walkability and tile↔world conversion.
+@onready var world_map = get_node_or_null("../world_map")
+## A* route finding plus the breadcrumb / destination visuals.
+@onready var path_overlay = get_node_or_null("../PointAndClickPath")
+@onready var pause_menu: Control = get_node_or_null("../CanvasLayer/pause")
+
+# ── Movement state ───────────────────────────────────────────────────────
+## World position of the tile being stepped onto. Equal to global_position
+## whenever the player is standing still.
+var _step_target: Vector2 = Vector2.ZERO
+var _is_stepping: bool = false
+var _key_repeat_timer: float = 0.0
+## A direction key pressed mid-step, replayed once the step finishes.
+var _buffered_dir: Vector2i = Vector2i.ZERO
+## Tiles still to walk on the active point-and-click route.
+var _nav_path: Array[Vector2i] = []
+
+## Movement actions and the tile offset each one requests.
+const MOVE_ACTIONS: Dictionary = {
+	&"move_up": Vector2i.UP,
+	&"move_down": Vector2i.DOWN,
+	&"move_left": Vector2i.LEFT,
+	&"move_right": Vector2i.RIGHT,
+}
+
+# ── Local areas (not rebuilt yet) ────────────────────────────────────────
+## Placeholders kept so the save system and the item/spell code below still
+## work while the local-area system is rebuilt. `in_local_area` stays false,
+## which short-circuits every branch that reads the others.
 var in_local_area: bool = false
-
-var overworld_tile: Vector2i
-var overworld_tile_pos: Vector2
+var overworld_tile: Vector2i = Vector2i.ZERO
+var overworld_tile_pos: Vector2 = Vector2.ZERO
 var current_tile: LocalMapTile = null
+var map_rect = null
+@onready var area_container = get_node_or_null("../AreaContainer")
 
-# Tile-based movement variables for overworld
-# var target_position: Vector2
-var is_moving: bool = false
-var movement_threshold: float = 1.0
-
-# NPC Interaction
+# ── NPC interaction ──────────────────────────────────────────────────────
 var available_npcs: Array = []
 var current_interacting_npc: NPC = null
 
-# Player Stats and Inventory
+# ── Stats ────────────────────────────────────────────────────────────────
 var max_health: int = 100
 var current_health: int = 100
 var max_mana: int = 50
@@ -41,23 +82,23 @@ var max_stamina: int = 100
 var current_stamina: int = 100
 var gold: int = 0
 
-# Player base stats (used by combat systems)
+## Base stats read by the combat systems.
 var stats: Dictionary = {
 	"strength": 12,
 	"agility": 12,
 	"intelligence": 10,
 	"endurance": 12,
 	"charisma": 10,
-	"initiative": 12   ## Higher = acts sooner in turn-based combat
+	"initiative": 12,   ## Higher = acts sooner in turn-based combat
 }
 
-# Inventory system
+# ── Inventory ────────────────────────────────────────────────────────────
 var inventory: Inventory = null
 @export var inventory_slots: int = 20
 @export var max_carry_weight: float = 100.0
 
-# Equipment slots: head, chest, legs, right_hand, left_hand
-## Keys match ItemArmor.ArmorType names (lowercased) and "right_hand"/"left_hand"
+## Equipment slots. Keys match ItemArmor.ArmorType names (lowercased) plus
+## "right_hand" / "left_hand".
 var equipped_items: Dictionary = {
 	"head": null,
 	"chest": null,
@@ -66,487 +107,413 @@ var equipped_items: Dictionary = {
 	"left_hand": null,
 }
 
-# Spell system
-var learned_spells: Array[Spell] = []  ## Array of learned Spell resources
-var spell_cooldowns: Dictionary = {}  ## spell_id -> cooldown_remaining
+# ── Spells ───────────────────────────────────────────────────────────────
+var learned_spells: Array[Spell] = []
+var spell_cooldowns: Dictionary = {}   ## spell_id -> seconds remaining
 
-# Targeting / aiming state (set when a spell needs a mouse-click target)
+## Targeting state, set while a spell waits for the player to click a target.
 var _is_aiming: bool = false
 var _pending_spell: Spell = null
 var _targeting_label: Label = null
 var _reticle: Node2D = null
 
-# Point-and-click navigation
-var path_overlay: Node2D = null          ## Reference to PointAndClickPath node
-var _nav_path: Array[Vector2i] = []     ## Remaining tiles to walk
-var _nav_active: bool = false
+
+# ═══════════════════════════════════════════════════════════════════════
+#  LIFECYCLE
+# ═══════════════════════════════════════════════════════════════════════
 
 func _ready() -> void:
-	# Set up player collision layers
-	# collision_layer = 2 # Player is on layer 2
-	# collision_mask = 1 # Player can collide with NPCs and walls (layer 1)
-	# target_position = global_position
 	add_to_group("Player")
-	add_to_group("player")  # Lowercase for WorldItem detection
-	# Defer so OverworldMap._ready() (which computes WIDTH/HEIGHT) runs first —
-	# Player is earlier in the scene tree than OverworldMap, so without this
-	# the camera limits would be clamped to 0,0 (the still-uncomputed bounds).
-	update_camera_limits.call_deferred()
-	hud.pause_requested.connect(_on_pause_requested)
-	# Cancel point-and-click path at the end of each player turn so the
-	# player must choose a fresh destination every turn.
+	add_to_group("player")   # WorldItem looks for the lowercase name
+
+	if hud:
+		hud.pause_requested.connect(_on_pause_requested)
+	# Clearing the route at end of turn makes the player pick a fresh
+	# destination each combat turn instead of resuming the previous one.
 	CombatManager.turn_ended.connect(_on_combat_turn_ended)
-	# Connect point-and-click nav overlay (scene sibling; gracefully absent)
-	path_overlay = get_node_or_null("../PointAndClickPath")
-	if path_overlay:
-		# Defer so OverworldMap._ready() (which populates map_data) runs first
-		_rebuild_nav_grid.call_deferred()
-	
-	# Initialize inventory
+
 	_initialize_inventory()
-	
-	# Setup inventory screen
 	_setup_inventory_screen()
-	
-	# Initialize with starting values
-	hud.update_hp(current_health, max_health)
-	hud.update_mp(current_mana, max_mana)
-	hud.update_sp(current_stamina, max_stamina)
+	_refresh_hud_bars()
+
+	# The world map computes its bounds in its own _ready(), and the Player
+	# sits earlier in the scene tree — defer anything that reads them.
+	_enter_world.call_deferred()
 
 	# --- DEBUG: learn fireball at startup ---
-	var _fireball: Spell = load("res://resources/spells/spell_templates/fireball_test.tres")
-	if _fireball:
-		learn_spell(_fireball)
+	var fireball: Spell = load("res://resources/spells/spell_templates/fireball_test.tres")
+	if fireball:
+		learn_spell(fireball)
 	# ----------------------------------------
 
-func _process(_delta: float) -> void:
-	# Update spell cooldowns
-	_update_spell_cooldowns(_delta)
 
-	# Update path-overlay hover preview (skip while aiming, a UI screen is open, or mouse is over HUD)
-	if path_overlay and not _is_aiming:
-		var ui_open: bool = (inventory_screen and inventory_screen.visible) or \
-					  (spell_book_screen and spell_book_screen.visible)
-		var mouse_over_hud: bool = get_viewport().gui_get_hovered_control() != null
-		var tween_running: bool = sprite_node_pos_tween != null and sprite_node_pos_tween.is_running()
-		path_overlay.set_preview_suppressed(tween_running)
-		if not ui_open and not mouse_over_hud and not tween_running:
-			path_overlay.update_preview(global_position, get_global_mouse_position())
-		else:
-			path_overlay.clear_preview()
+## Everything that needs the world map to have finished loading: put the
+## player on the grid, clamp the camera, build the A* route grid.
+func _enter_world() -> void:
+	snap_to_grid()
+	update_camera_limits()
+	rebuild_nav_grid()
+	_connect_to_existing_npcs()
 
-	# Handle input for entering/exiting areas
-	if Input.is_action_just_pressed("ui_accept"):
-		if in_local_area:
-			return_to_overworld()
-		else:
-			descend_to_local_area()
-	
-	# Handle inventory screen toggle
+
+func _process(delta: float) -> void:
+	_update_spell_cooldowns(delta)
+	_update_path_preview()
+
 	if Input.is_action_just_pressed("ui_inventory"):
 		_toggle_inventory_screen()
-	
-	# Handle NPC interaction
 	if Input.is_action_just_pressed("ui_interact"):
 		_try_interact_with_npc()
 
-func _physics_process(_delta: float) -> void:
-	# if not in_local_area:
-	# 	if not overworld.is_walkable(new_grid_pos):
-	# 		return
 
-	# Any keyboard input cancels point-and-click navigation
-	var kb_pressed := (
-		Input.is_action_just_pressed("ui_right") or
-		Input.is_action_just_pressed("ui_left")  or
-		Input.is_action_just_pressed("ui_up")    or
-		Input.is_action_just_pressed("ui_down")
-	)
-	if kb_pressed and _nav_active:
-		_nav_cancel()
+func _physics_process(delta: float) -> void:
+	_buffer_movement_input()
+	_key_repeat_timer = maxf(0.0, _key_repeat_timer - delta)
 
-	# Block all movement while talking to an NPC
-	var is_talking := current_interacting_npc != null
-
-	if not is_talking:
-		if Input.is_action_just_pressed("ui_right") and !right.is_colliding():
-			if _can_move_in_combat():
-				_move(Vector2.RIGHT)
-		if Input.is_action_just_pressed("ui_left") and !left.is_colliding():
-			if _can_move_in_combat():
-				_move(Vector2.LEFT)
-		if Input.is_action_just_pressed("ui_up") and !up.is_colliding():
-			if _can_move_in_combat():
-				_move(Vector2.UP)
-		if Input.is_action_just_pressed("ui_down") and !down.is_colliding():
-			if _can_move_in_combat():
-				_move(Vector2.DOWN)
-
-	# Advance point-and-click path one tile at a time (wait for sprite tween)
-	# Block nav during combat when it's not the player's turn
-	if not is_talking and _nav_active and _nav_path.size() > 0 and _can_move_in_combat():
-		if sprite_node_pos_tween == null or not sprite_node_pos_tween.is_running():
-			_nav_step()
-
-	# Use Godot's built-in physics with collision detection
-	move_and_slide()
-
-	# Update roof visibility
-	_update_roof_visibility()
+	if _is_stepping:
+		_advance_step(delta)
+	# Not an `else`: a step that finished this frame rolls straight into the
+	# next one, so held keys and routes produce continuous motion.
+	if not _is_stepping:
+		_choose_next_step()
 
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
+	# Reaching _unhandled_input already means no Control consumed the event,
+	# so clicks that land on the HUD never get here.
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			# Ignore clicks that land on a HUD / GUI control
-			if get_viewport().gui_get_hovered_control() != null:
-				return
 			if _is_aiming:
-				# Spell targeting: fire toward click
 				_fire_pending_spell(get_global_mouse_position())
 				_exit_targeting_mode()
+			elif not _nav_path.is_empty():
+				# Clicking mid-route means "stop here", not "start a new route".
+				cancel_navigation()
 			else:
-				# If the sprite tween is still running, the player is mid-step:
-				# cancel the current path instead of starting a new one.
-				var tween_running := sprite_node_pos_tween != null and sprite_node_pos_tween.is_running()
-				if tween_running and _nav_active:
-					_nav_cancel()
-				else:
-					# Point-and-click navigation
-					_on_nav_click(get_global_mouse_position())
+				navigate_to(get_global_mouse_position())
 			get_viewport().set_input_as_handled()
-			return
 		elif event.button_index == MOUSE_BUTTON_RIGHT and _is_aiming:
-			print("Spell targeting cancelled")
 			_exit_targeting_mode()
 			get_viewport().set_input_as_handled()
-			return
+		return
 
 	if _is_aiming and event.is_action_pressed("ui_cancel"):
-		print("Spell targeting cancelled")
 		_exit_targeting_mode()
 		get_viewport().set_input_as_handled()
 
 
-func _move(dir: Vector2):
-	# During combat, movement costs 1 MP. Deny the move if MP is exhausted.
+# ═══════════════════════════════════════════════════════════════════════
+#  MOVEMENT
+# ═══════════════════════════════════════════════════════════════════════
+
+## Try to step one tile in `dir`. Returns true if the step started.
+##
+## Every movement source goes through this one gate, so keyboard and mouse
+## movement obey identical rules.
+func try_step(dir: Vector2i) -> bool:
+	if _is_stepping or dir == Vector2i.ZERO or not can_act():
+		return false
+
+	var target_tile := get_current_tile() + dir
+	if not is_tile_open(target_tile):
+		return false
+
+	# Ask the physics server whether the move would hit anything solid — one
+	# call that covers NPC bodies and tileset collision polygons alike.
+	var motion := Vector2(dir) * tile_size
+	if test_move(global_transform, motion):
+		return false
+
 	if CombatManager.in_combat:
 		if not CombatManager.spend_mp(CombatManager.MP_COST_PER_TILE):
-			return
+			return false
 		CombatManager._log("Player moves.", "move")
-	_update_facing(dir)
-	global_position += dir * tile_size
-	animated_sprite.global_position -= dir * tile_size
-	# print("current_tile:", get_current_tile())
 
-	if sprite_node_pos_tween:
-		sprite_node_pos_tween.kill()
-	sprite_node_pos_tween = create_tween()
-	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	sprite_node_pos_tween.tween_property(animated_sprite, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
-	_play_animation("walk")
-	sprite_node_pos_tween.finished.connect(_on_move_tween_finished, CONNECT_ONE_SHOT)
+	_step_target = tile_to_world(target_tile)
+	_is_stepping = true
+	_face(dir)
+	_play_animation(&"walk")
+	return true
 
-## Flip the sprite to face the direction of the last horizontal move.
-## Vertical-only moves keep the previous horizontal facing.
-func _update_facing(dir: Vector2) -> void:
-	if dir.x > 0:
-		animated_sprite.flip_h = false
-	elif dir.x < 0:
-		animated_sprite.flip_h = true
 
-## Play an animation on the AnimatedSprite2D if it isn't already the current one.
+## Slide toward the tile being stepped onto, landing exactly on its centre so
+## the player can never drift off the grid.
+func _advance_step(delta: float) -> void:
+	var to_target := _step_target - global_position
+	if to_target.length() <= move_speed * delta:
+		velocity = Vector2.ZERO
+		global_position = _step_target
+		_is_stepping = false
+		_play_animation(&"idle")
+		return
+
+	velocity = to_target.normalized() * move_speed
+	move_and_slide()
+
+	# Something solid moved into the way after the step was cleared. Give up on
+	# the step instead of sliding off-grid around the obstacle.
+	if get_slide_collision_count() > 0:
+		cancel_navigation()
+		_step_target = tile_to_world(get_current_tile())
+
+
+## Remember a direction key pressed mid-step so a quick tap is replayed when
+## the step finishes rather than being swallowed.
+func _buffer_movement_input() -> void:
+	for action: StringName in MOVE_ACTIONS:
+		if Input.is_action_just_pressed(action):
+			_buffered_dir = MOVE_ACTIONS[action]
+			return
+
+
+## Decide what to do next while standing still. Keyboard input always wins
+## over an active mouse route.
+func _choose_next_step() -> void:
+	var dir := _buffered_dir if _buffered_dir != Vector2i.ZERO else _held_direction()
+	_buffered_dir = Vector2i.ZERO
+
+	if dir != Vector2i.ZERO:
+		cancel_navigation()
+		if _key_repeat_timer <= 0.0 and try_step(dir):
+			_key_repeat_timer = key_repeat_delay
+		return
+
+	if not _nav_path.is_empty():
+		_advance_route()
+
+
+## Direction of a movement key currently held down.
+func _held_direction() -> Vector2i:
+	for action: StringName in MOVE_ACTIONS:
+		if Input.is_action_pressed(action):
+			return MOVE_ACTIONS[action]
+	return Vector2i.ZERO
+
+
+## Is the player allowed to move right now? Outside combat, whenever no
+## dialogue or full-screen UI is up. Inside combat, only on their own turn and
+## only while movement points remain.
+func can_act() -> bool:
+	if current_interacting_npc != null or _is_ui_open():
+		return false
+	if not CombatManager.in_combat:
+		return true
+	return CombatManager.is_player_turn() and CombatManager.get_current_mp() > 0
+
+
+## Terrain-only walkability. Physics bodies are handled by test_move().
+func is_tile_open(tile: Vector2i) -> bool:
+	if world_map == null:
+		return true
+	return world_map.is_walkable(tile)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  POINT-AND-CLICK NAVIGATION
+# ═══════════════════════════════════════════════════════════════════════
+
+## Build a route to the clicked position and start walking it.
+func navigate_to(world_pos: Vector2) -> void:
+	if path_overlay == null or not can_act():
+		return
+	var route: Array[Vector2i] = path_overlay.get_tile_path(global_position, world_pos)
+	if route.size() < 2:
+		cancel_navigation()
+		return
+	_nav_path = route.slice(1)   # drop the tile already being stood on
+	path_overlay.set_nav_destination(world_pos)
+
+
+## Walk the next tile of the active route, re-checking as it goes so a route
+## that has since been blocked is abandoned instead of walked into.
+func _advance_route() -> void:
+	var dir := _nav_path[0] - get_current_tile()
+	# AStarGrid2D runs with DIAGONAL_MODE_NEVER, so every route step is one
+	# cardinal tile. Anything else means the player is off-route.
+	if absi(dir.x) + absi(dir.y) != 1 or not try_step(dir):
+		cancel_navigation()
+		return
+	_nav_path.remove_at(0)
+	if _nav_path.is_empty():
+		path_overlay.clear_nav_destination()
+
+
+func cancel_navigation() -> void:
+	_nav_path.clear()
+	if path_overlay:
+		path_overlay.clear_nav_destination()
+
+
+## (Re)build the A* grid the overlay routes through. Call after anything that
+## changes which tiles are walkable.
+func rebuild_nav_grid() -> void:
+	if path_overlay == null or world_map == null:
+		return
+	path_overlay.tile_size = tile_size
+	path_overlay.setup_grid(world_map.bounds, is_tile_open)
+
+
+## Refresh the hover path under the cursor, hiding it whenever a click would
+## not start a route anyway.
+func _update_path_preview() -> void:
+	if path_overlay == null:
+		return
+	path_overlay.set_preview_suppressed(_is_stepping)
+	if _is_aiming or _is_ui_open() or get_viewport().gui_get_hovered_control() != null:
+		path_overlay.clear_preview()
+		return
+	if not _is_stepping:
+		path_overlay.update_preview(global_position, get_global_mouse_position())
+
+
+func _is_ui_open() -> bool:
+	return (inventory_screen != null and inventory_screen.visible) \
+		or (spell_book_screen != null and spell_book_screen.visible) \
+		or (trade_screen != null and trade_screen.visible)
+
+
+func _on_combat_turn_ended(entity: Node2D) -> void:
+	if entity == self:
+		cancel_navigation()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  GRID / CAMERA
+# ═══════════════════════════════════════════════════════════════════════
+
+func get_current_tile() -> Vector2i:
+	return world_to_tile(global_position)
+
+
+## Tile ↔ world conversion, delegated to the world map so the grid origin is
+## owned in one place. Falls back to plain arithmetic in scenes with no map.
+func world_to_tile(world_pos: Vector2) -> Vector2i:
+	if world_map:
+		return world_map.world_to_tile(world_pos)
+	return Vector2i(floori(world_pos.x / tile_size), floori(world_pos.y / tile_size))
+
+
+func tile_to_world(tile: Vector2i) -> Vector2:
+	if world_map:
+		return world_map.tile_to_world(tile)
+	return Vector2(tile * tile_size) + Vector2(tile_size, tile_size) * 0.5
+
+
+## Line the player up exactly on a tile centre, relocating to the nearest
+## walkable tile if the authored spawn point sits in water or off the map.
+func snap_to_grid() -> void:
+	var tile := get_current_tile()
+	if world_map:
+		tile = world_map.nearest_walkable(tile)
+	global_position = tile_to_world(tile)
+	_step_target = global_position
+	_is_stepping = false
+	velocity = Vector2.ZERO
+
+
+## Clamp the camera to the painted extent of the world map.
+func update_camera_limits() -> void:
+	if camera == null or world_map == null:
+		return
+	var extent: Rect2 = world_map.bounds_px()
+	camera.limit_left = int(extent.position.x)
+	camera.limit_top = int(extent.position.y)
+	camera.limit_right = int(extent.end.x)
+	camera.limit_bottom = int(extent.end.y)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  APPEARANCE
+# ═══════════════════════════════════════════════════════════════════════
+
+## Face the direction of the last horizontal step; vertical steps keep the
+## previous facing.
+func _face(dir: Vector2i) -> void:
+	if dir.x == 0:
+		return
+	var flip := dir.x < 0
+	if sprite:
+		sprite.flip_h = flip
+	if animated_sprite:
+		animated_sprite.flip_h = flip
+
+
+## Play an animation only if the sprite actually has one by that name, so the
+## static-sprite and animated setups can share this code.
 func _play_animation(anim_name: StringName) -> void:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return
+	if not animated_sprite.sprite_frames.has_animation(anim_name):
+		return
 	if animated_sprite.animation != anim_name:
 		animated_sprite.play(anim_name)
 
-## Return to idle once a move step's tween finishes, unless another
-## animation (e.g. attack) has since taken over.
-func _on_move_tween_finished() -> void:
-	if animated_sprite.animation == "walk":
-		_play_animation("idle")
 
-## Return to idle once the (looping) attack animation completes its first cycle.
-func _on_attack_animation_finished() -> void:
-	if animated_sprite.animation == "attack":
-		_play_animation("idle")
+func _refresh_hud_bars() -> void:
+	if hud == null:
+		return
+	hud.update_hp(current_health, max_health)
+	hud.update_mp(current_mana, max_mana)
+	hud.update_sp(current_stamina, max_stamina)
 
-## Returns true if the player is allowed to move right now.
-## Outside combat: always true. Inside combat: only on the player's turn.
-func _can_move_in_combat() -> bool:
-	if not CombatManager.in_combat:
-		return true
-	if not CombatManager.is_player_turn():
-		return false
-	if CombatManager.get_current_mp() <= 0:
-		return false
-	return true
 
-## Receive damage from any source. Triggers combat if hit while not in combat.
+# ═══════════════════════════════════════════════════════════════════════
+#  COMBAT
+# ═══════════════════════════════════════════════════════════════════════
+
+## Take damage from any source. Being hit by a hostile NPC outside of combat
+## starts combat.
 func take_damage(amount: int, source: Node2D = null) -> void:
-	current_health -= amount
-	current_health = max(0, current_health)
+	current_health = maxi(0, current_health - amount)
 	if hud:
 		hud.update_hp(current_health, max_health)
 	if CombatManager.in_combat:
-		CombatManager._log("Player takes %d damage. (%d/%d HP)" % [amount, current_health, max_health], "attack")
+		CombatManager._log("Player takes %d damage. (%d/%d HP)"
+			% [amount, current_health, max_health], "attack")
+
 	if current_health <= 0:
-		print("Player died!")
-		_play_animation("fall")
+		_play_animation(&"fall")
+		cancel_navigation()
 		if CombatManager.in_combat:
 			CombatManager._log("Player has been defeated!", "death")
+		print("Player died!")
 		# TODO: game-over handling
 		return
-	# If hit by a hostile NPC outside of combat, trigger combat
-	if source != null and not CombatManager.in_combat:
-		if source is NPC and source._is_hostile_to_player():
-			CombatManager.trigger_combat(source, self)
 
-## Attack an NPC in melee range (costs AP_COST_ATTACK action points).
+	if not CombatManager.in_combat and source is NPC:
+		var attacker: NPC = source
+		if attacker._is_hostile_to_player():
+			CombatManager.trigger_combat(attacker, self)
+
+
+## Attack the nearest NPC in melee range. Costs AP_COST_ATTACK action points.
 func combat_attack_npc() -> void:
 	if not CombatManager.in_combat or not CombatManager.is_player_turn():
 		return
 	if not CombatManager.spend_ap(CombatManager.AP_COST_ATTACK):
 		print("Not enough AP to attack!")
 		return
-	_play_animation("attack")
-	if not animated_sprite.animation_finished.is_connected(_on_attack_animation_finished):
-		animated_sprite.animation_finished.connect(_on_attack_animation_finished, CONNECT_ONE_SHOT)
-	# Find the closest NPC in melee range
-	var best_npc: NPC = null
-	var best_dist := tile_size * 1.6   # ~1 tile diagonal
-	var npcs := get_tree().get_nodes_in_group("NPCs")
-	for npc in npcs:
+
+	_play_animation(&"attack")
+
+	var target: NPC = null
+	var best_dist := tile_size * 1.6   # one tile, including diagonals
+	for npc in get_tree().get_nodes_in_group("NPCs"):
 		if not is_instance_valid(npc):
 			continue
-		var d: float = global_position.distance_to(npc.global_position)
-		if d < best_dist:
-			best_dist = d
-			best_npc = npc
-	if best_npc:
-		var str_val: int = stats.get("strength", 12)
-		var damage := int(str_val * 0.5) + rng_roll(1, 8)
-		best_npc.take_damage(damage, self)
-		var npc_label: String = best_npc.get("npc_name") if best_npc.get("npc_name") else best_npc.name
-		CombatManager._log("Player attacks %s for %d damage." % [npc_label, damage], "attack")
-		print("Player attacks %s for %d damage" % [best_npc.name, damage])
-	else:
+		var dist := global_position.distance_to(npc.global_position)
+		if dist < best_dist:
+			best_dist = dist
+			target = npc
+
+	if target == null:
 		print("No target in range!")
-
-func rng_roll(min_val: int, max_val: int) -> int:
-	return randi_range(min_val, max_val)
-# =============================
-
-func _on_nav_click(world_pos: Vector2) -> void:
-	"""Handle a left-click: compute a path and start walking it."""
-	if not path_overlay:
-		return
-	# Don't navigate while a UI screen is open
-	var ui_open: bool = (inventory_screen and inventory_screen.visible) or \
-					   (spell_book_screen and spell_book_screen.visible)
-	if ui_open:
-		return
-	var path: Array[Vector2i] = path_overlay.get_tile_path(global_position, world_pos)
-	if path.size() > 1:
-		_nav_path = path.slice(1)  # Skip the tile the player is already on
-		_nav_active = true
-		path_overlay.set_nav_destination(world_pos)
-	else:
-		_nav_cancel()
-
-
-func _nav_step() -> void:
-	"""Advance one tile along the current nav path."""
-	if _nav_path.is_empty():
-		_nav_cancel()
 		return
 
-	var next_tile: Vector2i = _nav_path.pop_front()
-	var curr_tile := Vector2i(
-		int(floorf(global_position.x / tile_size)),
-		int(floorf(global_position.y / tile_size))
-	)
-	var diff := next_tile - curr_tile
-
-	# Only accept cardinal 1-tile steps (A* with DIAGONAL_MODE_NEVER guarantees this)
-	if abs(diff.x) + abs(diff.y) != 1:
-		_nav_cancel()
-		return
-
-	# Walkability re-check in case something changed since path was computed
-	var tile_clear: bool = false
-	if in_local_area and area_container.current_area:
-		tile_clear = _local_area_is_walkable(area_container.current_area, next_tile)
-	else:
-		tile_clear = overworld.is_walkable(next_tile)
-
-	if not tile_clear:
-		_nav_cancel()
-		return
-
-	_move(Vector2(diff))
-
-	if _nav_path.is_empty():
-		_nav_active = false
-		if path_overlay:
-			path_overlay.clear_nav_destination()
-
-
-func _on_combat_turn_ended(entity: Node2D) -> void:
-	"""Clear the nav path when the player's turn ends so they pick a new
-	destination each turn rather than continuing the previous route."""
-	if entity == self:
-		_nav_cancel()
-
-func _nav_cancel() -> void:
-	"""Stop point-and-click navigation immediately."""
-	_nav_path = []
-	_nav_active = false
-	if path_overlay:
-		path_overlay.clear_nav_destination()
-
-
-func _rebuild_nav_grid() -> void:
-	"""(Re)build the A* pathfinding grid for the current context."""
-	if not path_overlay:
-		return
-	if in_local_area and area_container and area_container.current_area and map_rect:
-		var area: Node2D = area_container.current_area
-		# Walkability point-queries the physics space, which only registers a
-		# freshly loaded area's tile colliders on the next physics step — wait
-		# one physics frame so building walls are solid in the nav grid.
-		await get_tree().physics_frame
-		if not (in_local_area and area_container and area_container.current_area == area):
-			return # area changed while waiting
-		path_overlay.setup_grid(
-			map_rect,
-			func(tile: Vector2i) -> bool: return _local_area_is_walkable(area, tile)
-		)
-	else:
-		var ow: Node2D = overworld
-		var ow_rect := Rect2i(0, 0, int(ow.WIDTH), int(ow.HEIGHT))
-		path_overlay.setup_grid(
-			ow_rect,
-			func(tile: Vector2i) -> bool: return ow.is_walkable(tile)
-		)
-
-func _local_area_is_walkable(area: Node2D, tile: Vector2i) -> bool:
-	"""Walkability check that works for both MapGenerator scenes
-	(procedural maps) and plain settlement Node2D scenes (e.g. town_1_new.gd)."""
-	# MapGenerator scenes expose is_walkable directly
-	if area.has_method("is_walkable"):
-		return area.is_walkable(tile)
-	# Fallback: read tilemaps directly — blocked if there's a wall tile or no ground
-	if not area.get("tilemaps"):
-		return false
-	var maps: Dictionary = area.tilemaps
-	# A wall tile present → not walkable
-	var walls = maps.get("WALLS")
-	if walls and walls.get_cell_source_id(tile) != -1:
-		return false
-	# No ground tile → not walkable
-	var ground = maps.get("GROUND")
-	if ground and ground.get_cell_source_id(tile) == -1:
-		return false
-	return true
-	
-func descend_to_local_area() -> void:
-	overworld_tile_pos = global_position
-
-	# Resolve the two values we need: a scene path and/or tile metadata.
-	var scene_path := ""
-	var metadata: TileMetadata = null
-	if current_tile:
-		scene_path = current_tile.scene_path
-		metadata = current_tile.tile_metadata
-		overworld_tile = metadata.coords if metadata else Vector2i(overworld.world_to_map(global_position))
-	else:
-		overworld_tile = Vector2i(overworld.world_to_map(global_position))
-		scene_path = overworld.settlement_at_tile(overworld_tile)
-		if scene_path == "":
-			# Procedural wilderness: first visit rolls & locks the tile's
-			# permanent seed; revisits reuse it (persisted via save system).
-			metadata = get_parent().prepare_tile_visit(overworld_tile)
-		else:
-			metadata = get_parent().world_tile_data.get(overworld_tile)
-
-	if scene_path == "" and metadata == null:
-		push_warning("No world data for tile %s" % overworld_tile)
-		return
-
-	# Water check — only blocks descending into procedurally-generated
-	# wilderness. Hand-crafted settlement scenes (scene_path set, e.g. via a
-	# LocalMapTile) are always enterable even if their overworld tile's base
-	# terrain is painted as water (coastal towns, docks, etc.).
-	if scene_path == "":
-		var tile_data = overworld.get_tile_data(overworld_tile)
-		if tile_data.terrain == overworld.Terrain.WATER:
-			print("Can't descend on water")
-			return
-
-	area_container.load_area(scene_path, metadata)
-
-	await get_tree().process_frame
-	current_local_area = area_container.current_area
-	map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
-	position = get_spawn_tile()
-	_connect_to_existing_npcs()
-
-	overworld.hide()
-	in_local_area = true
-	update_camera_limits()
-	_rebuild_nav_grid()
-
-func return_to_overworld() -> void:
-	if in_local_area:
-		area_container.clear()
-		map_rect = null
-	current_local_area = null
-	overworld.show()
-	in_local_area = false
-	position = overworld_tile_pos
-	update_camera_limits()
-	_nav_cancel()
-	_rebuild_nav_grid()
-
-func get_spawn_tile():
-	return area_container.spawn_tile.position
-
-func get_current_tile() -> Vector2i:
-	"""Get the player's current tile position based on their world position and context."""
-	if in_local_area:
-		# In local area, convert position to tile coordinates
-		return Vector2i(position / tile_size)
-	else:
-		# On overworld, use the overworld grid position
-		return Vector2i(overworld.world_to_map(global_position))
-
-# Hide/show roof based on whether player is inside a building
-func _update_roof_visibility() -> void:
-	if not current_local_area or not current_local_area.tilemaps:
-		return
-	var roof_map = current_local_area.tilemaps.get("ROOF")
-	if not roof_map:
-		return
-	var interior_map = current_local_area.tilemaps.get("INTERIOR_FLOOR")
-	var grid_pos = Vector2i(position / tile_size)
-	var is_inside = interior_map.get_cell_tile_data(Vector2i(grid_pos.x, grid_pos.y))
-	roof_map.visible = not is_inside
-
-func update_camera_limits() -> void:
-	if not camera:
-		return
-	if in_local_area and current_local_area and map_rect:
-		var margin = 0
-		camera.limit_left = map_rect.position.x * tile_size - margin
-		camera.limit_right = (map_rect.end.x) * tile_size + margin
-		camera.limit_top = map_rect.position.y * tile_size - margin
-		camera.limit_bottom = (map_rect.end.y) * tile_size + margin
-	else:
-		camera.limit_left = 0
-		camera.limit_right = overworld.WIDTH * tile_size
-		camera.limit_top = 0
-		camera.limit_bottom = overworld.HEIGHT * tile_size
+	var damage := int(stats.get("strength", 12) * 0.5) + randi_range(1, 8)
+	target.take_damage(damage, self)
+	var label := target.npc_name if target.npc_name else String(target.name)
+	CombatManager._log("Player attacks %s for %d damage." % [label, damage], "attack")
 
 # =============================
 # NPC INTERACTION SYSTEM

@@ -2,29 +2,12 @@
 
 [ext_resource type="Script" uid="uid://dlmon0wdqcnnl" path="res://scripts/main_game.gd" id="1_lnu2h"]
 [ext_resource type="PackedScene" uid="uid://2yt1rem30pxh" path="res://scenes/player.tscn" id="1_obwjb"]
-[ext_resource type="PackedScene" uid="uid://bus31nsk52q8w" path="res://scenes/overworld_map_drawn.tscn" id="2_3ygxx"]
 [ext_resource type="PackedScene" uid="uid://bjhncns8a6cou" path="res://scenes/pause.tscn" id="5_iywne"]
-[ext_resource type="PackedScene" uid="uid://b0bncv4868ufp" path="res://scenes/local_map_tile.tscn" id="6_p57ef"]
-[ext_resource type="Script" uid="uid://dex54ja7a1in3" path="res://scripts/TileMetadata.gd" id="7_gee14"]
-[ext_resource type="PackedScene" uid="uid://bwewqbvqx17en" path="res://scenes/area_container.tscn" id="7_u5sy4"]
+[ext_resource type="PackedScene" uid="uid://ckryfe7vjgm1" path="res://scenes/alternate_mode/qud_like_world_map.tscn" id="5_p57ef"]
+[ext_resource type="PackedScene" uid="uid://wfdgw7igahtl" path="res://scenes/local_scene.tscn" id="6_p57ef"]
 [ext_resource type="PackedScene" uid="uid://0ow0juc2fpg5" path="res://scenes/point_and_click_path.tscn" id="8_navov"]
 
-[sub_resource type="Resource" id="Resource_0tnpc"]
-script = ExtResource("7_gee14")
-coords = Vector2i(11, 18)
-metadata/_custom_type_script = "uid://dex54ja7a1in3"
-
-[sub_resource type="Resource" id="Resource_u5sy4"]
-script = ExtResource("7_gee14")
-coords = Vector2i(7, 22)
-metadata/_custom_type_script = "uid://dex54ja7a1in3"
-
-[sub_resource type="Resource" id="Resource_gee14"]
-script = ExtResource("7_gee14")
-coords = Vector2i(8, 22)
-metadata/_custom_type_script = "uid://dex54ja7a1in3"
-
-[node name="Overworld" type="Node2D" unique_id=2098715570]
+[node name="Game" type="Node2D" unique_id=2098715570]
 visibility_layer = 7
 script = ExtResource("1_lnu2h")
 
@@ -35,36 +18,12 @@ layer = 10
 
 [node name="Player" parent="." unique_id=1738736863 instance=ExtResource("1_obwjb")]
 z_index = 2
-position = Vector2(4696, 3088)
-scale = Vector2(0.5, 0.5)
-
-[node name="OverworldMap" parent="." unique_id=868024379 instance=ExtResource("2_3ygxx")]
-settlements_list = Dictionary[Vector2i, String]({
-Vector2i(13, 21): "res://scenes/town_1_new.tscn"
-})
-
-[node name="AreaContainer" parent="." unique_id=476275943 instance=ExtResource("7_u5sy4")]
+position = Vector2(440, 848)
 
 [node name="PointAndClickPath" parent="." unique_id=312846721 instance=ExtResource("8_navov")]
 z_index = 1
 
-[node name="town_tiles" type="Node2D" parent="." unique_id=1715855552]
+[node name="world_map" parent="." unique_id=608102656 instance=ExtResource("5_p57ef")]
 
-[node name="poneti_town" parent="town_tiles" unique_id=1193277896 instance=ExtResource("6_p57ef")]
-position = Vector2(4632, 3192)
-scene_path = "res://scenes/poneti_town.tscn"
-tile_metadata = SubResource("Resource_0tnpc")
-
-[node name="city_tiles" type="Node2D" parent="." unique_id=111666021]
-
-[node name="city_1" parent="city_tiles" unique_id=64096099 instance=ExtResource("6_p57ef")]
-position = Vector2(4568, 3216)
-scene_path = "res://scenes/city_1.tscn"
-tile_metadata = SubResource("Resource_u5sy4")
-
-[node name="test_tiles" type="Node2D" parent="." unique_id=473904430]
-
-[node name="local_map_tile" parent="test_tiles" unique_id=344870519 instance=ExtResource("6_p57ef")]
-position = Vector2(4664, 3032)
-scene_path = "res://scenes/test_battle_field.tscn"
-tile_metadata = SubResource("Resource_gee14")
+[node name="local_scene" parent="." unique_id=975847310 instance=ExtResource("6_p57ef")]
+visible = false

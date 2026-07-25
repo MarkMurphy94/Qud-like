@@ -8,7 +8,7 @@
 ## Usage:
 ## - Create a new .tres resource (e.g. via the editor Inspector or
 ##   MapConfig.create_and_save(path, init_dict)) and configure its exported properties:
-##   map_name, map_type, building_density, climate/terrain/culture, noise/feature
+##   map_name, map_type, building_density, Biome/terrain/culture, noise/feature
 ##   density settings, and road_exits.
 ## - overworld_tile must match the coordinates used to register this map (e.g. in
 ##   OverworldMap's settlement list or a LocalMapTile's TileMetadata) so settlement
@@ -63,12 +63,17 @@ enum RoadExit {
 	WEST  = 8,
 }
 
-enum Climate {
+enum Biome {
 	TEMPERATE,
-	COLD,
-	HOT,
-	ARID,
-	TROPICAL
+	VOLCANIC,
+	SAVANNAH,
+	BOREAL,
+	JUNGLE,
+	ARCTIC,
+	DESERT,
+	DEAD,
+	SWAMP,
+	CURSED,
 }
 
 enum TerrainType {
@@ -93,18 +98,16 @@ enum TreeDensity {
 	SPARSE,
 	FOREST,
 }
-@export_group("Technical Properties")
-@export_range(1.0, 200.0, 0.5) var noise_scale: float = 20.0
-@export var overworld_tile: Vector2i
-@export var scene_path: String
-@export var SEED: int = 0
 @export_group("Map Properties")
 @export var map_name: String
+@export var biome: Biome = Biome.TEMPERATE
+@export var terrain: TerrainType = TerrainType.PLAINS
+@export var culture: Culture = Culture.MIDLANDS
+@export var map_type: MapType = MapType.NON_SETTLEMENT
+@export var important_npcs: Array[NPCConfig] = []
 @export var building_density: BuildingDensity = BuildingDensity.SMALL_VILLAGE
 @export var buildings: Array[Structure] = []
 @export var important_buildings: Array[Structure] = []
-@export var important_npcs: Array[NPCConfig] = []
-@export var map_type: MapType = MapType.NON_SETTLEMENT
 @export var misc_features: Array[MiscFeatures] = []
 @export var tree_density: TreeDensity = TreeDensity.NONE
 @export_range(0.0, 1.0, 0.01) var bush_density: float = 0.15
@@ -120,9 +123,12 @@ enum TreeDensity {
 @export_range(0.0, 1.0, 0.01) var dirt_feature_density: float = 0.4
 @export_range(0.0, 1.0, 0.01) var mud_feature_density: float = 0.15
 @export_range(0.0, 1.0, 0.01) var stone_feature_density: float = 0.3
-@export var climate: Climate = Climate.TEMPERATE
-@export var terrain: TerrainType = TerrainType.PLAINS
-@export var culture: Culture = Culture.MIDLANDS
+
+@export_group("Technical Properties")
+@export_range(1.0, 200.0, 0.5) var noise_scale: float = 20.0
+@export var overworld_tile: Vector2i
+@export var scene_path: String
+@export var SEED: int = 0
 
 ## Which edges of this local map have a road connection (bitmask of RoadExit flags).
 ## For non-settlement maps this is assigned automatically by the world generator;

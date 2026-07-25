@@ -6,8 +6,6 @@ extends CanvasLayer
 @onready var hp_value: Label = $MarginContainer/VBoxContainer/TopContainer/BarsContainer/HPContainer/HPValue
 @onready var mp_value: Label = $MarginContainer/VBoxContainer/TopContainer/BarsContainer/MPContainer/MPValue
 @onready var sp_value: Label = $MarginContainer/VBoxContainer/TopContainer/BarsContainer/SPContainer/SPValue
-@onready var pause_button: Button = $MarginContainer/VBoxContainer/TopContainer/PauseButton
-@onready var inventory: Button = $MarginContainer/VBoxContainer/TopContainer/inventory
 @onready var hotbar_container: HBoxContainer = $MarginContainer/VBoxContainer/BottomRowContainer/HotbarContainer
 @onready var equip_panel: Control = $MarginContainer/VBoxContainer/BottomRowContainer/EquipPanel
 @onready var margin_container: MarginContainer = $MarginContainer
@@ -39,8 +37,7 @@ var inventory_screen_instance = null
 signal pause_requested
 
 func _ready() -> void:
-	pause_button.pressed.connect(_on_pause_button_pressed)
-	inventory.pressed.connect(_on_inventory_pressed)
+	# The pause and inventory buttons are wired to their handlers in hud.tscn.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	CombatManager.combat_started.connect(_on_combat_started)
 	CombatManager.combat_ended.connect(_on_combat_ended)
