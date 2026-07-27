@@ -26,7 +26,10 @@ const CATEGORY_ROUTING := {
 	"rock":     {"category": "terrain_features", "type": "rock"},
 	"farm":     {"category": "terrain_features", "type": "farm"},
 	"ground":   {"category": "surface",          "type": "ground"},
-	"road":     {"category": "surface",          "type": "road"},
+	# Row 10's coarse ground cut is never a base surface — it is scattered over
+	# one by add_terrain_features, so it routes to the feature layer instead.
+	"ground_detail": {"category": "terrain_features", "type": "ground_detail"},
+	"road":     {"category": "road",          "type": "road"},
 	"liquid":   {"category": "surface",          "type": "water"},
 	"mountain": {"category": "surface",          "type": "mountain"},
 	"wall":     {"category": "structure",        "type": "wall"},
@@ -45,7 +48,7 @@ const CATEGORY_ROUTING := {
 const TERRAIN_SURFACES := {
 	"grass": "ground",
 	"dirt": "ground",
-	"stone": "road",
+	"stone": "ground_detail",
 	"water": "water",
 	"wheat_field": "farm",
 }

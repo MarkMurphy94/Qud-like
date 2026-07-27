@@ -73,7 +73,7 @@ const BIOME_COLUMNS := {
 	12: "swamp",
 	13: "cursed",
 }
-const BIOME_CATEGORIES: Array[String] = ["tree", "grass", "plant", "bush", "rock", "ground"]
+const BIOME_CATEGORIES: Array[String] = ["tree", "grass", "plant", "bush", "rock", "ground", "ground_detail"]
 
 ## Biome for an atlas coord, or "" when the tile does not vary by environment.
 static func biome_for(coord: Vector2i, theme: String, category: String) -> String:
@@ -99,7 +99,14 @@ const CATEGORY_BANDS := [
 	{"category": "plant",    "rows": [6, 6],   "walkable": true,  "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
 	{"category": "bush",     "rows": [7, 7],   "walkable": false, "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
 	{"category": "rock",     "rows": [8, 8],   "walkable": false, "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
-	{"category": "ground",   "rows": [9, 10],  "walkable": true,  "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": false},
+	# The sheet draws ground twice: row 9 is the flat, full-coverage fill for a
+	# biome, row 10 the coarser rubble/tussock cut of the same environment.
+	# Treating both as one category made the base layer alternate between the two
+	# in a visible regular pattern, so they are split: row 9 is the only thing
+	# that paints base terrain, row 10 scatters on top as a feature (and so must
+	# come from the transparent cut, or it would blank the fill beneath it).
+	{"category": "ground",        "rows": [9, 9],   "walkable": true,  "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": false},
+	{"category": "ground_detail", "rows": [10, 10], "walkable": true,  "is_map_tile": true,  "local_gen": true, "world_map": false, "use_alpha": true},
 	{"category": "road",     "rows": [11, 11], "walkable": true,  "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
 	{"category": "rail",     "rows": [12, 12], "walkable": true,  "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
 	{"category": "liquid",   "rows": [13, 13], "walkable": false, "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},

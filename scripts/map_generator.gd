@@ -272,12 +272,44 @@ const BUILDING_COUNTS_BY_DENSITY = {
 const TREE_DENSITY_VALUES = {
 	MapConfig.TreeDensity.NONE: 0.0,
 	MapConfig.TreeDensity.SPARSE: 0.15,
-	MapConfig.TreeDensity.FOREST: 0.30,
+	MapConfig.TreeDensity.FOREST: 0.5,
 }
 
 # Tiles of "worn ground" influence around each building footprint — used to
 # skew settlement ground toward the secondary (trampled) terrain near walls.
 const WEAR_RADIUS := 6
+
+# Largest gap add_foliage() will enforce between two placements of the same
+# atlas tile. The gap actually used is this or the number of distinct tiles in
+# the pool, whichever is smaller — see add_foliage() for why.
+const FOLIAGE_SAME_TILE_MIN_DIST := 8
+
+# How thickly the coarse ground cut (band row 10) is scattered over each base
+# surface, as a fraction of that surface's cells. Grass hides its rubble under
+# turf, bare dirt shows more of it, and stony ground is mostly the coarse stuff
+# already — so the frequency is a property of the terrain, not one global rate.
+# Scaled by MapConfig.ground_detail_density and clumped by cluster noise.
+const GROUND_DETAIL_DENSITY := {
+	"grass": 0.08,
+	"dirt": 0.20,
+	"stone": 0.30,
+	"water": 0.0,
+}
+
+# Per-biome multiplier on the rates above: bare, dead and eroded environments
+# break up more than lush or snow-covered ones. Biomes absent here scatter at
+# the unmodified rate.
+const GROUND_DETAIL_BIOME_SCALE := {
+	"desert": 1.4,
+	"dead": 1.4,
+	"volcanic": 1.3,
+	"swamp": 1.2,
+	"cursed": 1.2,
+	"savannah": 1.1,
+	"boreal": 0.8,
+	"jungle": 0.7,
+	"arctic": 0.5,
+}
 
 # Road generation parameters
 const ROAD_WIDTH = 2
@@ -1255,7 +1287,21 @@ func add_foliage() -> void:
 	# Track origin positions per atlas tile to prevent identical sprites clustering.
 	# Key: "sourceId_atlasX_atlasY"  Value: Array[Vector2i] of placed origins
 	var placed_type_positions: Dictionary = {}
-	const FOLIAGE_SAME_TILE_MIN_DIST := 8
+
+	# Minimum gap between two placements of the SAME atlas tile. Written for
+	# tilesets that draw a dozen different trees, where 8 tiles is roughly one
+	# sprite width and the rule only breaks up visible repeats.
+	#
+	# The roguelike sheet draws ONE tree per biome, so a flat 8-tile gap stops
+	# being an anti-repeat rule and becomes a hard ceiling on the whole map:
+	# one tree per 8x8 area per distinct tile, i.e. ~3% of cells with a two-tile
+	# pool. Both SPARSE and FOREST ask for far more than that, so both saturated
+	# at the same count and tree_density had no visible effect. Scaling the gap
+	# to how many distinct tiles the pool actually offers leaves varied tilesets
+	# exactly as they were and lets a one-per-biome pool pack as densely as the
+	# density asks.
+	var tree_spacing: int = mini(tree_tiles.size(), FOLIAGE_SAME_TILE_MIN_DIST)
+	var bush_spacing: int = mini(bush_tiles.size(), FOLIAGE_SAME_TILE_MIN_DIST)
 
 	# Visit cells in shuffled order — a fixed top-left scan lets earlier cells
 	# greedily claim multi-tile footprints, skewing forests toward the top-left
@@ -1328,6 +1374,8 @@ func add_foliage() -> void:
 				dominant_bark = all_live_trees
 
 			var candidates: Array = []
+			# Anti-repeat gap for whichever pool this cell ends up drawing from.
+			var same_tile_gap: int = tree_spacing
 			if detail_value < local_tree_density:
 				var tree_roll := foliage_rng.randf()
 				# Dead/broken trees are rare in the open but more common deep
@@ -1345,6 +1393,7 @@ func add_foliage() -> void:
 					candidates = tree_tiles
 			elif detail_value < local_tree_density + local_bush_density:
 				candidates = bush_tiles
+				same_tile_gap = bush_spacing
 
 			if not candidates.is_empty():
 				var fdata: Dictionary = candidates[foliage_rng.randi() % candidates.size()]
@@ -1361,9 +1410,9 @@ func add_foliage() -> void:
 				if area_free:
 					var type_key := "%d_%d_%d" % [fdata["source_id"], fdata["atlas"].x, fdata["atlas"].y]
 					var too_close := false
-					if placed_type_positions.has(type_key):
+					if same_tile_gap > 1 and placed_type_positions.has(type_key):
 						for prev_pos: Vector2i in placed_type_positions[type_key]:
-							if maxi(absi(pos.x - prev_pos.x), absi(pos.y - prev_pos.y)) < FOLIAGE_SAME_TILE_MIN_DIST:
+							if maxi(absi(pos.x - prev_pos.x), absi(pos.y - prev_pos.y)) < same_tile_gap:
 								too_close = true
 								break
 					if not too_close:
@@ -1463,7 +1512,44 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 						for edx in esize.x:
 							used_cells[cell + Vector2i(edx, edy)] = true
 
+## Scatters the coarse ground cut (band row 10) over the base terrain painted
+## from row 9. Rate is per base surface (see GROUND_DETAIL_DENSITY) and biome,
+## clumped by its own cluster noise so patches of broken ground drift across the
+## map instead of speckling it evenly — the old catalog put both rows in one
+## surface pool, which alternated them cell by cell in a visible grid.
+##
+## No-ops on the older tilesets, which have no such pool.
+func _scatter_ground_detail(local_rng: RandomNumberGenerator) -> void:
+	var pool: Array = _catalog_pool("terrain_features", "ground_detail")
+	if pool.is_empty():
+		return
+
+	var biome_scale: float = GROUND_DETAIL_BIOME_SCALE.get(map_biome, 1.0)
+	var config_scale: float = map_template.ground_detail_density if map_template else 1.0
+	var mask := _make_cluster_noise(_foliage_derived_seed() ^ 0x6D07)
+
+	for surface in terrain_cells:
+		var rate: float = GROUND_DETAIL_DENSITY.get(surface, 0.0) * biome_scale * config_scale
+		if rate <= 0.0:
+			continue
+		for pos: Vector2i in terrain_cells[surface]:
+			# Roads, building footprints (painted on the road layer) and anything
+			# already standing on the feature layer keep their own surface.
+			if road.get_cell_source_id(pos) != -1:
+				continue
+			if structures_exterior.get_cell_source_id(pos) != -1:
+				continue
+			if terrain_features.get_cell_source_id(pos) != -1:
+				continue
+			if local_rng.randf() >= rate * _cluster_weight(mask, pos):
+				continue
+			var pick: Dictionary = pool[local_rng.randi() % pool.size()]
+			terrain_features.set_cell(pos, pick["source_id"], pick["atlas"])
+
+
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
+	_scatter_ground_detail(local_rng)
+
 	# Feature pools read from tileset custom data via tile_catalog.
 	var tf: Dictionary = _catalog_types("terrain_features")
 	var fol: Dictionary = _catalog_types("foliage")
@@ -1497,6 +1583,10 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			continue
 
 		if road.get_cell_source_id(pos) != -1:
+			continue
+
+		# Ground detail scattered above already claims this cell.
+		if terrain_features.get_cell_source_id(pos) != -1:
 			continue
 
 		var ground_type := get_cell_ground_type(pos)
@@ -1557,6 +1647,9 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 					area_free = false
 					break
 				if road.get_cell_source_id(check) != -1:
+					area_free = false
+					break
+				if terrain_features.get_cell_source_id(check) != -1:
 					area_free = false
 					break
 			if not area_free:

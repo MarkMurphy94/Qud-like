@@ -78,11 +78,9 @@ enum Biome {
 
 enum TerrainType {
 	PLAINS,
-	FOREST,
 	MOUNTAIN,
-	DESERT,
-	SWAMP,
-	COAST
+	COAST,
+	CANYON,
 }
 
 enum Culture {
@@ -123,6 +121,10 @@ enum TreeDensity {
 @export_range(0.0, 1.0, 0.01) var dirt_feature_density: float = 0.4
 @export_range(0.0, 1.0, 0.01) var mud_feature_density: float = 0.15
 @export_range(0.0, 1.0, 0.01) var stone_feature_density: float = 0.3
+## Multiplier on the coarse-ground scatter (rubble, tussocks, broken stone laid
+## over the base terrain). The per-surface base rates live in
+## MapGenerator.GROUND_DETAIL_DENSITY; 0 turns the scatter off entirely.
+@export_range(0.0, 3.0, 0.05) var ground_detail_density: float = 1.0
 
 @export_group("Technical Properties")
 @export_range(1.0, 200.0, 0.5) var noise_scale: float = 20.0
