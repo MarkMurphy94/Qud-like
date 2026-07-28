@@ -8,9 +8,15 @@ extends Node
 @onready var player: CharacterBody2D = $Player
 @onready var pause: Control = $CanvasLayer/pause
 @onready var area_container = get_node_or_null("AreaContainer")
+## MapGenerator instance that hosts the current tile's local map.
+@onready var local_scene = get_node_or_null("local_scene")
 
 var _save := SaveGameResource.new()
 var world_tile_data: Dictionary = {}
+## Key = Vector2i tile.  Value = int seed used to generate that tile's local
+## map scene. Rolled once per land tile when the world is created, then owned
+## by the save file so local maps regenerate identically for a whole save.
+var overworld_tile_seeds: Dictionary = {}
 ## Key = area identifier (scene path or "x,y").  Value = Array of item-key strings.
 ## Populated at runtime and persisted through save/load to prevent re-spawning.
 var area_picked_up_items: Dictionary = {}
@@ -24,6 +30,12 @@ var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = n
 func _ready() -> void:
 	if area_container:
 		area_container.area_loaded.connect(_on_area_loaded)
+	# The local-map host starts empty and hidden — any content painted into the
+	# scene in the editor is test data, and its collision would bleed through
+	# into the overworld (tile collision ignores visibility).
+	if local_scene:
+		local_scene.clear_all_layers()
+		local_scene.visible = false
 	create_or_load_save()
 	# Check if the main menu requested we load a specific slot
 	if MainGameState.has_meta("pending_load_slot"):
@@ -52,6 +64,104 @@ func create_or_load_save():
 	_save.player_current_scene_path = get_tree().current_scene.scene_file_path
 	area_picked_up_items.clear()  # fresh world — nothing picked up yet
 	generate_world_metadata()
+	generate_overworld_tile_seeds()
+
+## Roll a permanent local-map seed for every land tile of the overworld.
+## Called once on "New Game"; on "Load Game" the seeds come back from the save
+## file instead. Existing entries are never re-rolled, so calling this on a
+## loaded world only fills in tiles that gained land since the save was made.
+func generate_overworld_tile_seeds() -> void:
+	if world_map == null:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var bounds: Rect2i = world_map.bounds
+	var added := 0
+	for y in range(bounds.position.y, bounds.end.y):
+		for x in range(bounds.position.x, bounds.end.x):
+			var tile := Vector2i(x, y)
+			if overworld_tile_seeds.has(tile):
+				continue
+			if not world_map.is_land(tile):
+				continue
+			overworld_tile_seeds[tile] = rng.randi()
+			added += 1
+	if added > 0:
+		print("[MainGame] Rolled local-map seeds for %d land tiles (%d total)"
+			% [added, overworld_tile_seeds.size()])
+
+## The permanent local-map seed for an overworld tile, or -1 for water /
+## off-map tiles that have no local map.
+func get_tile_seed(tile: Vector2i) -> int:
+	return overworld_tile_seeds.get(tile, -1)
+
+# ═════════════════════════════════════════════════════════════════════
+#  LOCAL MAP ENTER / EXIT
+# ═════════════════════════════════════════════════════════════════════
+
+## Descend into the procedurally generated local map for the overworld tile
+## the player is standing on. No-op for tiles without a seed (water/off-map).
+func enter_local_map() -> void:
+	if local_scene == null or world_map == null or player.in_local_area:
+		return
+	var tile: Vector2i = player.get_current_tile()
+	var map_seed := get_tile_seed(tile)
+	if map_seed == -1:
+		print("[MainGame] No local map for tile %s" % tile)
+		return
+
+	# Remember where to resurface.
+	player.overworld_tile = tile
+	player.overworld_tile_pos = player.global_position
+
+	var terrain: int = local_scene.OverworldTile.GRASS
+	if world_map.mountains.get_cell_source_id(tile) != -1:
+		terrain = local_scene.OverworldTile.MOUNTAIN
+
+	local_scene.generate_local_map({
+		"coords": tile,
+		"seed": map_seed,
+		"terrain": terrain,
+		"biome": world_map.biome_at(tile),
+	})
+
+	world_map.visible = false
+	local_scene.visible = true
+	player.in_local_area = true
+	player.world_map = local_scene
+	player.cancel_navigation()
+
+	# Freshly painted tile collision registers on the next physics step — wait
+	# for it so spawn placement and the nav grid see the real geometry.
+	await get_tree().physics_frame
+	var centre := Vector2i(local_scene.WIDTH / 2, local_scene.HEIGHT / 2)
+	var spawn: Vector2i = local_scene.nearest_walkable(centre)
+	player.global_position = local_scene.tile_to_world(spawn)
+	player.snap_to_grid()
+	player.update_camera_limits()
+	player.rebuild_nav_grid()
+	print("[MainGame] Entered local map for tile %s (seed %d)" % [tile, map_seed])
+
+## Return to the overworld tile the player descended from.
+func exit_local_map() -> void:
+	if world_map == null or not player.in_local_area:
+		return
+	if local_scene:
+		# Wiping the layers also drops their collision, which would otherwise
+		# keep blocking overworld tiles while the local map sits hidden.
+		local_scene.clear_all_layers()
+		local_scene.visible = false
+	world_map.visible = true
+	player.in_local_area = false
+	player.world_map = world_map
+	player.cancel_navigation()
+	player.global_position = player.overworld_tile_pos
+
+	await get_tree().physics_frame
+	player.snap_to_grid()
+	player.update_camera_limits()
+	player.rebuild_nav_grid()
+	print("[MainGame] Returned to overworld tile %s" % player.overworld_tile)
 
 ## First-visit hook for procedural wilderness tiles. Rolls the tile's
 ## permanent seed on the first descent (replacing the derived placeholder from
@@ -122,7 +232,10 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 
 	# ── Settlements ────────────────────────────────────────────
 	_save.settlements_data = MainGameState.settlements.duplicate(true)
-
+	# ── Overworld tile seeds ─────────────────────────────────
+	_save.overworld_tile_seeds.clear()
+	for tile: Vector2i in overworld_tile_seeds:
+		_save.overworld_tile_seeds["%d,%d" % [tile.x, tile.y]] = overworld_tile_seeds[tile]
 	# ── Item pickup records ─────────────────────────────────────
 	_save.area_picked_up_items = area_picked_up_items.duplicate(true)
 
@@ -165,7 +278,15 @@ func load_game_from_slot(slot: int) -> bool:
 
 	# ── Item pickup records ─────────────────────────────────────
 	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
-
+	# ── Overworld tile seeds ─────────────────────────────────
+	overworld_tile_seeds.clear()
+	for key_str in _save.overworld_tile_seeds:
+		var parts := (key_str as String).split(",")
+		if parts.size() == 2:
+			overworld_tile_seeds[Vector2i(int(parts[0]), int(parts[1]))] = int(_save.overworld_tile_seeds[key_str])
+	# Older saves (or map edits) may leave land tiles unseeded — top them up
+	# without touching the seeds that were restored above.
+	generate_overworld_tile_seeds()
 	# ── World metadata ─────────────────────────────────────────
 	generate_world_metadata()
 	# Overlay saved discovered-tile state on top of the freshly-generated metadata

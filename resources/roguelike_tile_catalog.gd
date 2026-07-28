@@ -38,23 +38,47 @@ const CATEGORY_ROUTING := {
 	"prop":     {"category": "decor_exterior",   "type": "prop"},
 }
 
-## MapGenerator's ground-surface names → the surface type they paint with.
+## MapGenerator's ground-surface names → the catalog (category, type) they
+## paint from.
 ##
 ## The old tileset autotiled these through terrain sets; the roguelike sheet has
-## no terrain sets, so surfaces are painted cell by cell from these pools.
+## no terrain sets, so surfaces are painted cell by cell from these pools. The
+## pair must match CATEGORY_ROUTING above — a surface is not always routed into
+## the "surface" category (the coarse ground cut and farm rows land in
+## "terrain_features"), and naming only the type silently yields an empty pool.
 ## NOTE: "grass" and "dirt" both resolve to the `ground` band because the band
 ## table has no column sub-bands yet — until tileset_layout.gd grows them (see
 ## its climate/biome TODO) the two surfaces are visually identical.
 const TERRAIN_SURFACES := {
-	"grass": "ground",
-	"dirt": "ground",
-	"stone": "ground_detail",
-	"water": "water",
-	"wheat_field": "farm",
+	"grass":       {"category": "surface",          "type": "ground"},
+	"dirt":        {"category": "surface",          "type": "ground"},
+	"stone":       {"category": "terrain_features", "type": "ground_detail"},
+	"water":       {"category": "surface",          "type": "water"},
+	"wheat_field": {"category": "terrain_features", "type": "farm"},
 }
+
+## Catalog (category, type) a named ground surface paints from. Unknown names
+## fall back to plain ground so a typo paints something rather than nothing.
+static func surface_route(surface: String) -> Dictionary:
+	return TERRAIN_SURFACES.get(surface, {"category": "surface", "type": "ground"})
 
 ## Themes are laid out in columns; this is the one this game paints with.
 const DEFAULT_THEME := "medieval_fantasy"
+
+## Default building shell. Generated buildings draw their wall ring from this
+## directional set of medieval_fantasy wall tiles, and pave their interior
+## with DEFAULT_FLOOR_ATLAS.
+const DEFAULT_WALL_TILES := {
+	"nw": Vector2i(5, 19),
+	"n":  Vector2i(6, 19),
+	"ne": Vector2i(7, 19),
+	"e":  Vector2i(9, 20),
+	"se": Vector2i(7, 20),
+	"s":  Vector2i(8, 20),
+	"sw": Vector2i(5, 20),
+	"w":  Vector2i(4, 19),
+}
+const DEFAULT_FLOOR_ATLAS := Vector2i(66, 10)
 
 
 ## Build the full catalog for every atlas source in `ts` whose texture the band
@@ -189,6 +213,32 @@ static func of_biome(entries: Array, biome: String) -> Array:
 		if entry_biome == biome or entry_biome.is_empty():
 			matched.append(entry)
 	return matched if not matched.is_empty() else entries
+
+
+## Resolve DEFAULT_WALL_TILES against a wall pool: role ("nw", "n", …) →
+## catalog entry. A role whose atlas coord is missing from the pool falls back
+## to the pool's first entry so a wall ring is never left with holes; returns
+## {} only when the pool itself is empty.
+static func default_wall_entries(entries: Array) -> Dictionary:
+	if entries.is_empty():
+		return {}
+	var out: Dictionary = {}
+	for role in DEFAULT_WALL_TILES:
+		var entry := entry_at(entries, DEFAULT_WALL_TILES[role])
+		if entry.is_empty():
+			push_warning("RoguelikeTileCatalog: default wall tile %s for '%s' not in catalog"
+				% [DEFAULT_WALL_TILES[role], role])
+			entry = entries[0]
+		out[role] = entry
+	return out
+
+
+## The entry in `entries` at atlas coordinate `coords`, or {} if absent.
+static func entry_at(entries: Array, coords: Vector2i) -> Dictionary:
+	for entry in entries:
+		if entry.get("atlas", Vector2i(-1, -1)) == coords:
+			return entry
+	return {}
 
 
 ## True when `ts` describes the roguelike master sheet, i.e. when at least one

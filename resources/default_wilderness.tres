@@ -7,7 +7,7 @@
 [resource]
 script = ExtResource("1_mapcfg")
 map_name = "Wilderness"
-building_density = 0
+building_density = 4
 tree_density = 1
 bush_density = 0.11
 rock_density = 0.0

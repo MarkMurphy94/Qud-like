@@ -3,7 +3,7 @@ extends Node2D
 @onready var area: Node2D = $area
 @onready var spawn_tile: Area2D = $spawn_tile
 
-var _local_area_packed: PackedScene = preload("res://scenes/wilderness_area.tscn")
+var _local_area_packed: PackedScene = preload("res://scenes/local_scene.tscn")
 var _npc_spawner_packed: PackedScene = preload("res://scenes/npc_spawner.tscn")
 
 var current_area: Node2D = null

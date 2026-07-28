@@ -164,6 +164,8 @@ func _process(delta: float) -> void:
 		_toggle_inventory_screen()
 	if Input.is_action_just_pressed("ui_interact"):
 		_try_interact_with_npc()
+	if Input.is_action_just_pressed("ui_descend"):
+		_toggle_local_map()
 
 
 func _physics_process(delta: float) -> void:
@@ -306,6 +308,26 @@ func is_tile_open(tile: Vector2i) -> bool:
 	if world_map == null:
 		return true
 	return world_map.is_walkable(tile)
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  LOCAL MAP VISITS
+# ═════════════════════════════════════════════════════════════════════
+
+## Descend into (or resurface from) the local map for the overworld tile the
+## player stands on. The heavy lifting lives in main_game.gd — this just asks
+## the game root, which owns the maps and the per-tile seeds.
+func _toggle_local_map() -> void:
+	if _is_stepping or CombatManager.in_combat or not can_act():
+		return
+	var game := get_parent()
+	if game == null:
+		return
+	if in_local_area:
+		if game.has_method("exit_local_map"):
+			game.exit_local_map()
+	elif game.has_method("enter_local_map"):
+		game.enter_local_map()
 
 
 # ═══════════════════════════════════════════════════════════════════════

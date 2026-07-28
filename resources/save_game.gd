@@ -43,6 +43,12 @@ const MAX_SLOTS := 10
 ## Key = "x,y"  Value = TileMetadata.to_dict()
 @export var world_tile_data: Dictionary = {}
 
+# ─── Per-tile local-map seeds for every land tile on the overworld ──────
+## Rolled once when a world is created and never re-rolled, so local maps
+## regenerate identically for the life of the save.
+## Key = "x,y"  Value = int seed
+@export var overworld_tile_seeds: Dictionary = {}
+
 # ─── Settlement runtime state (MainGameState.settlements snapshot) ─────
 @export var settlements_data: Dictionary = {}
 

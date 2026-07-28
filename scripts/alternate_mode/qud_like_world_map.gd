@@ -113,6 +113,31 @@ func category_at(layer: TileMapLayer, tile: Vector2i) -> String:
 	return band.get("category", "")
 
 
+## The biome a tile's art is drawn for, as the lowercase name the band table
+## uses ("temperate", "desert", "arctic", …). Empty when nothing painted here
+## comes from the fantasy block, which leaves the local generator on its
+## configured default.
+##
+## Biome is not a separate piece of data on the overworld — inside the
+## medieval_fantasy block each column IS one biome (Layout.BIOME_COLUMNS), so
+## painting a desert ground tile already says "desert" and there is nothing
+## extra to stamp. The ground answers first because it is what the environment
+## actually is; the overlays are consulted only when the ground is biome-neutral
+## (open water, a non-fantasy theme), where a desert palm or dune still names
+## the tile's environment.
+func biome_at(tile: Vector2i) -> String:
+	for layer: TileMapLayer in [base, land_features, forests, mountains]:
+		if layer == null or layer.get_cell_source_id(tile) == -1:
+			continue
+		var coord: Vector2i = layer.get_cell_atlas_coords(tile)
+		if Layout.theme_for_col(coord.x) != Layout.BIOME_THEME:
+			continue
+		var biome: String = Layout.BIOME_COLUMNS.get(coord.x, "")
+		if biome != "":
+			return biome
+	return ""
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #  QUERIES
 # ═══════════════════════════════════════════════════════════════════════
@@ -120,6 +145,16 @@ func category_at(layer: TileMapLayer, tile: Vector2i) -> String:
 ## True when a settlement / point-of-interest marker sits on this tile.
 func has_location(tile: Vector2i) -> bool:
 	return locations.get_cell_source_id(tile) != -1
+
+
+## Land tile = painted base ground that is not liquid. Mountains and forests
+## count as land; open water and unpainted void do not.
+func is_land(tile: Vector2i) -> bool:
+	if not is_in_bounds(tile):
+		return false
+	if base.get_cell_source_id(tile) == -1:
+		return false
+	return category_at(base, tile) not in BLOCKING_BASE_CATEGORIES
 
 
 ## Nearest walkable tile to `from`, searched outward in rings up to
