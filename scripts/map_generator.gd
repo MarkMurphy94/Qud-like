@@ -192,9 +192,9 @@ const ROAD_WIDTH = 2
 ## Folder that Bake To Scene writes to; the filename comes from
 ## map_template.map_name (snake_cased).
 @export_dir var bake_dir: String = "res://scenes/generated"
-@export_tool_button("Generate") var btn_generate = _editor_generate
-@export_tool_button("Clear") var btn_clear = _editor_clear
-@export_tool_button("Bake To Scene") var btn_bake = _editor_bake
+@export_tool_button("Generate") var btn_generate = func(): _editor_generate()
+@export_tool_button("Clear") var btn_clear = func(): _editor_clear()
+@export_tool_button("Bake To Scene") var btn_bake = func(): _editor_bake()
 @export_group("")
 
 # ════════════════════════════════════════════════════════════════════════
@@ -607,6 +607,7 @@ func build_settlement_from_dataset() -> void:
 	add_terrain_features(feature_rng)
 	add_foliage()
 	add_decor_exterior(placed_for_roads)
+
 func generate_local_map(metadata) -> void:
 	if typeof(metadata) == TYPE_OBJECT and metadata is TileMetadata:
 		current_metadata = (metadata as TileMetadata).to_dict()
@@ -625,10 +626,27 @@ func generate_local_map(metadata) -> void:
 	var local_rng := RandomNumberGenerator.new()
 	generate_local_area(terrain, world_pos, local_rng, map_seed)
 
+func _merged_overworld_metadata() -> Dictionary:
+	var merged: Dictionary = {}
+	var from_nested = current_metadata.get("overworld", {})
+	if from_nested is Dictionary:
+		merged = (from_nested as Dictionary).duplicate(true)
+	# Backward compatibility: legacy callers may only pass top-level keys.
+	if current_metadata.has("has_settlement") and not merged.has("has_settlement"):
+		merged["has_settlement"] = current_metadata["has_settlement"]
+	if current_metadata.has("is_forest") and not merged.has("is_forest"):
+		merged["is_forest"] = current_metadata["is_forest"]
+	if current_metadata.has("terrain") and not merged.has("terrain"):
+		merged["terrain"] = current_metadata["terrain"]
+	if current_metadata.has("biome") and not merged.has("biome"):
+		merged["biome"] = current_metadata["biome"]
+	return merged
+
 func _apply_metadata_to_config() -> void:
 	# Seed: generate_edge_roads and other helpers derive sub-seeds from
 	# map_template.SEED, so it must match the metadata seed for determinism.
 	map_template.SEED = int(current_metadata.get("seed", 0))
+	var overworld_data: Dictionary = _merged_overworld_metadata()
 
 	# Which biome's column of art this map draws from. Assigned unconditionally:
 	# map_template is a shared resource, so leaving a previous tile's biome in
@@ -657,6 +675,14 @@ func _apply_metadata_to_config() -> void:
 		# The new tileset expresses rocks as clustered stone terrain features.
 		map_template.stone_feature_density = foliage_profile["rock_density"]
 
+	# Optional overworld hint: forest tiles default to denser foliage when no
+	# explicit profile was provided for this tile.
+	var is_forest_tile: bool = bool(overworld_data.get("is_forest", false))
+	if is_forest_tile and not foliage_profile.has("tree_density"):
+		map_template.tree_density = MapConfig.TreeDensity.FOREST
+	if is_forest_tile and not foliage_profile.has("bush_density"):
+		map_template.bush_density = maxf(map_template.bush_density, 0.08)
+
 	# Misc features — translate structured TileMetadata dicts into the enum
 	# array that _generate_misc_features() reads.
 	var features: Array[MapConfig.MiscFeatures] = []
@@ -674,6 +700,10 @@ func _apply_metadata_to_config() -> void:
 	var ruins_data = current_metadata.get("ruins", null)
 	if ruins_data is Dictionary and ruins_data.get("exists", false):
 		features.append(MapConfig.MiscFeatures.RUIN)
+	# Optional overworld hint: settlement markers become a small hamlet when no
+	# explicit misc features were authored for the tile.
+	if bool(overworld_data.get("has_settlement", false)) and features.is_empty():
+		features.append(MapConfig.MiscFeatures.HAMLET)
 	map_template.misc_features = features
 
 func generate_local_area(overworld_tile_type: int, world_position: Vector2i, local_rng: RandomNumberGenerator, seed_override: int = 0) -> void:

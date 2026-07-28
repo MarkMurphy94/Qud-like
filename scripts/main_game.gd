@@ -91,6 +91,50 @@ func generate_overworld_tile_seeds() -> void:
 func get_tile_seed(tile: Vector2i) -> int:
 	return overworld_tile_seeds.get(tile, -1)
 
+func _terrain_for_tile(tile: Vector2i) -> int:
+	if local_scene == null:
+		return 0
+	if world_map and world_map.mountains.get_cell_source_id(tile) != -1:
+		return local_scene.OverworldTile.MOUNTAIN
+	return local_scene.OverworldTile.GRASS
+
+func _tile_has_settlement(tile: Vector2i) -> bool:
+	if world_map == null:
+		return false
+	if world_map.has_method("has_location"):
+		return bool(world_map.has_location(tile))
+	var locations_layer: TileMapLayer = world_map.get_node_or_null("locations")
+	return locations_layer != null and locations_layer.get_cell_source_id(tile) != -1
+
+func _tile_is_forest(tile: Vector2i) -> bool:
+	if world_map == null:
+		return false
+	var forests_layer: TileMapLayer = world_map.get_node_or_null("forests")
+	return forests_layer != null and forests_layer.get_cell_source_id(tile) != -1
+
+func _build_local_map_metadata(tile: Vector2i, seed_value: int, base_metadata: Dictionary = {}) -> Dictionary:
+	var meta: Dictionary = base_metadata.duplicate(true)
+	var terrain: int = _terrain_for_tile(tile)
+	meta["coords"] = tile
+	meta["seed"] = seed_value
+	meta["terrain"] = terrain
+	meta["biome"] = world_map.biome_at(tile) if world_map else "temperate"
+
+	var overworld_data: Dictionary = {}
+	var existing_overworld = meta.get("overworld", {})
+	if existing_overworld is Dictionary:
+		overworld_data = (existing_overworld as Dictionary).duplicate(true)
+	overworld_data["has_settlement"] = _tile_has_settlement(tile)
+	overworld_data["is_forest"] = _tile_is_forest(tile)
+	overworld_data["terrain"] = terrain
+	overworld_data["biome"] = meta["biome"]
+	meta["overworld"] = overworld_data
+
+	# Keep top-level aliases for backward-compatible readers.
+	meta["has_settlement"] = overworld_data["has_settlement"]
+	meta["is_forest"] = overworld_data["is_forest"]
+	return meta
+
 # ═════════════════════════════════════════════════════════════════════
 #  LOCAL MAP ENTER / EXIT
 # ═════════════════════════════════════════════════════════════════════
@@ -110,16 +154,7 @@ func enter_local_map() -> void:
 	player.overworld_tile = tile
 	player.overworld_tile_pos = player.global_position
 
-	var terrain: int = local_scene.OverworldTile.GRASS
-	if world_map.mountains.get_cell_source_id(tile) != -1:
-		terrain = local_scene.OverworldTile.MOUNTAIN
-
-	local_scene.generate_local_map({
-		"coords": tile,
-		"seed": map_seed,
-		"terrain": terrain,
-		"biome": world_map.biome_at(tile),
-	})
+	local_scene.generate_local_map(_build_local_map_metadata(tile, map_seed))
 	_apply_area_pickup_records(_area_key_from_tile(tile), local_scene)
 
 	world_map.visible = false
@@ -241,17 +276,14 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 		_save.local_area_settlement_path = ""
 		var meta: TileMetadata = world_tile_data.get(player.overworld_tile)
 		if meta:
-			_save.local_area_metadata = meta.to_dict()
+			_save.local_area_metadata = _build_local_map_metadata(
+				player.overworld_tile,
+				get_tile_seed(player.overworld_tile),
+				meta.to_dict())
 		else:
-			var terrain: int = local_scene.OverworldTile.GRASS
-			if world_map and world_map.mountains.get_cell_source_id(player.overworld_tile) != -1:
-				terrain = local_scene.OverworldTile.MOUNTAIN
-			_save.local_area_metadata = {
-				"coords": player.overworld_tile,
-				"seed": get_tile_seed(player.overworld_tile),
-				"terrain": terrain,
-				"biome": world_map.biome_at(player.overworld_tile) if world_map else "temperate",
-			}
+			_save.local_area_metadata = _build_local_map_metadata(
+				player.overworld_tile,
+				get_tile_seed(player.overworld_tile))
 	else:
 		_save.local_area_settlement_path = ""
 		_save.local_area_metadata = {}
@@ -344,14 +376,14 @@ func load_game_from_slot(slot: int) -> bool:
 		# Re-enter the local map from saved metadata (or synthesize minimal data).
 		var meta_dict: Dictionary = _save.local_area_metadata.duplicate(true)
 		if meta_dict.is_empty():
-			meta_dict = {
-				"coords": player.overworld_tile,
-				"seed": get_tile_seed(player.overworld_tile),
-				"terrain": local_scene.OverworldTile.GRASS,
-				"biome": world_map.biome_at(player.overworld_tile),
-			}
-			if world_map.mountains.get_cell_source_id(player.overworld_tile) != -1:
-				meta_dict["terrain"] = local_scene.OverworldTile.MOUNTAIN
+			meta_dict = _build_local_map_metadata(
+				player.overworld_tile,
+				get_tile_seed(player.overworld_tile))
+		else:
+			meta_dict = _build_local_map_metadata(
+				player.overworld_tile,
+				int(meta_dict.get("seed", get_tile_seed(player.overworld_tile))),
+				meta_dict)
 
 		local_scene.generate_local_map(meta_dict)
 		_apply_area_pickup_records(_area_key_from_tile(player.overworld_tile), local_scene)
