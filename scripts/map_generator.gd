@@ -8,50 +8,19 @@
 #  - Runtime settlements: scenes using this script + a MapConfig generate on
 #    load via setup_and_generate(). Baked static scenes set
 #    generate_on_ready = false and keep their painted tiles.
-#  - Runtime wilderness: AreaContainer instantiates wilderness_area.tscn with
-#    generate_on_ready = false and calls generate_local_map(metadata).
+#  - Runtime wilderness/local maps: callers set generate_on_ready = false and
+#    call generate_local_map(metadata).
 # ==========
-
-
-#  temperate_medieval_village.tres and grassland_poneti.tres custom data layers:
-	# category              (String) – tilemaplayer grouping; top-level tile_catalog key
-	# layers                (String) – space-separated list of relevant TileMapLayer names
-	# type                  (String) – tile type, e.g. tree/bush/flower_patch/house; tile_catalog sub-key
-	# subtype               (String) – finer-grained variant of `type`
-	# building_id           (String) – layer named "building_id" in grassland_poneti.tres,
-	#                                  "building id" in temperate_medieval_village.tres
-	# tags                  (String) – space-separated proc-gen tags (formerly "proc gen tags")
-	# interior              (bool)   – true if this tile belongs to a building interior
-	# associated buildings  (String) – space-separated building types this tile is associated with
-	# affiliations          (String) – space-separated faction/affiliation tags
-	# classes               (String) – space-separated class tags
-	# cultures              (String) – space-separated culture tags
-	# climates              (String) – space-separated climate tags
-	# biomes                (String) – space-separated biome tags
-	# placeholder           (String) – placeholder marker, if any
 
 
 extends Node2D
 class_name MapGenerator
 
-# ── Tileset backends ────────────────────────────────────────────────────────
-# Two tilesets can drive generation and they describe their tiles differently:
-#
-#   the_roguelike.tres  – semantics come from the row/column bands in
-#                         resources/tileset_layout.gd. No terrain sets, so
-#                         ground surfaces are painted cell by cell.
-#   grassland_poneti.tres + temperate_medieval_village.tres
-#                       – semantics come from per-tile custom data layers, and
-#                         ground surfaces autotile through terrain sets.
-#
-# Everything tileset-specific funnels through _build_tile_catalog() and
-# _paint_surface(); the generation logic above them is backend-agnostic.
+# ── Tileset backend ────────────────────────────────────────────────────────
+# The roguelike sheet (resources/the_roguelike.tres) drives generation through
+# resources/tileset_layout.gd + resources/roguelike_tile_catalog.gd.
 const RoguelikeCatalog := preload("res://resources/roguelike_tile_catalog.gd")
 const Layout := preload("res://resources/tileset_layout.gd")
-
-## True when the ground layer's tileset is the roguelike master sheet, decided
-## once in _build_tile_catalog(). Selects the painting strategy.
-var _roguelike_backend: bool = false
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
 @onready var ground: TileMapLayer = $base_terrain
@@ -60,54 +29,11 @@ var _roguelike_backend: bool = false
 @onready var structures_exterior: TileMapLayer = $structures_exterior
 @onready var structures_interior: TileMapLayer = $structures_interior
 @onready var foliage: TileMapLayer = $foliage
-@onready var structures: Node2D = $structures
 @onready var decor_exterior: TileMapLayer = $decor_exterior
-@onready var tilemaps = {
-	"GROUND": ground,
-	"INTERIOR_FLOOR": structures_interior,
-	"WALLS": structures_interior,
-	"FURNITURE": structures_interior,
-	"ITEMS": structures_interior,
-	"DOORS": structures_interior,
-	"ROOF": structures_interior
-}
 
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
 enum GroundTile {GRASS, STONE, DIRT, WATER}
-enum DecorationTile {WALL_BANNER, WALL_TORCH, FLOOR_RUG, FLOOR_POTTERY}
-enum HamletStructureType {HOUSE, SHOP, TEMPLE, TOWER, WALL}
-
-# Area generation types – mirrors MapConfig.MapType for backward compat.
-# Settlement sub-types (town vs city vs castle) are now inferred from
-# MapConfig.BuildingDensity and/or culture rather than hard-coded here.
-enum MapType {
-	NON_SETTLEMENT, # Natural local area with possible hamlet
-	SETTLEMENT, # Towns, cities, etc.
-	CASTLE_INTERIOR, # Interior of a castle
-	DUNGEON # Dungeon level
-}
-
-# ── image Source IDs within grassland_poneti.tres ─────────────────────────────────
-const GROUND_SOURCE_ID = 0 # TileGrass.png – autotile terrain
-const FOLIAGE_SOURCE_ID = 3 # TreesAndBushes – trees, bushes, flowers with proc-gen tags for runtime discovery
-# Foliage and terrain-feature tiles are discovered at runtime via _build_tile_catalog()
-# using the custom data layers in grassland_poneti.tres (category / type / tag_1 / tag_2).
-
-# ── image Source IDs within temperate_medieval_village.tres ───────────────────────
-const STRUCT_SOURCE_TOWERS = 1 # Towers.png
-const STRUCT_SOURCE_TOWN = 2 # TownSprites.png
-const STRUCT_SOURCE_VILLAGE = 3 # VillageBuildingSprites.png
-const STRUCT_SOURCE_WOODEN = 5 # WoodenElements.png – fences, props
-
-# ── Terrain set IDs (grassland_poneti.tres terrain set 0) ───────────────────
-const TERRAINS = {
-	"stone": 0, # change to new terrain set index when updated in grassland_poneti.tres
-	"grass": 1,
-	"dirt": 2,
-	"water": 3, # change to new terrain set index when updated in grassland_poneti.tres
-	"wheat_field": 4, # change to new terrain set index when updated in grassland_poneti.tres
-}
 
 # Map our enum types to terrain sets
 const GROUND_TERRAIN_MAP = {
@@ -129,60 +55,11 @@ var terrain_cells = {
 	"water": []
 }
 
-# ── Building sprite definitions (temperate_medieval_village.tres) ────────────
-# Each entry maps a Structure.StructureType to the atlas coords of the premade
-# exterior and interior sprites.  "size" is the sprite footprint in ground
-# tiles (= size_in_atlas of the exterior sprite).
-# IMPORTANT: verify these atlas coords against your tileset editor – they must
-# match the actual sprite positions in VillageBuildingSprites.png / TownSprites.png.
-const BUILDING_SPRITES = {
-	Structure.StructureType.HOUSE: {
-		"exterior_source": STRUCT_SOURCE_VILLAGE,
-		"exterior_atlas": Vector2i(0, 0),
-		"size": Vector2i(12, 10),
-		"interior_source": STRUCT_SOURCE_VILLAGE,
-		"interior_atlas": Vector2i(0, 10),
-		"interior_size": Vector2i(12, 7),
-		"ground": "dirt",
-		"spacing": 2,
-	},
-	Structure.StructureType.SHOP: {
-		"exterior_source": STRUCT_SOURCE_VILLAGE,
-		"exterior_atlas": Vector2i(26, 30),
-		"size": Vector2i(13, 13),
-		"interior_source": STRUCT_SOURCE_VILLAGE,
-		"interior_atlas": Vector2i(26, 43),
-		"interior_size": Vector2i(13, 14),
-		"ground": "stone",
-		"spacing": 2,
-	},
-	Structure.StructureType.TAVERN: {
-		"exterior_source": STRUCT_SOURCE_VILLAGE,
-		"exterior_atlas": Vector2i(2, 25),
-		"size": Vector2i(20, 16),
-		"interior_source": STRUCT_SOURCE_VILLAGE,
-		"interior_atlas": Vector2i(1, 41),
-		"interior_size": Vector2i(21, 17),
-		"ground": "stone",
-		"spacing": 3,
-	},
-	Structure.StructureType.MANOR: {
-		"exterior_source": STRUCT_SOURCE_VILLAGE,
-		"exterior_atlas": Vector2i(59, 0),
-		"size": Vector2i(25, 20),
-		"interior_source": STRUCT_SOURCE_VILLAGE,
-		"interior_atlas": Vector2i(59, 20),
-		"interior_size": Vector2i(24, 16),
-		"ground": "stone",
-		"spacing": 4,
-	},
-}
-
 # ── Building footprints (roguelike sheet) ───────────────────────────────────
-# The old tileset supplies whole buildings as premade 12–25 tile sprites. The
-# roguelike sheet has no such art for local maps — its whole-building glyphs are
-# world-map icons (local_gen = false in the band table) — so buildings are drawn
-# from wall and door tiles and are sized like rooms rather than city blocks.
+# The roguelike sheet has no premade local-map building sprites — its
+# whole-building glyphs are world-map icons (local_gen = false in the band
+# table) — so buildings are drawn from wall and door tiles and are sized like
+# rooms rather than city blocks.
 const ROGUELIKE_BUILDING_SPRITES := {
 	Structure.StructureType.HOUSE:  {"size": Vector2i(5, 5),   "ground": "dirt",  "spacing": 2},
 	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "stone", "spacing": 2},
@@ -191,24 +68,10 @@ const ROGUELIKE_BUILDING_SPRITES := {
 }
 
 func _building_def(building_type: int):
-	if _roguelike_backend:
-		return ROGUELIKE_BUILDING_SPRITES.get(building_type)
-	return BUILDING_SPRITES.get(building_type)
-
-# Maps the old HamletStructureType enum to Structure.StructureType so hamlet
-# buildings can share the building footprint table.
-const HAMLET_TYPE_MAP = {
-	HamletStructureType.HOUSE: Structure.StructureType.HOUSE,
-	HamletStructureType.SHOP: Structure.StructureType.SHOP,
-	HamletStructureType.TEMPLE: Structure.StructureType.TAVERN,
-	HamletStructureType.TOWER: Structure.StructureType.HOUSE,
-	HamletStructureType.WALL: Structure.StructureType.HOUSE,
-}
+	return ROGUELIKE_BUILDING_SPRITES.get(building_type)
 
 const WIDTH = 80
 const HEIGHT = 80
-const TILE_SIZE = 16 # Pixel size per atlas cell (both tilesets)
-const TERRAIN_SET_ID = 0 # Terrain set index in grassland_poneti.tres
 
 # Default terrain type per settlement density tier.
 # Replaces the old MapType-keyed SETTLEMENT_TERRAIN.
@@ -315,32 +178,6 @@ const GROUND_DETAIL_BIOME_SCALE := {
 
 # Road generation parameters
 const ROAD_WIDTH = 2
-const PLAZA_MIN_SIZE = 4
-const PLAZA_MAX_SIZE = 8
-const PLAZA_DISTANCE_THRESHOLD = 10
-
-# Unified building scene (building.tscn): contains one child Node2D per
-# building_id (e.g. "house_1", "tavern_1"), each holding both its exterior
-# and interior sub-hierarchy. building_ids_by_type is built at runtime by
-# inspecting this scene's children, keyed by Structure.StructureType inferred
-# from each child's name (see _structure_type_from_name()).
-const BUILDING_SCENE: PackedScene = preload("res://scenes/building.tscn")
-# Authoring-only placeholder child in building.tscn; never a valid variant.
-const BUILDING_TEMPLATE_NODE_NAME := "node_hierarchy_template"
-
-# Maps a building.tscn child's name (with any trailing "_<n>" suffix
-# stripped) to the Structure.StructureType it represents.
-const STRUCTURE_TYPE_NAME_MAP := {
-	"house": Structure.StructureType.HOUSE,
-	"log_cabin": Structure.StructureType.HOUSE, # cabin variant placed as a house
-	"tavern": Structure.StructureType.TAVERN,
-	"shop": Structure.StructureType.SHOP,
-	"church": Structure.StructureType.CHURCH,
-	"wall": Structure.StructureType.WALL,
-	"manor": Structure.StructureType.MANOR,
-	"barracks": Structure.StructureType.BARRACKS,
-	"castle_keep": Structure.StructureType.CASTLE_KEEP,
-}
 
 @export var map_template: MapConfig
 
@@ -367,8 +204,7 @@ const STRUCTURE_TYPE_NAME_MAP := {
 #  Scene" ritual. Bake To Scene saves the current generated + hand-edited map
 #  as a standalone static scene at bake_dir/<map_name>.tscn; the baked scene
 #  keeps this script with generate_on_ready = false, so it loads its painted
-#  tiles verbatim while still satisfying the loader contract (tilemaps dict,
-#  is_walkable, map_template for the NPC spawner).
+#  tiles verbatim.
 # ════════════════════════════════════════════════════════════════════════
 
 func _editor_generate() -> void:
@@ -378,7 +214,6 @@ func _editor_generate() -> void:
 		noise = FastNoiseLite.new()
 	clear_all_layers()
 	_rebuild_tile_catalog()
-	_build_building_registry()
 	setup_and_generate()
 
 func _editor_clear() -> void:
@@ -432,18 +267,12 @@ var overworld_position: Vector2i
 # Deterministic map seed to decouple sub-feature seeding from RNG consumption order
 var current_map_seed: int = 0
 
+# Cached map cell list used by shuffled scatter passes.
+var _all_cells: Array[Vector2i] = []
+
 # Runtime tile catalog built from tileset custom data (category / type / tag_1 / tag_2).
 # Structure: tile_catalog[category][type] = Array[{source_id, atlas, size, tag_1, tag_2}]
 var tile_catalog: Dictionary = {}
-
-# Registry of available building.tscn variants, built at runtime by
-# _build_building_registry(). Keyed by Structure.StructureType -> Array[String]
-# of matching child node names (building_ids) found in building.tscn.
-var building_ids_by_type: Dictionary = {}
-
-# Instantiated building.tscn scenes, one per placed building; tracked so
-# clear_all_layers() can free them before each regeneration.
-var building_instances: Array = []
 
 # Normalized copy of the TileMetadata dict passed to generate_local_map()
 # (runtime wilderness path); empty for settlement/editor generation.
@@ -494,10 +323,6 @@ func clear_all_layers() -> void:
 	structures_exterior.clear()
 	structures_interior.clear()
 	decor_exterior.clear()
-	for instance in building_instances:
-		if is_instance_valid(instance):
-			instance.queue_free()
-	building_instances.clear()
 
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
@@ -505,93 +330,34 @@ func _ready() -> void:
 		if not layer_node:
 			push_error("Missing TileMapLayer node in MapGenerator scene '%s'!" % name)
 			return
+	_ensure_all_cells()
 	noise = FastNoiseLite.new()
 	_rebuild_tile_catalog()
-	_build_building_registry()
 	if generate_on_ready:
 		clear_all_layers()
 		setup_and_generate()
 
+func _ensure_all_cells() -> void:
+	if not _all_cells.is_empty():
+		return
+	for y in HEIGHT:
+		for x in WIDTH:
+			_all_cells.append(Vector2i(x, y))
+
 # ════════════════════════════════════════════════════════════════════════
 #  TILE CATALOG
 #
-#  tile_catalog[category][type] = Array[entry] is built once from every tileset
-#  the layers use, and everything downstream picks tiles out of it.
-#
-#  The roguelike sheet carries no per-tile semantics of its own — the band
-#  table in tileset_layout.gd is its source of truth, so RoguelikeCatalog
-#  builds that half. The older tilesets stamp semantics into custom data
-#  layers, read here. Layer names differ slightly between them ("building_id"
-#  vs "building id"), and TileData.get_custom_data() pushes an error for a
-#  layer no loaded tileset declares, so every read goes through _custom_data().
-#
-#  The building registry is discovered the same way: instantiate building.tscn
-#  once and group its children by the Structure.StructureType their name
-#  implies, so new building_id variants need no script change.
+#  tile_catalog[category][type] = Array[entry] is built from the roguelike
+#  master sheet via resources/tileset_layout.gd.
 # ════════════════════════════════════════════════════════════════════════
 
-func _get_custom_data_any(tile_data: TileData, names: Array):
-	for n in names:
-		var v = _custom_data(tile_data, n)
-		if v != null:
-			return v
-	return null
-
-func _custom_data(tile_data: TileData, layer_name: String):
-	if tile_data == null or not _custom_data_layers.has(layer_name):
-		return null
-	return tile_data.get_custom_data(layer_name)
-
-func _structure_type_from_name(node_name: String) -> int:
-	var parts := node_name.split("_")
-	if parts.size() > 1 and parts[-1].is_valid_int():
-		parts.remove_at(parts.size() - 1)
-	return STRUCTURE_TYPE_NAME_MAP.get("_".join(parts), -1)
-
-func _build_building_registry() -> void:
-	building_ids_by_type.clear()
-	var temp := BUILDING_SCENE.instantiate()
-	for child in temp.get_children():
-		if child.name == BUILDING_TEMPLATE_NODE_NAME:
-			continue
-		var struct_type := _structure_type_from_name(child.name)
-		if struct_type == -1:
-			continue
-		if not building_ids_by_type.has(struct_type):
-			building_ids_by_type[struct_type] = []
-		building_ids_by_type[struct_type].append(String(child.name))
-	temp.queue_free()
-	print("Building registry built: ", building_ids_by_type)
-
-func _parse_string_list(raw) -> Array:
-	var list: Array = []
-	if not raw is String:
-		return list
-	for entry in raw.split(" "):
-		var stripped: String = entry.strip_edges()
-		if not stripped.is_empty():
-			list.append(stripped)
-	return list
-
-func get_all_tile_sets() -> Array:
-	var tile_sets = []
-	for node in [ground, road, terrain_features, structures_exterior, decor_exterior, structures_interior, foliage]:
-		if node is TileMapLayer:
-			var ts = node.tile_set
-			if ts and not tile_sets.has(ts):
-				tile_sets.append(ts)
-	return tile_sets
-
-## Names of the custom-data layers declared by any loaded tileset. See _custom_data().
-var _custom_data_layers: Dictionary = {}
-
-
 func _rebuild_tile_catalog() -> void:
-	tile_catalog.clear()
-	_custom_data_layers.clear()
-	_roguelike_backend = false
-	for ts in get_all_tile_sets():
-		_build_tile_catalog(ts)
+	var ts := ground.tile_set
+	if ts == null:
+		tile_catalog = {}
+		push_error("No TileSet on ground layer – tile catalog empty")
+		return
+	tile_catalog = RoguelikeCatalog.build(ts)
 
 
 func _catalog_pool(category: String, tile_type: String) -> Array:
@@ -606,95 +372,11 @@ func _catalog_types(category: String) -> Dictionary:
 	return out
 
 
-func _build_tile_catalog(ts: TileSet) -> void:
-	if not ts:
-		push_error("No TileSet on ground layer – tile catalog empty")
-		return
-
-	for i in ts.get_custom_data_layers_count():
-		_custom_data_layers[ts.get_custom_data_layer_name(i)] = true
-
-	# The roguelike sheet carries no per-tile semantics of its own — the band
-	# table in tileset_layout.gd is its source of truth.
-	if RoguelikeCatalog.describes(ts):
-		_roguelike_backend = true
-		_merge_catalog(RoguelikeCatalog.build(ts))
-		print("Tile catalog built from tileset_layout bands. Categories: ", tile_catalog.keys())
-		return
-
-	for i in ts.get_source_count():
-		var source_id := ts.get_source_id(i)
-		var source := ts.get_source(source_id)
-		if not source is TileSetAtlasSource:
-			continue
-		var atlas_source := source as TileSetAtlasSource
-		for t in atlas_source.get_tiles_count():
-			var coords := atlas_source.get_tile_id(t)
-			var tile_data := atlas_source.get_tile_data(coords, 0)
-			if not tile_data:
-				continue
-			# Not every TileSet defines the "category"/"type" custom data layers
-			# (e.g. the premade building tileset), so guard before assigning to
-			# a String var.
-			var category_raw = _custom_data(tile_data, "category")
-			var tile_type_raw = _custom_data(tile_data, "type")
-			if category_raw == null or tile_type_raw == null:
-				continue
-			var category: String = category_raw
-			var tile_type: String = tile_type_raw
-			if category.is_empty() or tile_type.is_empty():
-				continue
-
-			var subtype_raw = _custom_data(tile_data, "subtype")
-			# "building_id"/"building id" layer name differs between tilesets — check both.
-			var building_id_raw = _get_custom_data_any(tile_data, ["building_id", "building id"])
-			var tags := _parse_string_list(_custom_data(tile_data, "tags"))
-			var interior_raw = _custom_data(tile_data, "interior")
-			var associated_buildings := _parse_string_list(_custom_data(tile_data, "associated buildings"))
-			var affiliations := _parse_string_list(_custom_data(tile_data, "affiliations"))
-			var classes := _parse_string_list(_custom_data(tile_data, "classes"))
-			var cultures := _parse_string_list(_custom_data(tile_data, "cultures"))
-			var climates := _parse_string_list(_custom_data(tile_data, "climates"))
-			var biomes := _parse_string_list(_custom_data(tile_data, "biomes"))
-
-			if not tile_catalog.has(category):
-				tile_catalog[category] = {}
-			if not tile_catalog[category].has(tile_type):
-				tile_catalog[category][tile_type] = []
-			tile_catalog[category][tile_type].append({
-				"source_id": source_id,
-				"atlas": coords,
-				"size": atlas_source.get_tile_size_in_atlas(coords),
-				"subtype": subtype_raw if subtype_raw is String else "",
-				"building_id": building_id_raw if building_id_raw is String else "",
-				"tags": tags,
-				"interior": bool(interior_raw) if interior_raw != null else false,
-				"associated_buildings": associated_buildings,
-				"affiliations": affiliations,
-				"classes": classes,
-				"cultures": cultures,
-				"climates": climates,
-				"biomes": biomes,
-			})
-	print("Tile catalog built. Categories: ", tile_catalog.keys())
-
-
-func _merge_catalog(other: Dictionary) -> void:
-	for category in other:
-		if not tile_catalog.has(category):
-			tile_catalog[category] = {}
-		for tile_type in other[category]:
-			if not tile_catalog[category].has(tile_type):
-				tile_catalog[category][tile_type] = []
-			tile_catalog[category][tile_type].append_array(other[category][tile_type])
-
-
 # ═══════════════════════════════════════════════════════════════════════
 #  SURFACE PAINTING
 #
 #  The one place that knows how a named surface ("grass", "dirt", "stone",
-#  "water", "wheat_field") reaches the tilemap. The old tileset autotiles
-#  through terrain sets so neighbouring cells blend; the roguelike sheet has no
+#  "water", "wheat_field") reaches the tilemap. The roguelike sheet has no
 #  terrain sets, so cells are painted individually from the matching band pool,
 #  varied by a position hash mixed with the map seed — the same seed always
 #  repaints identically, without threading an RNG through every caller.
@@ -710,11 +392,6 @@ func _merge_catalog(other: Dictionary) -> void:
 
 func _paint_surface(layer: TileMapLayer, cells: Array, surface: String) -> void:
 	if layer == null or cells.is_empty():
-		return
-
-	if not _roguelike_backend:
-		if TERRAINS.has(surface):
-			layer.set_cells_terrain_connect(cells, TERRAIN_SET_ID, TERRAINS[surface], false)
 		return
 
 	var target := layer
@@ -768,11 +445,18 @@ func _cell_hash(cell: Vector2i) -> int:
 # ════════════════════════════════════════════════════════════════════════
 
 func setup_and_generate(
-		map_type = map_template.map_type,
+		map_type: int = -1,
 		overworld_tile_type: int = OverworldTile.GRASS,
 		world_position: Vector2i = Vector2i.ZERO,
-		seed_value: int = map_template.SEED
+		seed_value: int = 0
 	) -> void:
+	if map_template == null:
+		push_error("MapGenerator: map_template is required")
+		return
+	if map_type == -1:
+		map_type = int(map_template.map_type)
+	if seed_value == 0:
+		seed_value = int(map_template.SEED)
 	overworld_position = world_position
 	var local_rng = RandomNumberGenerator.new()
 	if seed_value == 0:
@@ -781,9 +465,9 @@ func setup_and_generate(
 		local_rng.seed = seed_value
 
 	match map_type:
-		MapType.NON_SETTLEMENT:
+		MapConfig.MapType.NON_SETTLEMENT:
 			generate_local_area(overworld_tile_type, world_position, local_rng)
-		MapType.SETTLEMENT, MapType.CASTLE_INTERIOR:
+		MapConfig.MapType.SETTLEMENT, MapConfig.MapType.CASTLE_INTERIOR:
 			# Layout priority: MainGameState stored layout (persisted from a
 			# previous visit this save) > authored dataset baked into the
 			# MapConfig > fresh generation.
@@ -923,40 +607,6 @@ func build_settlement_from_dataset() -> void:
 	add_terrain_features(feature_rng)
 	add_foliage()
 	add_decor_exterior(placed_for_roads)
-
-func get_settlement_details() -> Dictionary:
-	var details := {
-		"type": int(map_template.map_type),
-		"seed": map_template.SEED,
-		"width": WIDTH,
-		"height": HEIGHT,
-		"pos": overworld_position,
-		"buildings": {},
-		"important_npcs": {}
-	}
-	var idx := 0
-	for b: Structure in map_template.buildings:
-		if b == null:
-			continue
-		var sprite_def = _building_def(int(b.TYPE))
-		var bsize: Vector2i = sprite_def["size"] if sprite_def else Vector2i(4, 4)
-		var building_id = "%s_%d" % [str(b.TYPE).to_lower(), idx]
-		details.buildings[building_id] = {
-			"id": building_id,
-			"type": int(b.TYPE),
-			"pos": b.POSITION,
-			"size": bsize,
-			"zones": b.ZONES,
-			"inhabitants": [],
-			"interior_features": b.INTERIOR_FEATURES,
-			"scripted_content": b.SCRIPTED_CONTENT
-		}
-		idx += 1
-	return details
-
-func setup_and_generate_local(overworld_tile_type: int, world_position: Vector2i, seed_value: int = 0) -> void:
-	setup_and_generate(MapType.NON_SETTLEMENT, overworld_tile_type, world_position, seed_value)
-
 func generate_local_map(metadata) -> void:
 	if typeof(metadata) == TYPE_OBJECT and metadata is TileMetadata:
 		current_metadata = (metadata as TileMetadata).to_dict()
@@ -1057,9 +707,6 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 
 	for terrain in terrain_cells:
 		_paint_surface(ground, terrain_cells[terrain], terrain)
-
-	if base_terrain_type == OverworldTile.GRASS:
-		maybe_add_water_features(local_rng)
 
 	_generate_misc_features(local_rng)
 	generate_edge_roads()
@@ -1223,17 +870,9 @@ func _cluster_weight(cluster_noise: FastNoiseLite, pos: Vector2i) -> float:
 	var v := (cluster_noise.get_noise_2d(pos.x, pos.y) + 1.0) / 2.0
 	return smoothstep(0.35, 0.65, v) * 2.0
 
-func _has_neighbor_of_type(pos: Vector2i, target_type: int) -> bool:
-	for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
-		if get_cell_ground_type(pos + offset) == target_type:
-			return true
-	return false
-
 func _shuffled_cells(shuffle_rng: RandomNumberGenerator) -> Array[Vector2i]:
-	var cells: Array[Vector2i] = []
-	for y in HEIGHT:
-		for x in WIDTH:
-			cells.append(Vector2i(x, y))
+	_ensure_all_cells()
+	var cells: Array[Vector2i] = _all_cells.duplicate()
 	for i in range(cells.size() - 1, 0, -1):
 		var j := shuffle_rng.randi_range(0, i)
 		var tmp := cells[i]
@@ -1269,8 +908,7 @@ func _build_wear_grid(building_rects: Array[Rect2i]) -> Dictionary:
 #  terrain painted from row 9, at a rate per base surface (GROUND_DETAIL_
 #  DENSITY) and biome, clumped by its own cluster noise. Keeping both rows in
 #  one surface pool alternated them cell by cell in a visible grid, which is why
-#  they are separate bands. No-ops on the older tilesets, which have no such
-#  pool.
+#  they are separate bands.
 # ════════════════════════════════════════════════════════════════════════
 
 func add_foliage() -> void:
@@ -1289,37 +927,11 @@ func add_foliage() -> void:
 	warp_noise.seed = derived_seed ^ 0xDEAD1234
 	warp_noise.frequency = 1.0 / (map_template.noise_scale * 1.5)
 
-	# Bark color noise — large slow-changing regions share a dominant bark color
-	# so birch groves, oak stands, etc. cluster naturally.
-	var bark_noise := FastNoiseLite.new()
-	bark_noise.seed = derived_seed ^ 0x7E3F9A1B
-	bark_noise.frequency = 1.0 / (map_template.noise_scale * 3.0)
-
 	var foliage_rng := RandomNumberGenerator.new()
 	foliage_rng.seed = derived_seed ^ 0x5A5A5A5A
 
 	var tree_tiles: Array = _catalog_pool("foliage", "tree")
 	var bush_tiles: Array = _catalog_pool("foliage", "bush")
-
-	# Split tree tiles by bark color tag and alive/dead status.
-	var brown_bark_tiles: Array = []
-	var white_bark_tiles: Array = []
-	var grey_bark_tiles: Array = []
-	var dead_tree_tiles: Array = []
-	var other_tree_tiles: Array = []
-	for _td in tree_tiles:
-		var _tags: Array = _td.get("tags", [])
-		if "dead" in _tags or "broken" in _tags:
-			dead_tree_tiles.append(_td)
-		elif "brown_bark" in _tags:
-			brown_bark_tiles.append(_td)
-		elif "white_bark" in _tags:
-			white_bark_tiles.append(_td)
-		elif "grey_bark" in _tags:
-			grey_bark_tiles.append(_td)
-		else:
-			other_tree_tiles.append(_td)
-	var all_live_trees: Array = brown_bark_tiles + grey_bark_tiles + white_bark_tiles + other_tree_tiles
 
 	# Track which cells are already covered by a placed multi-tile sprite
 	var used_cells: Dictionary = {}
@@ -1365,7 +977,6 @@ func add_foliage() -> void:
 
 		var ground_type = get_cell_ground_type(pos)
 		if ground_type == -1:
-			print("Could not determine ground type for cell %s, skipping foliage" % pos)
 			continue
 
 		if ground_type in [GroundTile.GRASS, GroundTile.DIRT, GroundTile.STONE]:
@@ -1399,37 +1010,11 @@ func add_foliage() -> void:
 					local_tree_density *= 0.5
 					local_bush_density *= 0.7
 
-			# Bark-color region: sample once per cell so all trees at this
-			# location share the same preferred species.
-			var bark_val := (bark_noise.get_noise_2d(x, y) + 1.0) / 2.0
-			var dominant_bark: Array
-			if bark_val < 0.33:
-				dominant_bark = brown_bark_tiles
-			elif bark_val < 0.66:
-				dominant_bark = grey_bark_tiles
-			else:
-				dominant_bark = white_bark_tiles
-			if dominant_bark.is_empty():
-				dominant_bark = all_live_trees
-
 			var candidates: Array = []
 			# Anti-repeat gap for whichever pool this cell ends up drawing from.
 			var same_tile_gap: int = tree_spacing
 			if detail_value < local_tree_density:
-				var tree_roll := foliage_rng.randf()
-				# Dead/broken trees are rare in the open but more common deep
-				# in the forest where old growth crowds itself out.
-				var dead_chance := 0.015 + 0.05 * smoothstep(0.55, 0.85, forest_mask)
-				if tree_roll < dead_chance and not dead_tree_tiles.is_empty():
-					candidates = dead_tree_tiles
-				elif tree_roll < 0.75 and not dominant_bark.is_empty():
-					# dominant bark color for this region
-					candidates = dominant_bark
-				elif not all_live_trees.is_empty():
-					# ~25 % chance: any live tree (fringe / mixed edge)
-					candidates = all_live_trees
-				else:
-					candidates = tree_tiles
+				candidates = tree_tiles
 			elif detail_value < local_tree_density + local_bush_density:
 				candidates = bush_tiles
 				same_tile_gap = bush_spacing
@@ -1469,15 +1054,17 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 	if decor_types.is_empty():
 		return
 
-	# Split tiles into wall-adjacent and open pools
-	var wall_adjacent_tiles: Array = []
-	var open_tiles: Array = []
+	var all_tiles: Array = []
 	for tile_type in decor_types:
 		for entry in decor_types[tile_type]:
-			if "wall_adjacent" in entry.get("tags", []):
-				wall_adjacent_tiles.append(entry)
-			else:
-				open_tiles.append(entry)
+			all_tiles.append(entry)
+	if all_tiles.is_empty():
+		return
+
+	# The roguelike catalog does not carry per-tile tags; use the same pool for
+	# border and open placement bands.
+	var wall_adjacent_tiles: Array = all_tiles
+	var open_tiles: Array = all_tiles
 
 	var decor_rng := RandomNumberGenerator.new()
 	decor_rng.seed = current_map_seed ^ 0xBADC0FFE
@@ -1535,8 +1122,6 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 				if decor_rng.randf() > 0.08:
 					continue
 				var entry: Dictionary = open_tiles[decor_rng.randi() % open_tiles.size()]
-				if "rare" in entry.get("tags", []) and decor_rng.randf() < 0.7:
-					continue
 				var esize: Vector2i = entry["size"]
 				var fits := true
 				for edy in esize.y:
@@ -1582,31 +1167,20 @@ func _scatter_ground_detail(local_rng: RandomNumberGenerator) -> void:
 func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 	_scatter_ground_detail(local_rng)
 
-	# Feature pools read from tileset custom data via tile_catalog.
-	var tf: Dictionary = _catalog_types("terrain_features")
-	var fol: Dictionary = _catalog_types("foliage")
-
-	# Flowers are split across "terrain_features/flowers" (source 0) and
-	# "foliage/flowers" (source 2) in the tileset, so merge both pools.
-	var grass_patch_tiles: Array = tf.get("grass patch", [])
-	var flower_tiles: Array = tf.get("flowers", []) + fol.get("flowers", [])
-	var puddle_tiles: Array = tf.get("puddle", [])
-	var dirt_patch_tiles: Array = tf.get("dirt patch", [])
-	var mud_tiles: Array = tf.get("mud patch", [])
-	var stone_tiles: Array = tf.get("rock patch", []) + tf.get("crevasse", [])
+	# Roguelike routing exposes terrain feature pools as grass/rock/farm.
+	var grass_tiles: Array = _catalog_pool("terrain_features", "grass")
+	var rock_tiles: Array = _catalog_pool("terrain_features", "rock")
+	var farm_tiles: Array = _catalog_pool("terrain_features", "farm")
+	var plant_tiles: Array = _catalog_pool("foliage", "plant")
 
 	var used_cells: Dictionary = {}
 
-	# Per-family cluster masks: each feature family gets its own low-frequency
-	# noise so features drift into patches (flower drifts, rock fields, wet
-	# hollows) instead of an even sprinkle across the whole map.
+	# Per-family cluster masks keep each feature type in patchy clusters.
 	var derived_seed := _foliage_derived_seed()
-	var flower_mask := _make_cluster_noise(derived_seed ^ 0x0F10)
-	var scruff_mask := _make_cluster_noise(derived_seed ^ 0x5C2F)
-	var wet_mask := _make_cluster_noise(derived_seed ^ 0x0DD1)
+	var grass_mask := _make_cluster_noise(derived_seed ^ 0x5C2F)
+	var plant_mask := _make_cluster_noise(derived_seed ^ 0x0F10)
 	var rock_mask := _make_cluster_noise(derived_seed ^ 0x50CC)
-	# Flowers favour open clearings, so sample the same forest mask foliage uses.
-	var forest_noise := _make_forest_noise(derived_seed)
+	var farm_mask := _make_cluster_noise(derived_seed ^ 0x0DD1)
 
 	# Shuffled visit order so multi-tile features don't systematically win
 	# contested space toward the top-left (same fix as add_foliage).
@@ -1628,38 +1202,22 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 		if local_rng.randf() > map_template.terrain_feature_density:
 			continue
 
-		# Puddles and mud collect in low, wet ground: gate on the ground height
-		# noise so wet features pool in hollows rather than on rises.
-		var height := (noise.get_noise_2d(pos.x, pos.y) + 1.0) / 2.0
-		var wet_weight := _cluster_weight(wet_mask, pos) * (1.0 if height < 0.5 else 0.25)
-
-		# Build candidate pool from whichever categories roll active for this cell
+		# Build a candidate pool from the routed terrain-feature categories.
 		var candidates: Array = []
 		match ground_type:
 			GroundTile.GRASS:
-				# Grass tufts thicken along grass↔dirt boundaries (scruffy fringes)
-				var grass_weight := _cluster_weight(scruff_mask, pos)
-				if _has_neighbor_of_type(pos, GroundTile.DIRT):
-					grass_weight = maxf(grass_weight, 1.5)
-				if local_rng.randf() < map_template.grass_feature_density * grass_weight:
-					candidates.append_array(grass_patch_tiles)
-				# Flowers cluster in drifts and favour clearings over forest floor
-				var forest_mask := (forest_noise.get_noise_2d(pos.x, pos.y) + 1.0) / 2.0
-				var clearing := 1.0 - smoothstep(0.35, 0.7, forest_mask)
-				if local_rng.randf() < map_template.flower_density * _cluster_weight(flower_mask, pos) * (0.25 + 0.75 * clearing):
-					candidates.append_array(flower_tiles)
-				if local_rng.randf() < map_template.puddle_density * wet_weight:
-					candidates.append_array(puddle_tiles)
+				if local_rng.randf() < map_template.grass_feature_density * _cluster_weight(grass_mask, pos):
+					candidates.append_array(grass_tiles)
+				if local_rng.randf() < map_template.flower_density * _cluster_weight(plant_mask, pos):
+					candidates.append_array(plant_tiles)
 			GroundTile.DIRT:
-				if local_rng.randf() < map_template.dirt_feature_density * _cluster_weight(scruff_mask, pos):
-					candidates.append_array(dirt_patch_tiles)
-				if local_rng.randf() < map_template.mud_feature_density * wet_weight:
-					candidates.append_array(mud_tiles)
-				if local_rng.randf() < map_template.puddle_density * wet_weight:
-					candidates.append_array(puddle_tiles)
+				if local_rng.randf() < map_template.dirt_feature_density * _cluster_weight(grass_mask, pos):
+					candidates.append_array(grass_tiles)
+				if local_rng.randf() < map_template.mud_feature_density * _cluster_weight(farm_mask, pos):
+					candidates.append_array(farm_tiles)
 			GroundTile.STONE:
 				if local_rng.randf() < map_template.stone_feature_density * _cluster_weight(rock_mask, pos):
-					candidates.append_array(stone_tiles)
+					candidates.append_array(rock_tiles)
 
 		if candidates.is_empty():
 			continue
@@ -1694,118 +1252,28 @@ func add_terrain_features(local_rng: RandomNumberGenerator) -> void:
 			for dx in fsize.x:
 				used_cells[pos + Vector2i(dx, dy)] = true
 
-# Water features are gated OFF until water tiles exist in grassland_poneti.tres
-# (the "water" terrain set index is a placeholder). Flip this on once the water
-# terrain is painted — the generation below is already deterministic.
-const WATER_FEATURES_ENABLED := false
-
-func maybe_add_water_features(local_rng: RandomNumberGenerator) -> void:
-	if not WATER_FEATURES_ENABLED:
-		return
-	# 30% chance to add a water feature
-	if local_rng.randf() > 0.3:
-		return
-	# Decide between lake or river
-	if local_rng.randf() > 0.5:
-		generate_lake(local_rng)
-	else:
-		generate_river(local_rng)
-
-func generate_lake(local_rng: RandomNumberGenerator) -> void:
-	var center = Vector2i(
-		local_rng.randi_range(10, WIDTH - 10),
-		local_rng.randi_range(10, HEIGHT - 10)
-	)
-	var size = local_rng.randi_range(3, 8)
-
-	var water_cells = []
-
-	for y in range(-size, size + 1):
-		for x in range(-size, size + 1):
-			var pos = center + Vector2i(x, y)
-			if pos.x < 0 or pos.x >= WIDTH or pos.y < 0 or pos.y >= HEIGHT:
-				continue
-
-			var dist = sqrt(x * x + y * y)
-			if dist <= size + local_rng.randf() * 2 - 1: # Irregular edges
-				water_cells.append(pos)
-
-	# Apply water terrain to all cells at once using the terrain system
-	_paint_surface(ground, water_cells, "water")
-
-func generate_river(local_rng: RandomNumberGenerator) -> void:
-	var start = Vector2i(
-		local_rng.randi_range(0, WIDTH),
-		0 if local_rng.randi() % 2 == 0 else HEIGHT - 1
-	)
-	var end = Vector2i(
-		local_rng.randi_range(0, WIDTH),
-		HEIGHT - 1 if start.y == 0 else 0
-	)
-
-	var river_cells = []
-	var current = start
-	while current != end:
-		river_cells.append(current)
-
-		# Move towards end with some randomness
-		var dir = Vector2(end - current).normalized()
-		current += Vector2i(
-			sign(dir.x) if local_rng.randf() > 0.3 else local_rng.randi_range(-1, 1),
-			sign(dir.y)
-		)
-		current.x = clamp(current.x, 0, WIDTH - 1)
-		current.y = clamp(current.y, 0, HEIGHT - 1)
-
-	# Apply water terrain to all river cells at once using the terrain system
-	_paint_surface(ground, river_cells, "water")
-
 # ════════════════════════════════════════════════════════════════════════
 #  CELL QUERIES
 #
-#  Read back what is painted at a cell. On the roguelike backend there are no
-#  terrain sets to consult, so the band an atlas coord falls in is what says
-#  whether a cell is water, rock or open ground — and because surfaces that
+#  Read back what is painted at a cell. The band an atlas coord falls in says
+#  whether a cell is water, rock or open ground, and because surfaces that
 #  cannot sit on base_terrain are laid over it on terrain_features (see SURFACE
 #  PAINTING), the overlay has to answer before the base layer does. An empty
 #  cell never blocks, so layers with nothing on them are transparent.
 # ════════════════════════════════════════════════════════════════════════
 
 func get_cell_ground_type(coords: Vector2i) -> int:
-	if _roguelike_backend:
-		# No terrain sets to read back from — the band an atlas coord falls in is
-		# what says whether a cell is water, rock or open ground. Surfaces that
-		# cannot sit on base_terrain are laid over it on terrain_features (see
-		# _paint_surface), so the overlay answers first; base_terrain underneath
-		# them is always plain ground.
-		match _band_category(terrain_features, coords):
-			"liquid": return GroundTile.WATER
-			"ground_detail", "rock": return GroundTile.STONE
-		match _band_category(ground, coords):
-			"ground", "grass", "farm": return GroundTile.GRASS
-			_: return -1
-
-	if ground.get_cell_source_id(coords) == -1:
-		return -1
-
-	var tile_data := ground.get_cell_tile_data(coords)
-	if not tile_data:
-		return -1
-	for tile in GROUND_TERRAIN_MAP:
-		if TERRAINS[GROUND_TERRAIN_MAP[tile]] == tile_data.terrain:
-			return tile
-	return -1
+	match _band_category(terrain_features, coords):
+		"liquid": return GroundTile.WATER
+		"ground_detail", "rock": return GroundTile.STONE
+	match _band_category(ground, coords):
+		"ground", "grass", "farm": return GroundTile.GRASS
+		_: return -1
 
 func get_cell_foliage_type(coords: Vector2i) -> String:
 	if foliage.get_cell_source_id(coords) == -1:
 		return ""
-	if _roguelike_backend:
-		return _band_category(foliage, coords)
-	var tile_data := foliage.get_cell_tile_data(coords)
-	if not tile_data:
-		return ""
-	var tile_type = _custom_data(tile_data, "type")
-	return tile_type if tile_type is String else ""
+	return _band_category(foliage, coords)
 
 func _band_walkable(layer: TileMapLayer, coords: Vector2i) -> bool:
 	if layer == null or layer.get_cell_source_id(coords) == -1:
@@ -1883,15 +1351,11 @@ func is_walkable(pos: Vector2i) -> bool:
 	if ground_type == GroundTile.WATER:
 		return false
 
-	if _roguelike_backend:
-		# The band table already says which categories block, so a decorative
-		# plant or grass tuft on the foliage layer does not wall the tile off.
-		for layer: TileMapLayer in [foliage, terrain_features, structures_exterior]:
-			if not _band_walkable(layer, pos):
-				return false
-	elif foliage.get_cell_source_id(pos) != -1:
-		# Older tilesets carry no per-tile walkability: any foliage blocks.
-		return false
+	# The band table already says which categories block, so a decorative
+	# plant or grass tuft on the foliage layer does not wall the tile off.
+	for layer: TileMapLayer in [foliage, terrain_features, structures_exterior]:
+		if not _band_walkable(layer, pos):
+			return false
 
 	# Block if static collision geometry (building walls, props) covers the tile
 	if _is_physics_blocked(pos):
@@ -1922,7 +1386,7 @@ func _is_physics_blocked(pos: Vector2i) -> bool:
 	return false
 
 func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> void:
-	var building_count = 0
+	var building_count: int = 0
 	match hamlet_type:
 		"village":
 			building_count = local_rng.randi_range(3, 6)
@@ -1930,79 +1394,35 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> v
 			building_count = local_rng.randi_range(2, 4)
 	
 	# Create a grid to track building placement
-	var occupation_grid = []
+	var occupation_grid: Array = []
 	for y in HEIGHT:
 		occupation_grid.append([])
 		for x in WIDTH:
 			occupation_grid[y].append(false)
 	
 	# Place buildings
-	var buildings_placed = 0
-	var attempts = 0
+	var hamlet_types: Array[int] = [
+		Structure.StructureType.HOUSE,
+		Structure.StructureType.HOUSE,
+		Structure.StructureType.SHOP,
+		Structure.StructureType.TAVERN,
+	]
+	var buildings_placed: int = 0
+	var attempts: int = 0
 	while buildings_placed < building_count and attempts < 100:
-		var building_type = HamletStructureType.values()[local_rng.randi() % HamletStructureType.size()]
-		if try_place_building(building_type, occupation_grid, local_rng):
+		var building_type: int = hamlet_types[local_rng.randi() % hamlet_types.size()]
+		var sprite_def = _building_def(building_type)
+		if sprite_def == null:
+			attempts += 1
+			continue
+		var size: Vector2i = sprite_def["size"]
+		var pos := find_valid_building_position_settlement(
+			Vector2i(WIDTH, HEIGHT), size, occupation_grid, local_rng, building_type)
+		if pos.x != -1:
+			place_building_settlement(pos, size, building_type)
+			mark_occupied_settlement(occupation_grid, pos, size, sprite_def["spacing"])
 			buildings_placed += 1
 		attempts += 1
-
-func try_place_building(hamlet_type: int, occupation_grid: Array, local_rng: RandomNumberGenerator) -> bool:
-	var struct_type: int = HAMLET_TYPE_MAP.get(hamlet_type, Structure.StructureType.HOUSE)
-	var sprite_def = _building_def(struct_type)
-	if not sprite_def:
-		return false
-	var size: Vector2i = sprite_def["size"]
-	var pos = find_valid_building_position(Vector2i(WIDTH, HEIGHT), size, occupation_grid, local_rng, hamlet_type)
-	if pos.x == -1:
-		return false
-	place_building(pos, size, hamlet_type)
-	mark_occupied(occupation_grid, pos, size, sprite_def["spacing"])
-	return true
-
-func find_valid_building_position(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, local_rng: RandomNumberGenerator, hamlet_type: int) -> Vector2i:
-	var struct_type: int = HAMLET_TYPE_MAP.get(hamlet_type, Structure.StructureType.HOUSE)
-	var sprite_def = _building_def(struct_type)
-	var spacing: int = sprite_def["spacing"] if sprite_def else 1
-	var attempts = 0
-	
-	while attempts < 100:
-		var x = local_rng.randi_range(spacing, area_size.x - size.x - spacing)
-		var y = local_rng.randi_range(spacing, area_size.y - size.y - spacing)
-		var valid = true
-		
-		for dy in range(-spacing, size.y + spacing):
-			for dx in range(-spacing, size.x + spacing):
-				var check_x = x + dx
-				var check_y = y + dy
-				if check_x < 0 or check_x >= area_size.x or check_y < 0 or check_y >= area_size.y:
-					valid = false
-					break
-				if occupied_space_grid[check_y][check_x]:
-					valid = false
-					break
-			if not valid:
-				break
-		
-		if valid:
-			return Vector2i(x, y)
-		attempts += 1
-	
-	return Vector2i(-1, -1)
-
-func mark_occupied(occupied_space_grid: Array, pos: Vector2i, size: Vector2i, spacing: int = 0) -> void:
-	for y in range(pos.y - spacing, pos.y + size.y + spacing):
-		for x in range(pos.x - spacing, pos.x + size.x + spacing):
-			if y >= 0 and y < occupied_space_grid.size() and x >= 0 and x < occupied_space_grid[y].size():
-				occupied_space_grid[y][x] = true
-
-# Place a hamlet building using a premade sprite
-func place_building(pos: Vector2i, size: Vector2i, hamlet_type: int) -> void:
-	var struct_type: int = HAMLET_TYPE_MAP.get(hamlet_type, Structure.StructureType.HOUSE)
-	var sprite_def = _building_def(struct_type)
-	if not sprite_def:
-		push_warning("No BUILDING_SPRITES entry for hamlet type %d" % hamlet_type)
-		return
-	print("Placing hamlet building type %d at %s" % [hamlet_type, pos])
-	_place_building_sprite(pos, size, sprite_def, struct_type)
 
 # Settlement-specific building functions
 func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, settlement_rng: RandomNumberGenerator, building_type: int) -> Vector2i:
@@ -2066,14 +1486,11 @@ func place_building_settlement(pos: Vector2i, size: Vector2i, building_type: int
 	if not sprite_def:
 		push_warning("No BUILDING_SPRITES entry for building type %d" % building_type)
 		return
-	print("Placing settlement building type %d at %s" % [building_type, pos])
 	_place_building_sprite(pos, size, sprite_def, building_type)
 
 # ── Shared sprite placement ────────────────────────────────────────────────
-# Paints ground terrain under the footprint, clears foliage, then instances
-# the unified building scene (exterior + interior) for this building.
-# structures_exterior/structures_interior share the same coordinate space as
-# the ground layer provided both tilesets use the same tile_size (16 × 16 px).
+# Paints ground terrain under the footprint, clears foliage, then stamps
+# walls/door/floor tiles for the building.
 func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary, building_type: int) -> void:
 	# Seeded RNG for deterministic patch variation tied to building position
 	var patch_rng := RandomNumberGenerator.new()
@@ -2120,16 +1537,7 @@ func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionar
 	for cell in building_cells:
 		if foliage.get_cell_source_id(cell) != -1:
 			foliage.set_cell(cell, -1)
-
-	if _roguelike_backend:
-		# building.tscn is authored from the old village tileset, so mixing it
-		# into a roguelike map would clash. Draw the building instead.
-		_stamp_building_tiles(pos, size, patch_rng)
-		return
-
-	# Spawn the unified building scene (exterior + interior in one), picking a
-	# building_id variant discovered for this Structure.StructureType.
-	_spawn_building_instance(pos, building_type, patch_rng)
+	_stamp_building_tiles(pos, size, patch_rng)
 
 
 ## Draw a building as tiles: a directional wall ring with a single door and a
@@ -2210,33 +1618,6 @@ func _pick_door_cell(rect: Rect2i, rng: RandomNumberGenerator) -> Vector2i:
 		2: return Vector2i(rect.position.x, rng.randi_range(rect.position.y + 1, rect.end.y - 2))
 		_: return Vector2i(rect.end.x - 1, rng.randi_range(rect.position.y + 1, rect.end.y - 2))
 
-# Picks a building_id variant registered for `building_type` (deterministically
-# via `variant_rng`, seeded from position by the caller) and instantiates
-# BUILDING_SCENE, positioning it to align with the ground/structure layers.
-func _spawn_building_instance(pos: Vector2i, building_type: int, variant_rng: RandomNumberGenerator) -> void:
-	var variants: Array = building_ids_by_type.get(building_type, [])
-	if variants.is_empty():
-		push_warning("No building scene variant found for building type %d" % building_type)
-		return
-	var building_id: String = variants[variant_rng.randi() % variants.size()]
-
-	var instance := BUILDING_SCENE.instantiate()
-	instance.building_id = building_id
-	instance.name = "building_%s_%d" % [building_id, building_instances.size()]
-	instance.position = structures_exterior.map_to_local(pos)
-	structures.add_child(instance)
-	# Newly added nodes have no `owner` by default, so they won't appear in the
-	# editor's Scene panel (or get saved with the scene) even though they
-	# render correctly. Setting owner to the edited scene root fixes this when
-	# running as a @tool script; at runtime we fall back to this node's own
-	# owner (which is null unless this generator is itself part of a larger
-	# scene, in which case setting owner is harmless).
-	var scene_root: Node = get_tree().edited_scene_root if Engine.is_editor_hint() else owner
-	if scene_root:
-		instance.owner = scene_root
-		_set_owner_recursive(instance, scene_root)
-	building_instances.append(instance)
-
 # Recursively sets `owner` on every descendant of `node` so procedurally
 # instantiated scenes appear in the editor's Scene panel and are persisted
 # when the containing scene is saved.
@@ -2253,8 +1634,8 @@ func generate_roads_between_buildings(placed_buildings: Array, _settlement_rng: 
 			var building_b = placed_buildings[j]
 			
 			# Skip if buildings are too far apart
-			var distance = (building_a["pos"] - building_b["pos"]).length()
-			if distance > 20: # Maximum road distance
+			var distance_sq = (building_a["pos"] - building_b["pos"]).length_squared()
+			if distance_sq > 400.0: # Maximum road distance squared
 				continue
 			
 			# Generate simple road between buildings
@@ -2273,8 +1654,9 @@ func generate_road_between_buildings(building_a: Dictionary, building_b: Diction
 	# Get appropriate road terrain type from the map config
 	var surface: String = _get_settlement_terrain()["paths"]
 	
-	# Collect road cells, varying width per cell for an organic look
-	var road_cells = []
+	# Collect road cells, varying width per cell for an organic look.
+	var road_cells: Array[Vector2i] = []
+	var seen: Dictionary = {}
 	for pos in path:
 		# Width is mostly 1 tile each side, occasionally 2
 		var half_w: int = 1 if road_rng.randf() > 0.25 else 2
@@ -2282,7 +1664,9 @@ func generate_road_between_buildings(building_a: Dictionary, building_b: Diction
 			for dy in range(-half_w, half_w + 1):
 				var road_pos = pos + Vector2i(dx, dy)
 				if road_pos.x >= 0 and road_pos.x < WIDTH and road_pos.y >= 0 and road_pos.y < HEIGHT:
-					road_cells.append(road_pos)
+					if not seen.has(road_pos):
+						seen[road_pos] = true
+						road_cells.append(road_pos)
 	
 	# Apply terrain change using terrain sets for proper transitions
 	_paint_surface(road, road_cells, surface)
@@ -2294,23 +1678,7 @@ func get_door_position_settlement(building: Dictionary) -> Vector2i:
 		building["pos"].y + building["size"].y - 1
 	)
 
-func get_path_between_settlements(start: Vector2i, end: Vector2i) -> Array:
-	# Simple Manhattan line-drawing path
-	var path = []
-	var current = start
-	
-	while current != end:
-		path.append(current)
-		var diff = end - current
-		if abs(diff.x) > abs(diff.y):
-			current.x += sign(diff.x)
-		else:
-			current.y += sign(diff.y)
-			
-	path.append(end)
-	return path
-
-# Like get_path_between_settlements but adds winding, irregular drift for a
+# Adds winding, irregular drift for a
 # more organic, hand-laid road feel.  The road occasionally enters a "wander"
 # mode where it drifts perpendicular to the goal for 1–5 steps before
 # correcting, producing visible curves and bends.
@@ -2410,7 +1778,7 @@ func generate_edge_roads() -> void:
 
 	# Choose road surface — fallback to "dirt" if the key is unknown
 	var surface: String = map_template.road_terrain
-	if not TERRAINS.has(surface):
+	if _surface_pool(surface).is_empty():
 		surface = "dirt"
 
 	# Seeded RNG for deterministic edge-road variation
@@ -2419,6 +1787,7 @@ func generate_edge_roads() -> void:
 
 	# Draw each road segment from the edge toward the centre
 	var road_cells: Array[Vector2i] = []
+	var seen: Dictionary = {}
 	for ep: Vector2i in endpoints:
 		var path: Array = get_varied_path(ep, center, edge_rng)
 		for cell: Vector2i in path:
@@ -2428,7 +1797,9 @@ func generate_edge_roads() -> void:
 				for dy in range(-hw, hw + 1):
 					var rp := cell + Vector2i(dx, dy)
 					if rp.x >= 0 and rp.x < WIDTH and rp.y >= 0 and rp.y < HEIGHT:
-						road_cells.append(rp)
+						if not seen.has(rp):
+							seen[rp] = true
+							road_cells.append(rp)
 
 	if road_cells.is_empty():
 		return

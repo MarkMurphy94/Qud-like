@@ -3,7 +3,7 @@ class_name LocalMapTile
 
 ## Single source of truth for a local-map entry point on the overworld.
 ## If scene_path is non-empty a hand-crafted settlement scene is loaded;
-## otherwise AreaContainer generates the area from tile_metadata.
+## otherwise MainGame drives local_scene generation from tile_metadata.
 @export var scene_path: String = ""
 @export var tile_metadata: TileMetadata
 

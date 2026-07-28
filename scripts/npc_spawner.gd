@@ -3,9 +3,9 @@ class_name NPCSpawner
 
 @export var npc_scene: PackedScene = preload("res://scenes/npc.tscn")
 
-## Set by AreaContainer when loading a settlement scene.
+## Set by caller when loading a settlement scene.
 var settlement_data: MapConfig = null
-## Set by AreaContainer when loading a wilderness / procedural area.
+## Set by caller when loading a wilderness / procedural area.
 var wilderness_metadata: TileMetadata = null
 
 var spawned_npcs: Array = []

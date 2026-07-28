@@ -67,7 +67,7 @@ var overworld_tile: Vector2i = Vector2i.ZERO
 var overworld_tile_pos: Vector2 = Vector2.ZERO
 var current_tile: LocalMapTile = null
 var map_rect = null
-@onready var area_container = get_node_or_null("../AreaContainer")
+@onready var local_scene = get_node_or_null("../local_scene")
 
 # ── NPC interaction ──────────────────────────────────────────────────────
 var available_npcs: Array = []
@@ -807,8 +807,8 @@ func _spawn_world_item(item: Item, quantity: int) -> void:
 	world_item.global_position = global_position + spawn_offset
 	
 	# Add to the current scene
-	if in_local_area and area_container.current_area:
-		area_container.current_area.add_child(world_item)
+	if in_local_area and local_scene:
+		local_scene.add_child(world_item)
 	else:
 		get_parent().add_child(world_item)
 	
@@ -1034,8 +1034,8 @@ func _fire_pending_spell(world_target: Vector2) -> void:
 
 	# Determine which scene node should own the projectile
 	var scene_parent: Node
-	if in_local_area and area_container and area_container.current_area:
-		scene_parent = area_container.current_area
+	if in_local_area and local_scene:
+		scene_parent = local_scene
 	else:
 		scene_parent = get_parent()
 

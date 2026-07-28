@@ -1,13 +1,11 @@
 extends Node
 ## The stripped-back world runs on `world_map` (scenes/alternate_mode) with no
-## local areas. The old OverworldMap and AreaContainer nodes are gone from
-## game.tscn, so both are looked up optionally: the descent / wilderness-
-## metadata paths below stay dormant until local areas are rebuilt.
+## local areas. OverworldMap is looked up optionally for compatibility with
+## older scene layouts.
 @onready var world_map = get_node_or_null("world_map")
 @onready var overworld_map = get_node_or_null("OverworldMap")
 @onready var player: CharacterBody2D = $Player
 @onready var pause: Control = $CanvasLayer/pause
-@onready var area_container = get_node_or_null("AreaContainer")
 ## MapGenerator instance that hosts the current tile's local map.
 @onready var local_scene = get_node_or_null("local_scene")
 
@@ -28,8 +26,6 @@ var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = n
 # ═══════════════════════════════════════════════════════════════════════
 
 func _ready() -> void:
-	if area_container:
-		area_container.area_loaded.connect(_on_area_loaded)
 	# The local-map host starts empty and hidden — any content painted into the
 	# scene in the editor is test data, and its collision would bleed through
 	# into the overworld (tile collision ignores visibility).
@@ -124,6 +120,7 @@ func enter_local_map() -> void:
 		"terrain": terrain,
 		"biome": world_map.biome_at(tile),
 	})
+	_apply_area_pickup_records(_area_key_from_tile(tile), local_scene)
 
 	world_map.visible = false
 	local_scene.visible = true
@@ -240,15 +237,21 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 	_save.area_picked_up_items = area_picked_up_items.duplicate(true)
 
 	# ── Local-area bookmark (so we can re-enter on load) ───────
-	if player.in_local_area and area_container.current_area:
-		if player.current_tile:
-			_save.local_area_settlement_path = player.current_tile.scene_path
-			var meta: TileMetadata = player.current_tile.tile_metadata
-			_save.local_area_metadata = meta.to_dict() if meta else {}
+	if player.in_local_area and local_scene:
+		_save.local_area_settlement_path = ""
+		var meta: TileMetadata = world_tile_data.get(player.overworld_tile)
+		if meta:
+			_save.local_area_metadata = meta.to_dict()
 		else:
-			_save.local_area_settlement_path = overworld_map.settlement_at_tile(player.overworld_tile)
-			var meta: TileMetadata = world_tile_data.get(player.overworld_tile)
-			_save.local_area_metadata = meta.to_dict() if meta else {}
+			var terrain: int = local_scene.OverworldTile.GRASS
+			if world_map and world_map.mountains.get_cell_source_id(player.overworld_tile) != -1:
+				terrain = local_scene.OverworldTile.MOUNTAIN
+			_save.local_area_metadata = {
+				"coords": player.overworld_tile,
+				"seed": get_tile_seed(player.overworld_tile),
+				"terrain": terrain,
+				"biome": world_map.biome_at(player.overworld_tile) if world_map else "temperate",
+			}
 	else:
 		_save.local_area_settlement_path = ""
 		_save.local_area_metadata = {}
@@ -332,34 +335,50 @@ func load_game_from_slot(slot: int) -> bool:
 			player.learned_spells.append(spell)
 
 	# ── Position & local-area re-entry ─────────────────────────
-	if _save.player_in_local_area and area_container:
+	if _save.player_in_local_area and local_scene and world_map:
 		# Put the player on the overworld tile first, then descend
 		player.global_position = _save.player_overworld_position
 		player.overworld_tile = _save.player_overworld_tile
 		player.overworld_tile_pos = _save.player_overworld_position
-		# Re-enter the local area from saved data
-		var meta: TileMetadata = null
-		if not _save.local_area_metadata.is_empty():
-			meta = TileMetadata.from_dict(_save.local_area_metadata)
-		area_container.load_area(_save.local_area_settlement_path, meta)
-		await get_tree().process_frame
-		player.map_rect = area_container.current_area.tilemaps["GROUND"].get_used_rect()
+
+		# Re-enter the local map from saved metadata (or synthesize minimal data).
+		var meta_dict: Dictionary = _save.local_area_metadata.duplicate(true)
+		if meta_dict.is_empty():
+			meta_dict = {
+				"coords": player.overworld_tile,
+				"seed": get_tile_seed(player.overworld_tile),
+				"terrain": local_scene.OverworldTile.GRASS,
+				"biome": world_map.biome_at(player.overworld_tile),
+			}
+			if world_map.mountains.get_cell_source_id(player.overworld_tile) != -1:
+				meta_dict["terrain"] = local_scene.OverworldTile.MOUNTAIN
+
+		local_scene.generate_local_map(meta_dict)
+		_apply_area_pickup_records(_area_key_from_tile(player.overworld_tile), local_scene)
+		world_map.visible = false
+		local_scene.visible = true
+		await get_tree().physics_frame
+		player.map_rect = local_scene.bounds
 		player.global_position = _save.player_local_position
-		if overworld_map:
-			overworld_map.hide()
 		player.in_local_area = true
+		player.world_map = local_scene
+		player.snap_to_grid()
+		player.rebuild_nav_grid()
 		player.update_camera_limits()
 	else:
 		# Overworld. A save taken inside a local area lands the player back on
-		# the overworld tile they descended from, since local areas are gone.
+		# the overworld tile they descended from.
 		if player.in_local_area:
-			if area_container:
-				area_container.clear()
-			if overworld_map:
-				overworld_map.show()
+			if local_scene:
+				local_scene.clear_all_layers()
+				local_scene.visible = false
+			if world_map:
+				world_map.visible = true
 			player.in_local_area = false
+			player.world_map = world_map
 		player.global_position = _save.player_overworld_position
 		player.snap_to_grid()
+		player.rebuild_nav_grid()
 		player.update_camera_limits()
 
 	print("[SaveSystem] Loaded slot %d  (%s)" % [slot, _save.slot_name])
@@ -528,25 +547,25 @@ func _assign_road_exits() -> void:
 #  WORLD ITEM PICKUP TRACKING
 # ═══════════════════════════════════════════════════════════════════════
 
-## Called by AreaContainer after every local-area load.
-## Connects WorldItem pickup signals so future pickups are recorded,
-## and immediately removes any WorldItems the player already collected.
-func _on_area_loaded(area_key: String) -> void:
-	if area_key == "" or not is_instance_valid(area_container.current_area):
+func _area_key_from_tile(tile: Vector2i) -> String:
+	return "%d,%d" % [tile.x, tile.y]
+
+## Connects WorldItem pickup signals and removes already-collected items for
+## a generated local area.
+func _apply_area_pickup_records(area_key: String, area_root: Node) -> void:
+	if area_key == "" or not is_instance_valid(area_root):
 		return
 
 	var recorded: Array = area_picked_up_items.get(area_key, [])
 
-	for wi: WorldItem in area_container.current_area.find_children("*", "WorldItem", true, false):
+	for wi: WorldItem in area_root.find_children("*", "WorldItem", true, false):
 		if not is_instance_valid(wi) or not wi.item_resource:
 			continue
 
 		var key := _make_item_key(wi.item_resource, wi.global_position)
 		if key in recorded:
-			# Previously collected — remove silently without emitting any signal
 			wi.queue_free()
 		else:
-			# Not yet collected — wire up so this run's pickup gets recorded
 			wi.picked_up.connect(
 				func(_item: Item, _qty: int, pos: Vector2) -> void:
 					_record_item_pickup(_item, pos, area_key)
