@@ -26,12 +26,6 @@ const GRID_COLS := 109
 const GRID_ROWS := 46
 const TEXTURE_BASENAME := "The Roguelike 1-15-1.png"  # picks the right atlas source
 
-# --- alpha variant ---
-# The sheet also ships with a transparent-background cut. Tiles that sit on top
-# of something else (foliage, props, walls) must come from that source or their
-# opaque background punches a hole in the ground beneath them; flat ground tiles
-# want the opaque cut. Which cut a band uses is the "use_alpha" key below.
-## Matched against an atlas source's texture file name to find that cut.
 const ALPHA_TEXTURE_MARKER := "Alpha"
 
 ## True when `file_name` is the transparent cut of the master sheet.
@@ -115,18 +109,64 @@ const CATEGORY_BANDS := [
 	{"category": "building", "rows": [17, 18], "walkable": false, "is_map_tile": true,  "local_gen": false, "world_map": true, "use_alpha": true},
 	{"category": "wall",     "rows": [19, 20], "walkable": false, "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
 	{"category": "door",     "rows": [21, 21], "walkable": true,  "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
-	{"category": "prop",     "rows": [22, 26], "walkable": false, "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true},
+	# Props are opt-in: the band default of "none" keeps a prop out of both the
+	# interior and exterior pools until OVERRIDES gives it a placement. That way
+	# an unclassified prop is never scattered by accident (no barrels in a
+	# graveyard, no gravestones in a kitchen) — commenting out an override is
+	# enough to pull that tile from generation.
+	{"category": "prop",     "rows": [22, 26], "walkable": false, "is_map_tile": true,  "local_gen": true, "world_map": true, "use_alpha": true, "placement": "none"},
 	# --- TODO rows 27+ : animals, monsters, heroes, and inventory sprites. Excluded from
 	# the map tile catalog (spawned as entities / held as items, not painted). Sub-split
 	# into animal/monster/hero bands later if themed entity selection is wanted.
 	{"category": "entity_sprite", "rows": [27, 43], "walkable": true, "is_map_tile": false, "local_gen": false},
 ]
 
+# --- prop selection weights ---
+# The generator picks props by weight, so "which props show up most" is data
+# here rather than logic in map_generator.gd. COMMON marks the small set of
+# props that should read as the everyday furniture of a settlement; every other
+# prop keeps DEFAULT and therefore shows up as an occasional accent.
+const DEFAULT_PROP_WEIGHT := 1.0
+const COMMON_PROP_WEIGHT := 8.0
+
 # --- per-tile overrides (win over the band defaults) ---
 # Key is "col,row" (atlas coords). Any subset of keys may be supplied.
-#   { Vector2i(x, y): {"category": "...", "theme": "...", "walkable": bool, "is_map_tile": bool} }
+# Use `placement` for prop tiles that should only appear in a specific context:
+#   "interior" | "exterior" | "both" | "none"
+# Props default to "none" (never placed), so listing a tile here is what opts it
+# into generation.
+# Use `weight` to bias how often a prop is chosen within its pool.
+#   { Vector2i(x, y): {"category": "...", "theme": "...", "walkable": bool, "is_map_tile": bool, "placement": "exterior", "weight": 8.0} }
 const OVERRIDES := {
-	# e.g. Vector2i(37, 21): {"walkable": true},   # a bridge tile over water
+	# TODO: get more granular with placement for props, so the local scene generator can avoid putting a tree in a house.
+	# Firepits + water well: the common exterior props.
+	Vector2i(4, 22): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(5, 22): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(6, 22): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+
+	# Bookshelf → empty pot: the common interior props.
+	Vector2i(4, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(5, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(6, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(7, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(8, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(9, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(10, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(11, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(12, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(13, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+
+	# Signposts: common exterior props.
+	Vector2i(9, 25): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(10, 25): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(11, 25): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+
+	# Graves: common exterior props.
+	Vector2i(10, 26): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(11, 26): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(12, 26): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(13, 26): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
+	# Add tile coords here as you classify each prop.
 }
 
 # ---------------------------------------------------------------------------
@@ -160,6 +200,8 @@ static func resolve(coord: Vector2i) -> Dictionary:
 		"is_map_tile": band.is_map_tile,
 		"local_gen": band.local_gen,
 		"use_alpha": band.get("use_alpha", false),
+		"placement": band.get("placement", "both"),
+		"weight": band.get("weight", DEFAULT_PROP_WEIGHT),
 	}
 	if OVERRIDES.has(coord):
 		data.merge(OVERRIDES[coord], true)

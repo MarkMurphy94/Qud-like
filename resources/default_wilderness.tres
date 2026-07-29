@@ -8,10 +8,11 @@
 script = ExtResource("1_mapcfg")
 map_name = "Wilderness"
 terrain = 1
-building_density = 0
-tree_density = 2
+map_type = 1
+tree_density = 1
 bush_density = 0.11
 rock_density = 0.0
 grass_feature_density = 0.16
 noise_scale = 9.5
+SEED = 1111046162
 road_terrain = "stone"

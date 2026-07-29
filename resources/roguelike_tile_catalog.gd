@@ -138,6 +138,9 @@ static func build(ts: TileSet) -> Dictionary:
 				# "" for tiles that look the same in every environment.
 				"biome": meta.get("biome", ""),
 				"walkable": meta.walkable,
+				"placement": meta.get("placement", "both"),
+				# How strongly this tile is favoured when a prop pool is sampled.
+				"weight": meta.get("weight", Layout.DEFAULT_PROP_WEIGHT),
 				# Kept so entries stay shape-compatible with the custom-data
 				# catalog MapGenerator builds for the older tilesets.
 				"subtype": "",

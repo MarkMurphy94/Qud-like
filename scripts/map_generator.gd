@@ -30,6 +30,7 @@ const Layout := preload("res://resources/tileset_layout.gd")
 @onready var structures_interior: TileMapLayer = $structures_interior
 @onready var foliage: TileMapLayer = $foliage
 @onready var decor_exterior: TileMapLayer = $decor_exterior
+@onready var decor_interior: TileMapLayer = $decor_interior
 
 # Mirror of OverworldGenerator.Tile for reference
 enum OverworldTile {WATER, GRASS, MOUNTAIN}
@@ -323,10 +324,11 @@ func clear_all_layers() -> void:
 	structures_exterior.clear()
 	structures_interior.clear()
 	decor_exterior.clear()
+	decor_interior.clear()
 
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
-	for layer_node in [ground, road, terrain_features, structures_exterior, structures_interior]:
+	for layer_node in [ground, road, terrain_features, structures_exterior, structures_interior, decor_exterior, decor_interior]:
 		if not layer_node:
 			push_error("Missing TileMapLayer node in MapGenerator scene '%s'!" % name)
 			return
@@ -607,6 +609,7 @@ func build_settlement_from_dataset() -> void:
 	add_terrain_features(feature_rng)
 	add_foliage()
 	add_decor_exterior(placed_for_roads)
+	add_decor_interior(placed_for_roads)
 
 func generate_local_map(metadata) -> void:
 	if typeof(metadata) == TYPE_OBJECT and metadata is TileMetadata:
@@ -829,6 +832,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	add_terrain_features(settlement_rng)
 	add_foliage()
 	add_decor_exterior(placed_buildings)
+	add_decor_interior(placed_buildings)
 
 	_store_settlement_layout(int(map_template.SEED))
 
@@ -1079,15 +1083,48 @@ func add_foliage() -> void:
 							placed_type_positions[type_key] = []
 						placed_type_positions[type_key].append(pos)
 
-func add_decor_exterior(placed_buildings: Array) -> void:
-	var decor_types: Dictionary = _catalog_types("decor_exterior")
-	if decor_types.is_empty():
-		return
+func _allows_exterior_placement(entry: Dictionary) -> bool:
+	var placement: String = entry.get("placement", "both")
+	return placement == "both" or placement == "exterior"
 
-	var all_tiles: Array = []
+func _allows_interior_placement(entry: Dictionary) -> bool:
+	var placement: String = entry.get("placement", "both")
+	return placement == "both" or placement == "interior"
+
+## Every prop the catalog knows that may stand in the given context, as a flat
+## pool ready for _pick_weighted().
+func _prop_pool(interior: bool) -> Array:
+	var decor_types: Dictionary = _catalog_types("decor_exterior")
+	var pool: Array = []
 	for tile_type in decor_types:
 		for entry in decor_types[tile_type]:
-			all_tiles.append(entry)
+			if interior:
+				if _allows_interior_placement(entry):
+					pool.append(entry)
+			elif _allows_exterior_placement(entry):
+				pool.append(entry)
+	return pool
+
+## Weighted pick from a prop pool. The weight rides on each catalog entry (see
+## tileset_layout.gd), so which props dominate a map is authored data rather
+## than a rule here; entries without one fall back to an even chance.
+func _pick_weighted(pool: Array, rng: RandomNumberGenerator) -> Dictionary:
+	if pool.is_empty():
+		return {}
+	var total := 0.0
+	for entry in pool:
+		total += maxf(0.0, float(entry.get("weight", 1.0)))
+	if total <= 0.0:
+		return pool[rng.randi() % pool.size()]
+	var roll := rng.randf() * total
+	for entry in pool:
+		roll -= maxf(0.0, float(entry.get("weight", 1.0)))
+		if roll <= 0.0:
+			return entry
+	return pool[pool.size() - 1]
+
+func add_decor_exterior(placed_buildings: Array) -> void:
+	var all_tiles: Array = _prop_pool(false)
 	if all_tiles.is_empty():
 		return
 
@@ -1118,7 +1155,7 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 					continue
 				if wall_adjacent_tiles.is_empty() or decor_rng.randf() > 0.15:
 					continue
-				var entry: Dictionary = wall_adjacent_tiles[decor_rng.randi() % wall_adjacent_tiles.size()]
+				var entry: Dictionary = _pick_weighted(wall_adjacent_tiles, decor_rng)
 				var esize: Vector2i = entry["size"]
 				var fits := true
 				for edy in esize.y:
@@ -1151,7 +1188,7 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 					continue
 				if decor_rng.randf() > 0.08:
 					continue
-				var entry: Dictionary = open_tiles[decor_rng.randi() % open_tiles.size()]
+				var entry: Dictionary = _pick_weighted(open_tiles, decor_rng)
 				var esize: Vector2i = entry["size"]
 				var fits := true
 				for edy in esize.y:
@@ -1165,6 +1202,70 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 					for edy in esize.y:
 						for edx in esize.x:
 							used_cells[cell + Vector2i(edx, edy)] = true
+
+func add_decor_interior(placed_buildings: Array) -> void:
+	var interior_tiles: Array = _prop_pool(true)
+	if interior_tiles.is_empty():
+		return
+
+	var decor_rng := RandomNumberGenerator.new()
+	decor_rng.seed = current_map_seed ^ 0xC0FFEE11
+	var used_cells: Dictionary = {}
+
+	for building in placed_buildings:
+		var bpos: Vector2i = building["pos"]
+		var bsize: Vector2i = building["size"]
+		if bsize.x < 3 or bsize.y < 3:
+			continue
+
+		# One-tile-inside ring (hugging interior walls).
+		var left := bpos.x + 1
+		var right := bpos.x + bsize.x - 2
+		var top := bpos.y + 1
+		var bottom := bpos.y + bsize.y - 2
+
+		var edge_cells: Array[Vector2i] = []
+		for x in range(left, right + 1):
+			edge_cells.append(Vector2i(x, top))
+			if bottom != top:
+				edge_cells.append(Vector2i(x, bottom))
+		for y in range(top + 1, bottom):
+			edge_cells.append(Vector2i(left, y))
+			if right != left:
+				edge_cells.append(Vector2i(right, y))
+
+		for cell in edge_cells:
+			if decor_rng.randf() > 0.22:
+				continue
+			if used_cells.has(cell):
+				continue
+			if structures_exterior.get_cell_source_id(cell) != -1:
+				continue
+			if decor_interior.get_cell_source_id(cell) != -1:
+				continue
+
+			var entry: Dictionary = _pick_weighted(interior_tiles, decor_rng)
+			var esize: Vector2i = entry["size"]
+			var fits := true
+			for edy in esize.y:
+				for edx in esize.x:
+					var ec := cell + Vector2i(edx, edy)
+					if ec.x < left or ec.x > right or ec.y < top or ec.y > bottom:
+						fits = false
+						break
+					if used_cells.has(ec) or structures_exterior.get_cell_source_id(ec) != -1 or decor_interior.get_cell_source_id(ec) != -1:
+						fits = false
+						break
+				if not fits:
+					break
+			if not fits:
+				continue
+
+			# Interior props live on their own dedicated layer.
+			decor_interior.set_cell(cell, entry["source_id"], entry["atlas"])
+			for edy in esize.y:
+				for edx in esize.x:
+					used_cells[cell + Vector2i(edx, edy)] = true
 
 func _scatter_ground_detail(local_rng: RandomNumberGenerator) -> void:
 	var pool: Array = _catalog_pool("terrain_features", "ground_detail")
@@ -1521,7 +1622,7 @@ func place_building_settlement(pos: Vector2i, size: Vector2i, building_type: int
 # ── Shared sprite placement ────────────────────────────────────────────────
 # Paints ground terrain under the footprint, clears foliage, then stamps
 # walls/door/floor tiles for the building.
-func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary, building_type: int) -> void:
+func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary, _building_type: int) -> void:
 	# Seeded RNG for deterministic patch variation tied to building position
 	var patch_rng := RandomNumberGenerator.new()
 	patch_rng.seed = int(pos.x * 73856093) ^ int(pos.y * 19349663)
