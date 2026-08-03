@@ -15,9 +15,12 @@ class_name NPC
 ## - Set `npc_type` (MainGameState.NpcType) and optionally `npc_variant` in the
 ##   Inspector; `apply_type_profile()` and `set_sprite()` (called from
 ##   `_ready()`) pull move speed, stats, faction, sprite region, spells, and
-##   trade behavior from the `npc_properties` table for that type/variant.
-##   Add new types/variants by extending that dictionary — no script changes
-##   needed for basic stat/sprite tuning.
+##   trade behavior from the profile table returned by `get_profiles()` for
+##   that type/variant. Add new types/variants by extending `_build_profiles()`
+##   — no script changes are needed for basic stat/sprite tuning.
+## - Sprites come from the shared roguelike master sheet. A variant names its
+##   art as `sprite_atlas_coords` — a Vector2i(col, row) into that sheet — and
+##   `set_sprite()` converts it into the region rect on the `npc_sprite` node.
 ## - Optionally call `set_locations(home, work)` after spawning to configure
 ##   its wander/work anchor points, and assign a `schedule` if it should
 ##   follow hourly routines.
@@ -34,6 +37,15 @@ class_name NPC
 
 ## Optional config resource to auto-apply settings from a config resource (useful for type templates, unique NPCs, or loading an NPC programmatically from a saved config)
 # @export var auto_set_config: NPCConfig 
+
+## Geometry of the roguelike master sheet NPC art is cut from, so the sprite
+## cell size has one definition shared with the tile generator.
+const Layout := preload("res://resources/tileset_layout.gd")
+
+## Marks a variant whose coords on the roguelike sheet have not been picked yet.
+## Such a variant keeps whatever region npc.tscn ships with and warns, so
+## unmigrated entries are obvious rather than silently drawing the wrong art.
+const SPRITE_TODO := Vector2i(-1, -1)
 
 # === EXPORTS AND CONFIGURATION ===
 @export_group("Basic Properties")
@@ -75,7 +87,8 @@ class_name NPC
 @onready var down: RayCast2D = $down
 @onready var left: RayCast2D = $left
 @onready var right: RayCast2D = $right
-@onready var npc_sprite: Node2D = $npc_sprite
+@onready var npc_sprite: Sprite2D = $npc_sprite
+@onready var debug_canvas: CanvasLayer = $CanvasLayer
 
 
 # === STATE MACHINE ===
@@ -107,7 +120,6 @@ var is_moving: bool = false
 var move_timer: float = 0.0
 var last_direction: Vector2 = Vector2.ZERO
 var path: Array = [] # For pathfinding
-var sprite: Sprite2D
 var home_position: Vector2 # The position this NPC considers "home"
 var work_position: Vector2 # Where this NPC works
 var wander_radius: float = 5.0 # How far from home position the NPC will wander (in tiles)
@@ -140,60 +152,81 @@ var trade_prices: Dictionary = {"buy_multiplier": 1.0, "sell_multiplier": 0.5}
 var player_in_interact_range: bool = false
 var is_interacting: bool = false
 
-# NPC Type-specific properties with variants
-var npc_properties = {
-	MainGameState.NpcType.SOLDIER: {
+# === TYPE / VARIANT PROFILE TABLE ===
+
+## Built once for the whole class instead of once per instance — a populated
+## settlement holds dozens of NPCs and this table is large. Built lazily (on the
+## first NPC's _ready) rather than at script load so the MainGameState autoload
+## is guaranteed to exist by the time the enum keys are evaluated.
+static var _profiles: Dictionary = {}
+
+## The type/variant profile table. Add types and variants here — basic stat,
+## faction and sprite tuning needs no script changes.
+static func get_profiles() -> Dictionary:
+	if _profiles.is_empty():
+		_profiles = _build_profiles()
+	return _profiles
+
+## Variant names defined for a type. NPCSpawner picks from this so the list of
+## valid variants has exactly one source of truth.
+static func variants_for(type_value: MainGameState.NpcType) -> Array:
+	var type_data: Dictionary = get_profiles().get(type_value, {})
+	return type_data.keys()
+
+static func _build_profiles() -> Dictionary:
+	var profiles: Dictionary = {}
+	profiles[MainGameState.NpcType.SOLDIER] = {
 		"default": {
 			"move_speed": 60.0,
-			"sprite_region_coords": Rect2i(64, 32, 32, 32),
+			"sprite_atlas_coords": Vector2i(7, 33), # was 32rogues Rect2i(64, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
 		},
 		"archer": {
 			"move_speed": 55.0,
-			"sprite_region_coords": Rect2i(96, 32, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 12, "charisma": 8}
 		},
 		"knight": {
 			"move_speed": 50.0,
-			"sprite_region_coords": Rect2i(0, 32, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 16, "charisma": 10}
 		},
 		"heavy_knight": {
 			"move_speed": 45.0,
-			"sprite_region_coords": Rect2i(32, 32, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 18, "agility": 6, "intelligence": 8, "endurance": 18, "charisma": 10}
 		},
 		"crossbowman": {
 			"move_speed": 52.0,
-			"sprite_region_coords": Rect2i(128, 32, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 10, "agility": 14, "intelligence": 10, "endurance": 12, "charisma": 8}
 		},
 		"longswordsman": {
 			"move_speed": 58.0,
-			"sprite_region_coords": Rect2i(160, 32, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
 		},
 		"fencer": {
 			"move_speed": 65.0,
-			"sprite_region_coords": Rect2i(192, 32, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 10, "charisma": 12}
 		},
 		"warrior_monk": {
 			"move_speed": 62.0,
-			"sprite_region_coords": Rect2i(224, 32, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(224, 32, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 14, "agility": 14, "intelligence": 12, "endurance": 14, "charisma": 10}
 		},
 		"battlemage": {
 			"move_speed": 55.0,
-			"sprite_region_coords": Rect2i(0, 64, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 64, 32, 32)
 			"faction": "GUARD",
 			"max_mana": 80,
 			"spells": ["res://resources/spells/spell_templates/fireball.tres"],
@@ -201,73 +234,73 @@ var npc_properties = {
 		},
 		"dwarf_warrior": {
 			"move_speed": 52.0,
-			"sprite_region_coords": Rect2i(32, 64, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 64, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 18, "charisma": 8}
 		},
 		"elven_archer": {
 			"move_speed": 60.0,
-			"sprite_region_coords": Rect2i(64, 64, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 64, 32, 32)
 			"faction": "GUARD",
 			"stats": {"strength": 8, "agility": 18, "intelligence": 12, "endurance": 10, "charisma": 12}
 		}
-	},
-	MainGameState.NpcType.PEASANT: {
+	}
+	profiles[MainGameState.NpcType.PEASANT] = {
 		"default": {
 			"move_speed": 50.0,
-			"sprite_region_coords": Rect2i(0, 160, 32, 32),
+			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 		},
 		"farmer": {
 			"move_speed": 45.0,
-			"sprite_region_coords": Rect2i(0, 224, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 224, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 8, "intelligence": 8, "endurance": 12, "charisma": 6}
 		},
 		"baker": {
 			"move_speed": 42.0,
-			"sprite_region_coords": Rect2i(32, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 10, "agility": 8, "intelligence": 10, "endurance": 10, "charisma": 10}
 		},
 		"blacksmith": {
 			"move_speed": 45.0,
-			"sprite_region_coords": Rect2i(64, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 10, "endurance": 14, "charisma": 8}
 		},
 		"scholar": {
 			"move_speed": 42.0,
-			"sprite_region_coords": Rect2i(128, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 8, "intelligence": 16, "endurance": 8, "charisma": 12}
 		},
 		"crone": {
 			"move_speed": 36.0,
-			"sprite_region_coords": Rect2i(192, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 6, "intelligence": 14, "endurance": 8, "charisma": 10}
 		},
 		"hermit": {
 			"move_speed": 40.0,
-			"sprite_region_coords": Rect2i(224, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(224, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 10, "charisma": 6}
 		},
 		"forester": {
 			"move_speed": 52.0,
-			"sprite_region_coords": Rect2i(0, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 192, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 12, "intelligence": 10, "endurance": 12, "charisma": 8}
 		}
-	},
-	MainGameState.NpcType.MERCHANT: {
+	}
+	profiles[MainGameState.NpcType.MERCHANT] = {
 		"default": {
 			"move_speed": 42.0,
 			"move_interval": 0.6,
 			"wander_radius": 3.0,
-			"sprite_region_coords": Rect2i(96, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 160, 32, 32)
 			"behavior": "stay_near_shop",
 			"faction": "MERCHANT",
 			"dialogue": "merchant_dialogue",
@@ -276,13 +309,13 @@ var npc_properties = {
 			"trade_prices": {"buy_multiplier": 1.2, "sell_multiplier": 0.4},
 			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 8, "charisma": 14}
 		}
-	},
-	MainGameState.NpcType.NOBLE: {
+	}
+	profiles[MainGameState.NpcType.NOBLE] = {
 		"default": {
 			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
-			"sprite_region_coords": Rect2i(160, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
 			"behavior": "stay_in_manor",
 			"faction": "NOBLE",
 			"dialogue": "noble_dialogue",
@@ -292,31 +325,31 @@ var npc_properties = {
 		},
 		"priest": {
 			"move_speed": 42.0,
-			"sprite_region_coords": Rect2i(32, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 192, 32, 32)
 			"faction": "CLERGY",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
 		},
 		"cleric": {
 			"move_speed": 45.0,
-			"sprite_region_coords": Rect2i(64, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 192, 32, 32)
 			"faction": "CLERGY",
 			"stats": {"strength": 10, "agility": 8, "intelligence": 14, "endurance": 12, "charisma": 12}
 		},
 		"monk": {
 			"move_speed": 52.0,
-			"sprite_region_coords": Rect2i(96, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 192, 32, 32)
 			"faction": "CLERGY",
 			"stats": {"strength": 10, "agility": 12, "intelligence": 12, "endurance": 12, "charisma": 10}
 		},
 		"druid": {
 			"move_speed": 48.0,
-			"sprite_region_coords": Rect2i(128, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 192, 32, 32)
 			"faction": "DRUID",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 12}
 		},
 		"witch": {
 			"move_speed": 45.0,
-			"sprite_region_coords": Rect2i(160, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 192, 32, 32)
 			"faction": "NEUTRAL",
 			"max_mana": 90,
 			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
@@ -324,7 +357,7 @@ var npc_properties = {
 		},
 		"wizard": {
 			"move_speed": 42.0,
-			"sprite_region_coords": Rect2i(192, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 192, 32, 32)
 			"faction": "MAGE",
 			"max_mana": 120,
 			"spells": ["res://resources/spells/spell_templates/fireball.tres", "res://resources/spells/spell_templates/dark_magic_ball.tres"],
@@ -332,7 +365,7 @@ var npc_properties = {
 		},
 		"warlock": {
 			"move_speed": 45.0,
-			"sprite_region_coords": Rect2i(224, 192, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(224, 192, 32, 32)
 			"faction": "NEUTRAL",
 			"max_mana": 100,
 			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
@@ -340,17 +373,17 @@ var npc_properties = {
 		},
 		"dwarf_wizard": {
 			"move_speed": 40.0,
-			"sprite_region_coords": Rect2i(0, 224, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 224, 32, 32)
 			"faction": "MAGE",
 			"stats": {"strength": 10, "agility": 6, "intelligence": 16, "endurance": 14, "charisma": 10}
 		}
-	},
-	MainGameState.NpcType.BANDIT: {
+	}
+	profiles[MainGameState.NpcType.BANDIT] = {
 		"default": {
 			"move_speed": 72.0,
 			"move_interval": 0.3,
 			"wander_radius": 10.0,
-			"sprite_region_coords": Rect2i(0, 0, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 0, 32, 32)
 			"behavior": "aggressive",
 			"faction": "OUTLAW",
 			"dialogue": "bandit_dialogue",
@@ -360,49 +393,49 @@ var npc_properties = {
 		},
 		"thief": {
 			"move_speed": 78.0,
-			"sprite_region_coords": Rect2i(32, 0, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 0, 32, 32)
 			"faction": "OUTLAW",
 			"stats": {"strength": 8, "agility": 16, "intelligence": 12, "endurance": 8, "charisma": 10}
 		},
 		"elven_rogue": {
 			"move_speed": 80.0,
-			"sprite_region_coords": Rect2i(64, 0, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 0, 32, 32)
 			"faction": "OUTLAW",
 			"stats": {"strength": 8, "agility": 18, "intelligence": 14, "endurance": 8, "charisma": 12}
 		},
 		"barbarian": {
 			"move_speed": 70.0,
-			"sprite_region_coords": Rect2i(96, 0, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 0, 32, 32)
 			"faction": "TRIBAL",
 			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 16, "charisma": 6}
 		},
 		"heavy_barbarian": {
 			"move_speed": 65.0,
-			"sprite_region_coords": Rect2i(128, 0, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 0, 32, 32)
 			"faction": "TRIBAL",
 			"stats": {"strength": 18, "agility": 10, "intelligence": 6, "endurance": 18, "charisma": 6}
 		},
 		"hill_tribe_warrior": {
 			"move_speed": 68.0,
-			"sprite_region_coords": Rect2i(160, 0, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 0, 32, 32)
 			"faction": "TRIBAL",
 			"stats": {"strength": 14, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 6}
 		},
 		"dark_priest": {
 			"move_speed": 52.0,
-			"sprite_region_coords": Rect2i(192, 0, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 0, 32, 32)
 			"faction": "CULTIST",
 			"max_mana": 80,
 			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
 		}
-	},
-	MainGameState.NpcType.ANIMAL: {
+	}
+	profiles[MainGameState.NpcType.ANIMAL] = {
 		"default": {
 			"move_speed": 55.0,
 			"move_interval": 0.4,
 			"wander_radius": 6.0,
-			"sprite_region_coords": Rect2i(128, 96, 32, 32),
+			"sprite_atlas_coords": Vector2i(92, 28), # was 32rogues Rect2i(128, 96, 32, 32)
 			"behavior": "flee_on_approach",
 			"faction": "WILDLIFE",
 			"dialogue": "none",
@@ -410,13 +443,13 @@ var npc_properties = {
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
 		}
-	},
-	MainGameState.NpcType.MONSTER: {
+	}
+	profiles[MainGameState.NpcType.MONSTER] = {
 		"default": {
 			"move_speed": 65.0,
 			"move_interval": 0.3,
 			"wander_radius": 12.0,
-			"sprite_region_coords": Rect2i(0, 160, 32, 32),
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 160, 32, 32)
 			"behavior": "hunt",
 			"max_mana": 50,
 			"faction": "MONSTER",
@@ -426,7 +459,7 @@ var npc_properties = {
 			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
 		}
 	}
-}
+	return profiles
 
 @onready var debug_container: VBoxContainer = $CanvasLayer/VBoxContainer
 @onready var debug_1: RichTextLabel = $CanvasLayer/VBoxContainer/debug_text
@@ -434,9 +467,6 @@ var npc_properties = {
 @onready var debug_3: RichTextLabel = $CanvasLayer/VBoxContainer/debug_text3
 
 
-@onready var human_sprite: Sprite2D = $human_sprite
-@onready var animal_sprite: Sprite2D = $animal_sprite
-@onready var monster_sprite: Sprite2D = $monster_sprite
 @onready var interact_radius: Area2D = $interact_radius
 @onready var _interact_label: Label = $InteractLabel
 
@@ -541,15 +571,22 @@ func _physics_process(delta: float) -> void:
 		_execute_state(delta)
 	_update_debug()
 
-func apply_type_profile():
-	var type_data = npc_properties.get(npc_type, null)
-	if not type_data:
+## The profile for this NPC's type/variant, or {} when neither the type nor a
+## "default" variant is defined. apply_type_profile() and set_sprite() both read
+## through this so the type → variant → default fallback lives in one place.
+func _resolve_profile() -> Dictionary:
+	var type_data: Dictionary = get_profiles().get(npc_type, {})
+	if type_data.is_empty():
 		push_warning("No properties found for NPC type %s" % npc_type)
-		return
-	
-	var profile = type_data.get(npc_variant, type_data.get("default", null))
-	if not profile:
+		return {}
+	var profile: Dictionary = type_data.get(npc_variant, type_data.get("default", {}))
+	if profile.is_empty():
 		push_warning("No variant '%s' found for NPC type %s" % [npc_variant, npc_type])
+	return profile
+
+func apply_type_profile():
+	var profile := _resolve_profile()
+	if profile.is_empty():
 		return
 	
 	move_speed = profile.get("move_speed", move_speed)
@@ -592,48 +629,22 @@ func set_state(new_state: NPCState, data: Dictionary = {}):
 	emit_signal("npc_state_changed", self, old, new_state)
 
 func set_sprite():
-	# Hide all sprites first
-	human_sprite.visible = false
-	animal_sprite.visible = false
-	monster_sprite.visible = false
-	
-	# Get the type data first
-	var type_data = npc_properties.get(npc_type, null)
-	if not type_data:
-		push_warning("No properties found for NPC type %s" % npc_type)
+	var profile := _resolve_profile()
+	if profile.is_empty():
 		return
 	
-	# Get the variant profile from the type data
-	var profile = type_data.get(npc_variant, type_data.get("default", null))
-	if not profile:
-		push_warning("No variant '%s' found for NPC type %s" % [npc_variant, npc_type])
+	var coords: Vector2i = profile.get("sprite_atlas_coords", SPRITE_TODO)
+	if coords == SPRITE_TODO:
+		push_warning("NPC type %s variant '%s' has no roguelike sheet coords yet" % [npc_type, npc_variant])
 		return
 	
-	# Get the sprite region from the variant profile
-	if not profile.has("sprite_region_coords"):
-		push_warning("NPC type %s variant '%s' has no sprite_region_coords defined" % [npc_type, npc_variant])
-		return
-	
-	var region: Rect2i = profile.sprite_region_coords
-	
-	# Determine which sprite to use based on NPC type
-	var active_sprite: Sprite2D = null
-	match npc_type:
-		MainGameState.NpcType.PEASANT, MainGameState.NpcType.SOLDIER, MainGameState.NpcType.MERCHANT, MainGameState.NpcType.NOBLE, MainGameState.NpcType.BANDIT:
-			active_sprite = human_sprite
-		MainGameState.NpcType.ANIMAL:
-			active_sprite = animal_sprite
-		MainGameState.NpcType.MONSTER:
-			active_sprite = monster_sprite
-	
-	# Configure the sprite
-	if active_sprite:
-		active_sprite.visible = true
-		active_sprite.region_enabled = true
-		active_sprite.region_rect = region
-		sprite = active_sprite
-	else:
-		push_warning("Could not determine sprite for NPC type %s" % npc_type)
+	# One Sprite2D serves every NPC type; the type only decides which cell of the
+	# shared sheet it shows.
+	npc_sprite.region_enabled = true
+	npc_sprite.region_rect = Rect2(
+		Vector2(coords * Layout.TILE_SIZE),
+		Vector2(Layout.TILE_SIZE, Layout.TILE_SIZE)
+	)
 
 func _enter_state(s: int):
 	match s:
@@ -867,13 +878,13 @@ func _known_entity_update(id: String, pos: Vector2, attitude: int = 0):
 	}
 
 func _find_player() -> Node2D:
-	# Try group first
-	var players = get_tree().get_nodes_in_group("Player")
-	if players.size() > 0:
-		return players[0]
-	# Fallback search by type name
-	var root = get_tree().get_root()
-	return root.find_child("Player", true, false)
+	# Group lookup only. _perception_update() calls this every frame until a
+	# player is found, so a recursive whole-tree find_child() fallback here would
+	# cost a full scene walk per NPC per frame.
+	var players := get_tree().get_nodes_in_group("Player")
+	if players.is_empty():
+		return null
+	return players[0]
 
 func record_event(event: Dictionary):
 	recent_events.append(event)
@@ -881,7 +892,10 @@ func record_event(event: Dictionary):
 		recent_events.pop_front()
 
 func _update_debug():
-	if not show_debug:
+	# The debug overlay's CanvasLayer is hidden in npc.tscn by default. Formatting
+	# three labels per NPC per physics frame is not free, so skip the work unless
+	# the overlay is actually on screen.
+	if not show_debug or debug_canvas == null or not debug_canvas.visible:
 		if debug_container:
 			debug_container.visible = false
 		return
@@ -1170,18 +1184,20 @@ func _grid_try_move(dir: Vector2) -> bool:
 	return true
 
 func _grid_step(dir: Vector2) -> void:
-	# Move the body one tile and tween the sprite for a smooth slide
+	# Move the body one tile and tween the sprite for a smooth slide.
+	# is_moving stays true until the tween reports finished — clearing it here
+	# would let the next step start mid-slide and defeat every `if is_moving`
+	# guard in this script.
 	is_moving = true
 	move_timer = 0.0
 	global_position += dir * tile_size
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()
-	sprite.global_position -= dir * tile_size
+	npc_sprite.global_position -= dir * tile_size
 	sprite_node_pos_tween = create_tween()
 	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	sprite_node_pos_tween.tween_property(sprite, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+	sprite_node_pos_tween.tween_property(npc_sprite, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
 	sprite_node_pos_tween.finished.connect(_on_move_tween_finished)
-	is_moving = false
 
 func _on_move_tween_finished() -> void:
 	is_moving = false

@@ -24,6 +24,7 @@ position = Vector2(440, 848)
 z_index = 1
 
 [node name="world_map" parent="." unique_id=608102656 instance=ExtResource("5_p57ef")]
+position = Vector2(0, -8)
 
 [node name="local_scene" parent="." unique_id=975847310 instance=ExtResource("6_p57ef")]
 visible = false

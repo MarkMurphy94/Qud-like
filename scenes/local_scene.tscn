@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://ctxr4sf3xyv72" path="res://scripts/map_generator.gd" id="1_e6hen"]
 [ext_resource type="Resource" uid="uid://c1xim8evbfxgo" path="res://resources/default_wilderness.tres" id="2_kbk82"]
 [ext_resource type="TileSet" uid="uid://cl85gl6rje07u" path="res://resources/the_roguelike.tres" id="3_3ecxq"]
+[ext_resource type="PackedScene" uid="uid://dphadmxoyjnk3" path="res://scenes/npc_spawner.tscn" id="4_npcsp"]
 
 [node name="local_scene" type="Node2D" unique_id=975847310]
 script = ExtResource("1_e6hen")
@@ -48,3 +49,5 @@ tile_map_data = PackedByteArray("AAARAEcAAQAKABoAAAAYAEEAAQAEABYAAAAdAEEAAQAKABk
 tile_set = ExtResource("3_3ecxq")
 
 [node name="structures" type="Node2D" parent="." unique_id=509401330]
+
+[node name="npc_spawner" parent="." instance=ExtResource("4_npcsp")]

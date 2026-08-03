@@ -8,6 +8,9 @@ extends Node
 @onready var pause: Control = $CanvasLayer/pause
 ## MapGenerator instance that hosts the current tile's local map.
 @onready var local_scene = get_node_or_null("local_scene")
+## Populates the current local map with NPCs. Lives inside local_scene.tscn so
+## its NPCs share the map's lifetime.
+@onready var npc_spawner = local_scene.get_node_or_null("npc_spawner") if local_scene else null
 
 var _save := SaveGameResource.new()
 var world_tile_data: Dictionary = {}
@@ -154,7 +157,8 @@ func enter_local_map() -> void:
 	player.overworld_tile = tile
 	player.overworld_tile_pos = player.global_position
 
-	local_scene.generate_local_map(_build_local_map_metadata(tile, map_seed))
+	var meta := _build_local_map_metadata(tile, map_seed)
+	local_scene.generate_local_map(meta)
 	_apply_area_pickup_records(_area_key_from_tile(tile), local_scene)
 
 	world_map.visible = false
@@ -172,12 +176,18 @@ func enter_local_map() -> void:
 	player.snap_to_grid()
 	player.update_camera_limits()
 	player.rebuild_nav_grid()
+	if npc_spawner:
+		npc_spawner.populate_local_map(meta)
 	print("[MainGame] Entered local map for tile %s (seed %d)" % [tile, map_seed])
 
 ## Return to the overworld tile the player descended from.
 func exit_local_map() -> void:
 	if world_map == null or not player.in_local_area:
 		return
+	if npc_spawner:
+		# NPCs belong to the map that is being torn down; leaving them alive would
+		# strand them under a hidden local_scene.
+		npc_spawner.clear()
 	if local_scene:
 		# Wiping the layers also drops their collision, which would otherwise
 		# keep blocking overworld tiles while the local map sits hidden.
@@ -397,10 +407,14 @@ func load_game_from_slot(slot: int) -> bool:
 		player.snap_to_grid()
 		player.rebuild_nav_grid()
 		player.update_camera_limits()
+		if npc_spawner:
+			npc_spawner.populate_local_map(meta_dict)
 	else:
 		# Overworld. A save taken inside a local area lands the player back on
 		# the overworld tile they descended from.
 		if player.in_local_area:
+			if npc_spawner:
+				npc_spawner.clear()
 			if local_scene:
 				local_scene.clear_all_layers()
 				local_scene.visible = false
