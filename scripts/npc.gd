@@ -27,11 +27,10 @@ class_name NPC
 ## - The NPCSpawner (`scripts/npc_spawner.gd`) is the normal way NPCs get
 ##   created at runtime based on settlement density tiers — prefer that over
 ##   manually instancing NPCs for populated areas.
-## - Outside of combat, `_physics_process()` runs the free-roam AI loop
-##   (perception → behavior decision → state execution). During
-##   `CombatManager.in_combat`, the CombatManager drives this NPC's turn
-##   directly via `combat_attack()`, `combat_cast_spell()`, and
-##   `_combat_move_towards()` instead.
+## - This NPC is a turn-based actor. It has no per-frame AI loop: TurnManager
+##   calls `take_turn()` once for every action it can afford, which runs
+##   perception → behavior decision → exactly one action. `_process()` only
+##   keeps the debug and health-bar overlays glued to the sprite.
 ## - Player interaction (dialogue/trade) goes through `start_interaction()` /
 ##   `end_interaction()`, triggered by the Player's interact-radius detection.
 
@@ -49,17 +48,24 @@ const SPRITE_TODO := Vector2i(-1, -1)
 
 # === EXPORTS AND CONFIGURATION ===
 @export_group("Basic Properties")
+## Legacy px/s figure kept only because the profile table is keyed on it; the
+## turn `speed` below is derived from it. Movement itself is one tile per turn.
 @export var move_speed: float = 50.0
 @export var tile_size: int = 16
 # @export var grid_size: int = 16
-@export var move_interval: float = 1.5 # seconds between moves
-@export var move_interval_variance: float = 0.5 # random variance added to move_interval
 @export var movement_threshold: float = 1.0 # Distance threshold for considering movement complete
 @export var npc_type: MainGameState.NpcType = MainGameState.NpcType.PEASANT
 @export var npc_variant: String = "default" # New variant property
 @export var vision_range: float = 8.0 # How many tiles the NPC can see
 @export var hearing_range: float = 5.0 # How many tiles the NPC can hear
 @export var max_health: int = 100
+
+@export_group("Turn scheduling")
+## Actions per standard turn, relative to TurnManager.NORMAL_SPEED (100).
+## 50 = acts every other player turn, 200 = twice per player turn.
+@export var speed: int = 100
+## Energy pool owned by TurnManager — do not touch it from AI code.
+var energy: int = 0
 
 @export_group("stats sheet")
 @export var stats: Dictionary = {
@@ -116,8 +122,9 @@ var sprite_node_pos_tween: Tween
 var environment: Node2D # Local area map only
 var rng = RandomNumberGenerator.new()
 var target_position: Vector2
+## True only while the sprite is sliding into the tile the body already left.
+## Purely cosmetic — the turn scheduler, not this flag, gates actions.
 var is_moving: bool = false
-var move_timer: float = 0.0
 var last_direction: Vector2 = Vector2.ZERO
 var path: Array = [] # For pathfinding
 var home_position: Vector2 # The position this NPC considers "home"
@@ -486,30 +493,29 @@ signal npc_interaction_unavailable(npc)
 # =============================
 
 # --- GAME TIME / SCHEDULING SUPPORT ---
-var internal_time_seconds: float = 0.0 # Fallback internal clock if no global time system
-var seconds_per_game_hour: float = 10.0 # Adjustable pacing (3600 for real-time hour)
+## Hour last acted on, so a schedule change fires its state switch only once.
 var last_schedule_hour: int = -1
 
 # --- PERCEPTION CACHES ---
 var current_target: Node2D = null
 var threat_source: Node2D = null
-var flee_timer: float = 0.0
-var combat_range: float = 32.0
-var hear_event_cooldown: float = 0.0
+var flee_turns: int = 0
+## Melee reach in pixels. Just under two tiles so only orthogonal/diagonal
+## neighbours are in range — you must be standing next to someone to hit them.
+var combat_range: float = 24.0
+var hear_event_cooldown: int = 0
 
 # --- DEBUG OPTIONS ---
 var show_debug: bool = true
 
 # --- SPELL SYSTEM ---
 @export var learned_spells: Array[Spell] = []   ## Spells this NPC knows
-var spell_cooldowns: Dictionary = {}    ## spell_id -> seconds remaining
+var spell_cooldowns: Dictionary = {}    ## spell_id -> turns remaining
 var max_mana: int = 0                   ## 0 means NPC is non-magical
 var current_mana: int = 0
-var mana_regen_per_turn: int = 5        ## Mana restored at the start of each combat turn
+var mana_regen_per_turn: int = 5        ## Mana restored at the start of each turn
 
-# --- TURN-BASED COMBAT ---
-var _combat_triggered : bool = false  ## Prevent duplicate trigger_combat() calls
-var _in_combat_mode   : bool = false  ## True while CombatManager is active
+# --- COMBAT INDICATORS ---
 ## Combat UI nodes (created programmatically in _ready)
 var _exclamation_label : Label       = null
 var _hp_bar_container  : Control     = null
@@ -522,8 +528,8 @@ func _ready():
 	apply_type_profile()
 	set_sprite()
 	_build_combat_indicators()
-	# Randomize initial move timer to desync NPC movement
-	move_timer = rng.randf_range(0.0, move_interval + move_interval_variance)
+	# Stagger starting energy so a crowd of NPCs doesn't move in lockstep.
+	energy = rng.randi_range(0, TurnManager.TICKS_PER_ACTION - 1)
 	# Attempt to locate player for reference (optional)
 	if not player_reference:
 		player_reference = _find_player()
@@ -538,38 +544,42 @@ func _ready():
 	_initialize_inventory()
 	
 	set_process(true)
-	set_physics_process(true)
+	set_physics_process(false)
 
-func _physics_process(delta: float) -> void:
+## Per-frame work is limited to overlays. No AI, no movement — the world is
+## frozen until the player acts.
+func _process(_delta: float) -> void:
 	if state == NPCState.DEAD:
 		return
+	_update_debug()
+	_update_combat_ui()
 
-	# During turn-based combat the CombatManager drives NPC actions directly.
-	# We still update debug/combat-UI but skip the free-roam AI loop.
-	if CombatManager.in_combat:
-		_update_debug()
-		_update_combat_ui()
-		return
+## One action. Called by TurnManager as often as this NPC's speed affords.
+## Returns the world-time cost of what it did, in ticks.
+func take_turn() -> int:
+	if state == NPCState.DEAD:
+		return TurnManager.TICKS_PER_ACTION
 
-	state_timer += delta
-	move_timer += delta
-	if hear_event_cooldown > 0:
-		hear_event_cooldown -= delta
-	# Tick spell cooldowns
-	for sid in spell_cooldowns.keys():
-		spell_cooldowns[sid] -= delta
-		if spell_cooldowns[sid] <= 0.0:
-			spell_cooldowns.erase(sid)
-
-	# Update or simulate time-of-day
-	internal_time_seconds += delta
+	_tick_turn_timers()
 	_update_schedule()
 	_perception_update()
-	# Don't move or make decisions while actively interacting with the player
-	if not is_interacting:
-		_behavior_decision()
-		_execute_state(delta)
-	_update_debug()
+
+	# Standing still to talk to the player still burns the turn.
+	if is_interacting:
+		return TurnManager.TICKS_PER_ACTION
+
+	_behavior_decision()
+	return _execute_state()
+
+## Advance everything this NPC measures in turns rather than seconds.
+func _tick_turn_timers() -> void:
+	state_timer += 1.0
+	hear_event_cooldown = maxi(0, hear_event_cooldown - 1)
+	for sid in spell_cooldowns.keys():
+		spell_cooldowns[sid] -= 1.0
+		if spell_cooldowns[sid] <= 0.0:
+			spell_cooldowns.erase(sid)
+	restore_mana_for_turn()
 
 ## The profile for this NPC's type/variant, or {} when neither the type nor a
 ## "default" variant is defined. apply_type_profile() and set_sprite() both read
@@ -590,7 +600,10 @@ func apply_type_profile():
 		return
 	
 	move_speed = profile.get("move_speed", move_speed)
-	move_interval = profile.get("move_interval", move_interval)
+	# The profile table is written in px/s, which no longer means anything in a
+	# turn-based world — reinterpret it as turn speed so ~55 px/s reads as
+	# "normal". A profile can still state an explicit `speed` to override this.
+	speed = int(profile.get("speed", clampi(roundi(move_speed / 55.0 * 100.0), 40, 250)))
 	wander_radius = profile.get("wander_radius", wander_radius)
 	faction = profile.get("faction", faction)
 	stats = profile.get("stats", stats)
@@ -653,7 +666,7 @@ func _enter_state(s: int):
 		NPCState.WANDER:
 			_choose_new_wander_target()
 		NPCState.FLEE:
-			flee_timer = 3.0
+			flee_turns = 6
 		NPCState.SLEEP, NPCState.EAT, NPCState.IDLE:
 			velocity = Vector2.ZERO
 		NPCState.WORK:
@@ -664,19 +677,16 @@ func _enter_state(s: int):
 			# Ensure we still have a valid target
 			if not is_instance_valid(current_target):
 				current_target = player_reference
+			_set_combat_indicators_visible(true)
 
-func _exit_state(_s: int):
-	pass # Placeholder for future cleanup (e.g., stop tweens, release reservations)
+func _exit_state(s: int):
+	if s == NPCState.COMBAT:
+		_set_combat_indicators_visible(false)
 
 func _update_schedule(force: bool = false):
-	# Attempt to pull global hour if available; else derive from internal clock
-	var hour: int = -1
-	if Engine.has_singleton("MainGameState") and MainGameState.has_method("get_current_hour"):
-		# If user later adds a proper method
-		hour = MainGameState.get_current_hour()
-	else:
-		var sim_hours = int(internal_time_seconds / seconds_per_game_hour)
-		hour = sim_hours % 24
+	# World time is the only clock: one hour passes every
+	# TurnManager.TURNS_PER_GAME_HOUR turns.
+	var hour: int = TurnManager.get_hour()
 	if hour == last_schedule_hour and not force:
 		return
 	last_schedule_hour = hour
@@ -703,10 +713,6 @@ func _perception_update():
 			# Hostile logic
 			if _is_hostile_to_player():
 				current_target = player_reference
-				# Trigger turn-based combat (only once per encounter)
-				if not _combat_triggered and not CombatManager.in_combat:
-					_combat_triggered = true
-					CombatManager.trigger_combat(self, player_reference)
 			elif faction == "WILDLIFE" and dist < vision_range * 0.6 * tile_size:
 				# Wildlife flees sooner
 				threat_source = player_reference
@@ -714,9 +720,9 @@ func _perception_update():
 					set_state(NPCState.FLEE)
 
 func _behavior_decision():
-	# If fleeing and timer active keep fleeing
+	# If fleeing and there is panic left, keep fleeing
 	if state == NPCState.FLEE:
-		if flee_timer <= 0:
+		if flee_turns <= 0:
 			set_state(NPCState.WANDER)
 		return
 
@@ -732,60 +738,62 @@ func _behavior_decision():
 		set_state(NPCState.FLEE)
 		return
 
-	# Schedule-determined states already handled; supplement wandering if idle
-	if state in [NPCState.IDLE, NPCState.WANDER] and move_timer >= move_interval:
+	# Schedule-determined states already handled; pick somewhere new to amble
+	# to once the current wander target has been reached.
+	if state in [NPCState.IDLE, NPCState.WANDER] and _at_target_tile():
 		_choose_new_wander_target()
 
-func _execute_state(delta: float):
+## Perform exactly one action for the current state and report its tick cost.
+func _execute_state() -> int:
 	match state:
 		NPCState.WANDER:
-			_move_towards_target(delta)
+			# Idling some turns makes crowds look alive instead of frantic.
+			if rng.randf() < 0.35:
+				return TurnManager.TICKS_PER_ACTION
+			_step_towards(target_position)
 		NPCState.WORK:
 			if work_position != Vector2.ZERO:
 				target_position = work_position
-				_move_towards_target(delta, true)
+				_step_towards(target_position, true)
 		NPCState.SLEEP:
 			target_position = home_position
-			_move_towards_target(delta, true)
-		NPCState.EAT:
-			target_position = home_position
-			velocity = Vector2.ZERO
-		NPCState.IDLE:
-			velocity = Vector2.ZERO
-		NPCState.COMBAT:
-			_combat_update(delta)
-		NPCState.FLEE:
-			flee_timer -= delta
-			_flee_update(delta)
+			_step_towards(target_position, true)
 		NPCState.PATROL:
 			# Placeholder: treat like wander for now
-			_move_towards_target(delta)
+			_step_towards(target_position)
+		NPCState.COMBAT:
+			return _combat_turn()
+		NPCState.FLEE:
+			flee_turns -= 1
+			_flee_turn()
 		NPCState.FOLLOW:
-			_follow_update(delta)
-		NPCState.INTERACT:
-			velocity = Vector2.ZERO
-		NPCState.DEAD:
-			velocity = Vector2.ZERO
+			if is_instance_valid(current_target):
+				target_position = current_target.global_position
+				_step_towards(target_position)
+			else:
+				set_state(NPCState.IDLE)
+		_:
+			# EAT, IDLE, INTERACT, DEAD — stand still, but still burn the turn.
+			pass
+	return TurnManager.TICKS_PER_ACTION
 
-	# Apply movement
-	if velocity.length() > 0.1:
-		move_and_slide()
-
-func _move_towards_target(_delta: float, arrive_idle: bool = false):
+## True when this NPC is already standing on its target tile.
+func _at_target_tile() -> bool:
 	if target_position == Vector2.ZERO:
-		return
-	# Add variance to movement timing
-	var effective_interval = move_interval + rng.randf_range(-move_interval_variance, move_interval_variance)
-	if move_timer < effective_interval:
-		return
-	if is_moving:
-		return
+		return true
+	return Vector2i(global_position / tile_size) == Vector2i(target_position / tile_size)
+
+## Take one tile-step toward `destination`, preferring the axis with the larger
+## gap and falling back to the other when blocked. Returns true if it moved.
+func _step_towards(destination: Vector2, arrive_idle: bool = false) -> bool:
+	if destination == Vector2.ZERO:
+		return false
 	var curr_tile: Vector2i = Vector2i(global_position / tile_size)
-	var target_tile: Vector2i = Vector2i(target_position / tile_size)
+	var target_tile: Vector2i = Vector2i(destination / tile_size)
 	if curr_tile == target_tile:
 		if arrive_idle:
 			set_state(NPCState.IDLE)
-		return
+		return false
 
 	var delta_tile: Vector2i = target_tile - curr_tile
 	var primary_dir: Vector2
@@ -797,42 +805,43 @@ func _move_towards_target(_delta: float, arrive_idle: bool = false):
 		primary_dir = Vector2.DOWN if delta_tile.y > 0 else Vector2.UP
 		secondary_dir = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
 
-	if not _grid_try_move(primary_dir):
-		_grid_try_move(secondary_dir)
+	if _grid_try_move(primary_dir):
+		return true
+	return _grid_try_move(secondary_dir)
 
 func _choose_new_wander_target():
-	# move_timer = 3.0
 	var center = home_position if home_position != Vector2.ZERO else global_position
 	var radius_pixels = wander_radius * tile_size
 	var offset = Vector2(rng.randf_range(-radius_pixels, radius_pixels), rng.randf_range(-radius_pixels, radius_pixels))
 	target_position = center + offset
 
-func _combat_update(delta: float):
+## One combat action: cast if a spell is worth it, else swing if adjacent,
+## else close the distance. Exactly one of these happens per turn.
+func _combat_turn() -> int:
 	if not is_instance_valid(current_target):
 		set_state(NPCState.WANDER)
-		return
+		return TurnManager.TICKS_PER_ACTION
+
 	var dist = global_position.distance_to(current_target.global_position)
 	if dist > vision_range * tile_size * 1.2:
 		# Lost target
 		current_target = null
 		set_state(NPCState.WANDER)
-		return
-	if dist <= combat_range:
-		# Placeholder attack logic
-		velocity = Vector2.ZERO
-		# Could emit npc_attacked signal periodically
-	else:
-		# Chase
-		target_position = current_target.global_position
-		_move_towards_target(delta)
+		return TurnManager.TICKS_PER_ACTION
 
-func _flee_update(_delta: float):
+	var spell := get_best_combat_spell(dist)
+	if spell != null and cast_spell_at(spell, current_target):
+		return TurnManager.TICKS_PER_ACTION
+
+	if dist <= combat_range:
+		attack(current_target)
+	else:
+		_step_towards(current_target.global_position)
+	return TurnManager.TICKS_PER_ACTION
+
+func _flee_turn() -> void:
 	if not is_instance_valid(threat_source):
 		set_state(NPCState.WANDER)
-		return
-	if is_moving:
-		return
-	if move_timer < move_interval:
 		return
 	var away = (global_position - threat_source.global_position)
 	if away.length() < 1:
@@ -843,13 +852,6 @@ func _flee_update(_delta: float):
 		var ortho = _orthogonal_dirs(dir)
 		if not _grid_try_move(ortho[0]):
 			_grid_try_move(ortho[1])
-
-func _follow_update(delta: float):
-	if not is_instance_valid(current_target):
-		set_state(NPCState.IDLE)
-		return
-	target_position = current_target.global_position
-	_move_towards_target(delta)
 
 func _should_enter_combat() -> bool:
 	if faction in ["CIVILIAN", "MERCHANT", "NOBLE", "WILDLIFE"]:
@@ -867,6 +869,19 @@ func _is_hostile_to_player() -> bool:
 		_:
 			return false
 
+## Public hostility check used by the player's bump-to-attack. Openly hostile
+## factions always qualify; so does anyone already fighting `who`.
+func is_hostile_toward(who: Node) -> bool:
+	if state == NPCState.DEAD:
+		return false
+	if _is_hostile_to_player() and who == player_reference:
+		return true
+	return state == NPCState.COMBAT and current_target == who
+
+## Is this NPC a valid obstacle/target? Corpses are neither.
+func is_alive() -> bool:
+	return state != NPCState.DEAD and current_health > 0
+
 func _attitude_towards_player() -> int:
 	if _is_hostile_to_player():
 		return -50
@@ -874,7 +889,7 @@ func _attitude_towards_player() -> int:
 
 func _known_entity_update(id: String, pos: Vector2, attitude: int = 0):
 	known_entities[id] = {
-		"last_seen_time": internal_time_seconds,
+		"last_seen_time": TurnManager.world_time,
 		"last_seen_position": pos,
 		"attitude": attitude
 	}
@@ -988,59 +1003,28 @@ func _update_combat_ui() -> void:
 		if _hp_bar_fill:
 			_hp_bar_fill.size.x = 32.0 * clampf(ratio, 0.0, 1.0)
 
-## Called by CombatManager when this NPC is pulled into combat.
-func enter_combat_mode() -> void:
-	_in_combat_mode = true
-	_combat_triggered = true
-	set_state(NPCState.COMBAT)
-	# Show indicators with a brief "!" blink
-	if _exclamation_label:
-		_exclamation_label.visible = true
-		# Fade the "!" out after 1.5 s
-		var tw := create_tween()
-		tw.tween_interval(1.5)
-		tw.tween_property(_exclamation_label, "modulate:a", 0.0, 0.4)
-		tw.finished.connect(func(): _exclamation_label.visible = false)
+## Show or hide the aggro indicators. Driven by entering/leaving COMBAT, so
+## the "!" pops the moment this NPC actually turns on someone.
+func _set_combat_indicators_visible(visible_now: bool) -> void:
 	if _hp_bar_container:
-		_hp_bar_container.visible = true
-
-## Called by CombatManager when combat ends.
-func exit_combat_mode() -> void:
-	_in_combat_mode = false
-	_combat_triggered = false
-	if _exclamation_label:
+		_hp_bar_container.visible = visible_now
+	if _exclamation_label == null:
+		return
+	if not visible_now:
 		_exclamation_label.visible = false
 		_exclamation_label.modulate.a = 1.0
-	if _hp_bar_container:
-		_hp_bar_container.visible = false
+		return
+	# Blink the "!" once, then let it fade — the HP bar stays for the fight.
+	_exclamation_label.visible = true
+	_exclamation_label.modulate.a = 1.0
+	var tw := create_tween()
+	tw.tween_interval(1.5)
+	tw.tween_property(_exclamation_label, "modulate:a", 0.0, 0.4)
+	tw.finished.connect(func(): _exclamation_label.visible = false)
 
-## Called by CombatManager during the NPC's turn to move one tile toward a target.
-## Returns true if the move succeeded.
-func _combat_move_towards(target_pos: Vector2) -> bool:
-	if is_moving:
-		return false
-	var curr_tile := Vector2i(global_position / tile_size)
-	var tgt_tile  := Vector2i(target_pos / tile_size)
-	if curr_tile == tgt_tile:
-		return false
-	var delta_tile := tgt_tile - curr_tile
-	var primary: Vector2
-	var secondary: Vector2
-	if abs(delta_tile.x) >= abs(delta_tile.y):
-		primary   = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
-		secondary = Vector2.DOWN  if delta_tile.y > 0 else Vector2.UP
-	else:
-		primary   = Vector2.DOWN  if delta_tile.y > 0 else Vector2.UP
-		secondary = Vector2.RIGHT if delta_tile.x > 0 else Vector2.LEFT
-	if _grid_try_move(primary):
-		return true
-	if _grid_try_move(secondary):
-		return true
-	return false
-
-## Called by CombatManager during the NPC's turn to cast a spell at a target.
-## Returns true if the spell was cast successfully.
-func combat_cast_spell(spell: Spell, target: Node2D) -> bool:
+## Cast `spell` at `target`, spending mana and starting its cooldown.
+## Returns true if the spell went off (and therefore consumed the turn).
+func cast_spell_at(spell: Spell, target: Node2D) -> bool:
 	if not is_instance_valid(target) or not spell:
 		return false
 	if current_mana < spell.get_mana_cost():
@@ -1062,10 +1046,10 @@ func combat_cast_spell(spell: Spell, target: Node2D) -> bool:
 	var stop_px: float = minf(to_target.length(), max_range_px)
 	projectile.setup(spell, self, to_target.normalized(), stop_px)
 	var display_name: String = npc_name if npc_name != "" else str(name)
-	print("%s casts %s!" % [display_name, spell.get_display_name()])
+	TurnManager.log_message("%s casts %s!" % [display_name, spell.get_display_name()], "spell")
 	return true
 
-## Called at the start of each combat turn to regenerate a little mana.
+## Called at the start of each turn to regenerate a little mana.
 func restore_mana_for_turn() -> void:
 	if max_mana > 0:
 		current_mana = mini(current_mana + mana_regen_per_turn, max_mana)
@@ -1099,23 +1083,23 @@ func get_level() -> int:
 func is_spell_on_cooldown(spell_id: String) -> bool:
 	return spell_cooldowns.has(spell_id) and spell_cooldowns[spell_id] > 0.0
 
-## Start cooldown for a spell.
+## Start cooldown for a spell, measured in turns.
 func start_spell_cooldown(spell_id: String, cooldown: float) -> void:
 	if cooldown > 0.0:
 		spell_cooldowns[spell_id] = cooldown
 
-## Called by CombatManager during the NPC's turn to attack a target.
-func combat_attack(target: Node2D) -> void:
+## Swing at `target`. One turn's worth of violence.
+func attack(target: Node2D) -> void:
 	if not is_instance_valid(target):
 		return
 	# Calculate damage: strength-based with a small dice roll
 	var str_val: int = stats.get("strength", 10)
 	var damage := int(str_val * 0.5) + rng.randi_range(1, 6)
 	emit_signal("npc_attacked", self, target)
+	var display_name: String = npc_name if npc_name != "" else str(name)
 	if target.has_method("take_damage"):
 		target.take_damage(damage, self)
 	else:
-		var display_name: String = npc_name if npc_name != "" else str(name)
 		print("%s attacks %s for %d damage" % [display_name, target.name, damage])
 
 func take_damage(amount: int, source: Node2D = null):
@@ -1124,15 +1108,14 @@ func take_damage(amount: int, source: Node2D = null):
 	current_health -= amount
 	record_event({"type": "damage", "amount": amount})
 	var display_name: String = npc_name if npc_name != "" else str(name)
-	if CombatManager.in_combat:
-		CombatManager._log("%s takes %d damage. (%d/%d HP)" % [display_name, amount, max(0, current_health), max_health], "attack")
+	TurnManager.log_message("%s takes %d damage. (%d/%d HP)" % [display_name, amount, max(0, current_health), max_health], "attack")
 	if current_health <= 0:
 		current_health = 0
 		set_state(NPCState.DEAD)
 		emit_signal("npc_died", self)
 		velocity = Vector2.ZERO
-		if CombatManager.in_combat:
-			CombatManager._log("%s has been defeated!" % display_name, "death")
+		_set_combat_indicators_visible(false)
+		TurnManager.log_message("%s has been slain!" % display_name, "death")
 		return
 	# Reaction: set combat target or flee
 	if source and source != self:
@@ -1148,7 +1131,7 @@ func hear_noise(source_pos: Vector2, intensity: float = 1.0):
 		return
 	var dist = global_position.distance_to(source_pos)
 	if dist <= hearing_range * tile_size * intensity:
-		hear_event_cooldown = 1.0
+		hear_event_cooldown = 2
 		# Mild curiosity: if idle become wander towards approximate location
 		if state in [NPCState.IDLE, NPCState.SLEEP, NPCState.EAT]:
 			target_position = source_pos
@@ -1186,19 +1169,19 @@ func _grid_try_move(dir: Vector2) -> bool:
 	return true
 
 func _grid_step(dir: Vector2) -> void:
-	# Move the body one tile and tween the sprite for a smooth slide.
-	# is_moving stays true until the tween reports finished — clearing it here
-	# would let the next step start mid-slide and defeat every `if is_moving`
-	# guard in this script.
+	# The body teleports a full tile immediately so the turn resolves in one
+	# atomic move; the sprite is then left behind and tweened into place to
+	# sell the step. Capture where the sprite actually is *before* moving the
+	# body — mid-slide that is not simply "one tile back".
+	var from: Vector2 = npc_sprite.global_position
 	is_moving = true
-	move_timer = 0.0
 	global_position += dir * tile_size
 	if sprite_node_pos_tween:
 		sprite_node_pos_tween.kill()
-	npc_sprite.global_position -= dir * tile_size
+	npc_sprite.global_position = from
 	sprite_node_pos_tween = create_tween()
-	sprite_node_pos_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	sprite_node_pos_tween.tween_property(npc_sprite, "global_position", global_position, 0.185).set_trans(Tween.TRANS_SINE)
+	sprite_node_pos_tween.tween_property(npc_sprite, "global_position", global_position,
+		TurnManager.STEP_DURATION).set_trans(Tween.TRANS_SINE)
 	sprite_node_pos_tween.finished.connect(_on_move_tween_finished)
 
 func _on_move_tween_finished() -> void:

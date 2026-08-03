@@ -35,6 +35,7 @@ func _ready() -> void:
 	if local_scene:
 		local_scene.clear_all_layers()
 		local_scene.visible = false
+	_spawn_message_log()
 	create_or_load_save()
 	# Check if the main menu requested we load a specific slot
 	if MainGameState.has_meta("pending_load_slot"):
@@ -42,6 +43,15 @@ func _ready() -> void:
 		MainGameState.remove_meta("pending_load_slot")
 		# Defer so the scene tree is fully set up first
 		call_deferred("load_game_from_slot", slot)
+
+## The turn log lives with the game scene rather than as an autoload so it dies
+## with the run and never overlaps the main menu.
+func _spawn_message_log() -> void:
+	var scene: PackedScene = load("res://scenes/message_log.tscn")
+	if scene == null:
+		push_warning("[MainGame] message_log.tscn not found")
+		return
+	add_child(scene.instantiate())
 
 func _process(delta: float) -> void:
 	_play_timer += delta

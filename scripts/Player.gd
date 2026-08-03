@@ -3,25 +3,29 @@ extends CharacterBody2D
 # ═══════════════════════════════════════════════════════════════════════
 #  BASIC PLAYER — movement, collision, camera
 #
+#  The world is turn-based (see TurnManager): nothing moves until the player
+#  does something, and every player action lets every nearby actor act too.
+#
 #  The player moves one 16 px tile at a time. Two input sources feed the
 #  same single-step primitive (try_step), so they can never disagree:
 #    • WASD / arrow keys — hold a key to keep stepping
 #    • left mouse button — walks an A* route to the clicked tile
 #
+#  A step is instantaneous in game-logic terms — the body teleports a whole
+#  tile and the sprite tweens to catch up — so a turn never resolves halfway.
+#
 #  Collision and pathfinding lean on the engine rather than on custom code:
 #    • each step is cleared with CharacterBody2D.test_move(), which asks the
 #      physics server directly instead of using hand-placed RayCast2Ds
-#    • the step itself is played out by move_and_slide()
 #    • routes come from AStarGrid2D (via the PointAndClickPath overlay)
 #    • terrain walkability is read off the world map's TileMapLayers
 # ═══════════════════════════════════════════════════════════════════════
 
 @export var tile_size: int = 16
-## Pixels per second while sliding between two tiles.
-@export var move_speed: float = 90.0
-## Extra pause between steps while a movement key is held. 0 = keep walking
-## at move_speed for as long as the key is down.
-@export var key_repeat_delay: float = 0.0
+## Turn speed. TurnManager.NORMAL_SPEED (100) = one action per standard turn;
+## higher means the player's actions cost less world time, so NPCs get fewer
+## turns per player turn.
+@export var speed: int = 100
 
 # ── Scene references ─────────────────────────────────────────────────────
 # The cross-scene ones are deliberately untyped: they are reached by path and
@@ -40,15 +44,12 @@ extends CharacterBody2D
 @onready var pause_menu: Control = get_node_or_null("../CanvasLayer/pause")
 
 # ── Movement state ───────────────────────────────────────────────────────
-## World position of the tile being stepped onto. Equal to global_position
-## whenever the player is standing still.
-var _step_target: Vector2 = Vector2.ZERO
-var _is_stepping: bool = false
-var _key_repeat_timer: float = 0.0
-## A direction key pressed mid-step, replayed once the step finishes.
+## A direction key pressed while a turn was resolving, replayed once it ends.
 var _buffered_dir: Vector2i = Vector2i.ZERO
 ## Tiles still to walk on the active point-and-click route.
 var _nav_path: Array[Vector2i] = []
+## Tween that slides the visual sprite into the tile the body already moved to.
+var _slide_tween: Tween = null
 
 ## Movement actions and the tile offset each one requests.
 const MOVE_ACTIONS: Dictionary = {
@@ -89,7 +90,7 @@ var stats: Dictionary = {
 	"intelligence": 10,
 	"endurance": 12,
 	"charisma": 10,
-	"initiative": 12,   ## Higher = acts sooner in turn-based combat
+	"initiative": 12,
 }
 
 # ── Inventory ────────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ var equipped_items: Dictionary = {
 
 # ── Spells ───────────────────────────────────────────────────────────────
 var learned_spells: Array[Spell] = []
-var spell_cooldowns: Dictionary = {}   ## spell_id -> seconds remaining
+var spell_cooldowns: Dictionary = {}   ## spell_id -> turns remaining
 
 ## Targeting state, set while a spell waits for the player to click a target.
 var _is_aiming: bool = false
@@ -128,9 +129,7 @@ func _ready() -> void:
 
 	if hud:
 		hud.pause_requested.connect(_on_pause_requested)
-	# Clearing the route at end of turn makes the player pick a fresh
-	# destination each combat turn instead of resuming the previous one.
-	CombatManager.turn_ended.connect(_on_combat_turn_ended)
+	TurnManager.turn_resolved.connect(_on_turn_resolved)
 
 	_initialize_inventory()
 	_setup_inventory_screen()
@@ -160,8 +159,7 @@ func _enter_world() -> void:
 	_connect_to_existing_npcs()
 
 
-func _process(delta: float) -> void:
-	_update_spell_cooldowns(delta)
+func _process(_delta: float) -> void:
 	_update_path_preview()
 
 	if Input.is_action_just_pressed("ui_inventory"):
@@ -170,17 +168,15 @@ func _process(delta: float) -> void:
 		_try_interact_with_npc()
 	if Input.is_action_just_pressed("ui_descend"):
 		_toggle_local_map()
+	if Input.is_action_just_pressed("ui_attack"):
+		attack_adjacent()
+	if Input.is_action_just_pressed("ui_wait") and can_act():
+		TurnManager.wait()
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	_buffer_movement_input()
-	_key_repeat_timer = maxf(0.0, _key_repeat_timer - delta)
-
-	if _is_stepping:
-		_advance_step(delta)
-	# Not an `else`: a step that finished this frame rolls straight into the
-	# next one, so held keys and routes produce continuous motion.
-	if not _is_stepping:
+	if not TurnManager.resolving:
 		_choose_next_step()
 
 
@@ -212,59 +208,78 @@ func _unhandled_input(event: InputEvent) -> void:
 #  MOVEMENT
 # ═══════════════════════════════════════════════════════════════════════
 
-## Try to step one tile in `dir`. Returns true if the step started.
+## Try to act one tile in `dir`. Returns true if a turn was spent.
 ##
 ## Every movement source goes through this one gate, so keyboard and mouse
-## movement obey identical rules.
+## movement obey identical rules. Walking into a hostile attacks it instead —
+## bump-to-attack — while neutrals simply block (use `ui_attack` to hit those).
 func try_step(dir: Vector2i) -> bool:
-	if _is_stepping or dir == Vector2i.ZERO or not can_act():
+	if dir == Vector2i.ZERO or not can_act():
 		return false
 
 	var target_tile := get_current_tile() + dir
+
+	# Bodies are checked before terrain so the bump reads the same whether the
+	# NPC is standing on grass or in a doorway.
+	var occupant: Node2D = TurnManager.actor_at(target_tile)
+	if occupant != null and occupant != self:
+		if is_hostile(occupant):
+			_face(dir)
+			return attack(occupant)
+		cancel_navigation()
+		return false
+
 	if not is_tile_open(target_tile):
 		return false
 
 	# Ask the physics server whether the move would hit anything solid — one
-	# call that covers NPC bodies and tileset collision polygons alike.
+	# call that covers stray bodies and tileset collision polygons alike.
 	var motion := Vector2(dir) * tile_size
 	if test_move(global_transform, motion):
 		return false
 
-	if CombatManager.in_combat:
-		if not CombatManager.spend_mp(CombatManager.MP_COST_PER_TILE):
-			return false
-		CombatManager._log("Player moves.", "move")
-
-	_step_target = tile_to_world(target_tile)
-	_is_stepping = true
 	_face(dir)
-	_play_animation(&"walk")
+	_move_to_tile(target_tile)
+	TurnManager.take_player_action()
 	return true
 
 
-## Slide toward the tile being stepped onto, landing exactly on its centre so
-## the player can never drift off the grid.
-func _advance_step(delta: float) -> void:
-	var to_target := _step_target - global_position
-	if to_target.length() <= move_speed * delta:
-		velocity = Vector2.ZERO
-		global_position = _step_target
-		_is_stepping = false
-		_play_animation(&"idle")
+## Is `node` an enemy the player may bump-attack? Openly hostile factions
+## always count; so does anyone who has already picked a fight with us.
+func is_hostile(node: Node) -> bool:
+	if node is NPC:
+		var npc: NPC = node
+		if npc.state == NPC.NPCState.DEAD:
+			return false
+		return npc.is_hostile_toward(self)
+	return false
+
+
+## Put the body on `tile` immediately and let the sprite slide after it, so a
+## turn is never left half-resolved.
+func _move_to_tile(tile: Vector2i) -> void:
+	var visual: Node2D = sprite
+	if animated_sprite:
+		visual = animated_sprite
+	var from: Vector2 = visual.global_position if visual else Vector2.ZERO
+
+	velocity = Vector2.ZERO
+	global_position = tile_to_world(tile)
+	_play_animation(&"walk")
+
+	if visual == null:
 		return
-
-	velocity = to_target.normalized() * move_speed
-	move_and_slide()
-
-	# Something solid moved into the way after the step was cleared. Give up on
-	# the step instead of sliding off-grid around the obstacle.
-	if get_slide_collision_count() > 0:
-		cancel_navigation()
-		_step_target = tile_to_world(get_current_tile())
+	if _slide_tween:
+		_slide_tween.kill()
+	visual.global_position = from
+	_slide_tween = create_tween()
+	_slide_tween.tween_property(visual, "global_position", global_position,
+		TurnManager.STEP_DURATION).set_trans(Tween.TRANS_SINE)
+	_slide_tween.finished.connect(func() -> void: _play_animation(&"idle"))
 
 
-## Remember a direction key pressed mid-step so a quick tap is replayed when
-## the step finishes rather than being swallowed.
+## Remember a direction key pressed while a turn was resolving so a quick tap
+## is replayed afterwards rather than being swallowed.
 func _buffer_movement_input() -> void:
 	for action: StringName in MOVE_ACTIONS:
 		if Input.is_action_just_pressed(action):
@@ -272,16 +287,15 @@ func _buffer_movement_input() -> void:
 			return
 
 
-## Decide what to do next while standing still. Keyboard input always wins
-## over an active mouse route.
+## Decide what to do next. Keyboard input always wins over an active mouse
+## route.
 func _choose_next_step() -> void:
 	var dir := _buffered_dir if _buffered_dir != Vector2i.ZERO else _held_direction()
 	_buffered_dir = Vector2i.ZERO
 
 	if dir != Vector2i.ZERO:
 		cancel_navigation()
-		if _key_repeat_timer <= 0.0 and try_step(dir):
-			_key_repeat_timer = key_repeat_delay
+		try_step(dir)
 		return
 
 	if not _nav_path.is_empty():
@@ -296,15 +310,13 @@ func _held_direction() -> Vector2i:
 	return Vector2i.ZERO
 
 
-## Is the player allowed to move right now? Outside combat, whenever no
-## dialogue or full-screen UI is up. Inside combat, only on their own turn and
-## only while movement points remain.
+## Is the player allowed to act right now? Only while the world is idle and
+## no dialogue or full-screen UI is up — there is no "whose turn is it"
+## question to ask, because the world only moves when the player does.
 func can_act() -> bool:
-	if current_interacting_npc != null or _is_ui_open():
-		return false
-	if not CombatManager.in_combat:
-		return true
-	return CombatManager.is_player_turn() and CombatManager.get_current_mp() > 0
+	return not TurnManager.resolving \
+		and current_interacting_npc == null \
+		and not _is_ui_open()
 
 
 ## Terrain-only walkability. Physics bodies are handled by test_move().
@@ -322,7 +334,7 @@ func is_tile_open(tile: Vector2i) -> bool:
 ## player stands on. The heavy lifting lives in main_game.gd — this just asks
 ## the game root, which owns the maps and the per-tile seeds.
 func _toggle_local_map() -> void:
-	if _is_stepping or CombatManager.in_combat or not can_act():
+	if not can_act():
 		return
 	var game := get_parent()
 	if game == null:
@@ -384,11 +396,11 @@ func rebuild_nav_grid() -> void:
 func _update_path_preview() -> void:
 	if path_overlay == null:
 		return
-	path_overlay.set_preview_suppressed(_is_stepping)
+	path_overlay.set_preview_suppressed(TurnManager.resolving)
 	if _is_aiming or _is_ui_open() or get_viewport().gui_get_hovered_control() != null:
 		path_overlay.clear_preview()
 		return
-	if not _is_stepping:
+	if not TurnManager.resolving:
 		path_overlay.update_preview(global_position, get_global_mouse_position())
 
 
@@ -398,9 +410,23 @@ func _is_ui_open() -> bool:
 		or (trade_screen != null and trade_screen.visible)
 
 
-func _on_combat_turn_ended(entity: Node2D) -> void:
-	if entity == self:
+## Fired once per resolved turn. Tick anything measured in turns, and abandon
+## a long point-and-click route the moment something hostile turns up — walking
+## blindly into an ambush is the classic roguelike death.
+func _on_turn_resolved(_world_time: int) -> void:
+	_tick_spell_cooldowns()
+	if not _nav_path.is_empty() and _hostile_in_view():
 		cancel_navigation()
+
+
+func _hostile_in_view() -> bool:
+	var alert_range := float(tile_size * 8)
+	for npc in get_tree().get_nodes_in_group("NPCs"):
+		if not is_instance_valid(npc) or not is_hostile(npc):
+			continue
+		if global_position.distance_to(npc.global_position) <= alert_range:
+			return true
+	return false
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -432,9 +458,14 @@ func snap_to_grid() -> void:
 	if world_map:
 		tile = world_map.nearest_walkable(tile)
 	global_position = tile_to_world(tile)
-	_step_target = global_position
-	_is_stepping = false
 	velocity = Vector2.ZERO
+	if _slide_tween:
+		_slide_tween.kill()
+		_slide_tween = null
+	if sprite:
+		sprite.global_position = global_position
+	if animated_sprite:
+		animated_sprite.global_position = global_position
 
 
 ## Clamp the camera to the painted extent of the world map.
@@ -487,59 +518,71 @@ func _refresh_hud_bars() -> void:
 #  COMBAT
 # ═══════════════════════════════════════════════════════════════════════
 
-## Take damage from any source. Being hit by a hostile NPC outside of combat
-## starts combat.
+## Take damage from any source.
 func take_damage(amount: int, source: Node2D = null) -> void:
 	current_health = maxi(0, current_health - amount)
 	if hud:
 		hud.update_hp(current_health, max_health)
-	if CombatManager.in_combat:
-		CombatManager._log("Player takes %d damage. (%d/%d HP)"
-			% [amount, current_health, max_health], "attack")
+	TurnManager.log_message("You take %d damage. (%d/%d HP)"
+		% [amount, current_health, max_health], "attack")
 
 	if current_health <= 0:
 		_play_animation(&"fall")
 		cancel_navigation()
-		if CombatManager.in_combat:
-			CombatManager._log("Player has been defeated!", "death")
+		TurnManager.log_message("You have been slain!", "death")
 		print("Player died!")
 		# TODO: game-over handling
 		return
 
-	if not CombatManager.in_combat and source is NPC:
-		var attacker: NPC = source
-		if attacker._is_hostile_to_player():
-			CombatManager.trigger_combat(attacker, self)
+	# Being hit is reason enough to stop walking a route.
+	if source != null:
+		cancel_navigation()
 
 
-## Attack the nearest NPC in melee range. Costs AP_COST_ATTACK action points.
-func combat_attack_npc() -> void:
-	if not CombatManager.in_combat or not CombatManager.is_player_turn():
-		return
-	if not CombatManager.spend_ap(CombatManager.AP_COST_ATTACK):
-		print("Not enough AP to attack!")
-		return
+## Melee `target`. Costs one turn. Returns true if the blow was struck.
+func attack(target: Node2D) -> bool:
+	if not is_instance_valid(target) or not target.has_method("take_damage"):
+		return false
 
 	_play_animation(&"attack")
+	var damage := _melee_damage()
+	target.take_damage(damage, self)
 
-	var target: NPC = null
-	var best_dist := tile_size * 1.6   # one tile, including diagonals
+	var label: String = target.get("npc_name") if target.get("npc_name") else String(target.name)
+	TurnManager.log_message("You hit %s for %d damage." % [label, damage], "attack")
+	TurnManager.take_player_action()
+	return true
+
+
+## Explicit attack on whatever is adjacent — the way to hit a neutral, since
+## bumping into one just blocks. Bound to `ui_attack`.
+func attack_adjacent() -> void:
+	if not can_act():
+		return
+	var best: Node2D = null
+	var best_dist := float(tile_size) * 1.6   # one tile, including diagonals
 	for npc in get_tree().get_nodes_in_group("NPCs"):
-		if not is_instance_valid(npc):
+		if not is_instance_valid(npc) or npc.state == NPC.NPCState.DEAD:
 			continue
 		var dist := global_position.distance_to(npc.global_position)
 		if dist < best_dist:
 			best_dist = dist
-			target = npc
-
-	if target == null:
-		print("No target in range!")
+			best = npc
+	if best == null:
+		TurnManager.log_message("Nothing within reach.", "info")
 		return
+	attack(best)
 
-	var damage := int(stats.get("strength", 12) * 0.5) + randi_range(1, 8)
-	target.take_damage(damage, self)
-	var label := target.npc_name if target.npc_name else String(target.name)
-	CombatManager._log("Player attacks %s for %d damage." % [label, damage], "attack")
+
+func _melee_damage() -> int:
+	var weapon_bonus := 0
+	var weapon = equipped_items.get("right_hand")
+	if weapon == null:
+		weapon = equipped_items.get("left_hand")
+	if weapon != null and weapon.get("damage") != null:
+		weapon_bonus = int(weapon.damage)
+	return int(stats.get("strength", 12) * 0.5) + randi_range(1, 8) + weapon_bonus
+
 
 # =============================
 # NPC INTERACTION SYSTEM
@@ -1046,6 +1089,10 @@ func _fire_pending_spell(world_target: Vector2) -> void:
 	"""Spawn a ProjectileSpell aimed at world_target and deduct mana/start cooldown."""
 	if not _pending_spell:
 		return
+	# Casting costs a turn, so it is refused mid-resolution for the same reason
+	# a step is — one action per turn, no free shots.
+	if not can_act():
+		return
 
 	var spell: Spell = _pending_spell
 
@@ -1076,8 +1123,10 @@ func _fire_pending_spell(world_target: Vector2) -> void:
 
 	print("Cast %s toward %s (damage: %d, AOE radius: %.0f px)" \
 		% [spell.get_display_name(), world_target, spell.get_damage(), spell.aoe_radius * 16.0])
-	if CombatManager.in_combat:
-		CombatManager._log("Player casts %s!" % spell.get_display_name(), "spell")
+	TurnManager.log_message("You cast %s!" % spell.get_display_name(), "spell")
+	# Ranged attacks cost a turn just like a melee swing; the projectile itself
+	# flies in real time as a pure visual, landing its damage when it arrives.
+	TurnManager.take_player_action()
 
 
 
@@ -1149,12 +1198,13 @@ func is_spell_on_cooldown(spell_id: String) -> bool:
 	return spell_cooldowns.has(spell_id) and spell_cooldowns[spell_id] > 0.0
 
 func start_spell_cooldown(spell_id: String, cooldown: float) -> void:
-	"""Start cooldown timer for a spell"""
-	spell_cooldowns[spell_id] = cooldown
+	"""Put a spell on cooldown for `cooldown` turns"""
+	if cooldown > 0.0:
+		spell_cooldowns[spell_id] = cooldown
 
-func _update_spell_cooldowns(delta: float) -> void:
-	"""Update all spell cooldowns (should be called in _process)"""
+func _tick_spell_cooldowns() -> void:
+	"""Burn one turn off every active cooldown. Driven by TurnManager."""
 	for spell_id in spell_cooldowns.keys():
-		spell_cooldowns[spell_id] -= delta
+		spell_cooldowns[spell_id] -= 1.0
 		if spell_cooldowns[spell_id] <= 0.0:
 			spell_cooldowns.erase(spell_id)

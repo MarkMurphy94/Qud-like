@@ -39,8 +39,6 @@ signal pause_requested
 func _ready() -> void:
 	# The pause and inventory buttons are wired to their handlers in hud.tscn.
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	CombatManager.combat_started.connect(_on_combat_started)
-	CombatManager.combat_ended.connect(_on_combat_ended)
 	_style_bars()
 	_build_hotbar()
 	_build_equip_panel()
@@ -117,16 +115,6 @@ func _on_inventory_pressed() -> void:
 func _on_inventory_screen_closed() -> void:
 	# Keep the instance around for reuse, just hide it
 	pass
-
-# Raised/lowered to avoid the CombatHUD bottom bar during combat
-const BASE_MARGIN_BOTTOM := 16
-const COMBAT_MARGIN_BOTTOM := 72  # 16 base + 56 (BottomBar height)
-
-func _on_combat_started() -> void:
-	margin_container.add_theme_constant_override("margin_bottom", COMBAT_MARGIN_BOTTOM)
-
-func _on_combat_ended() -> void:
-	margin_container.add_theme_constant_override("margin_bottom", BASE_MARGIN_BOTTOM)
 
 # =============================
 # HOTBAR
