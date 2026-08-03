@@ -254,25 +254,25 @@ static func _build_profiles() -> Dictionary:
 		},
 		"farmer": {
 			"move_speed": 45.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 224, 32, 32)
+			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 224, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 8, "intelligence": 8, "endurance": 12, "charisma": 6}
 		},
 		"baker": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 160, 32, 32)
+			"sprite_atlas_coords": Vector2i(61, 33), # was 32rogues Rect2i(32, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 10, "agility": 8, "intelligence": 10, "endurance": 10, "charisma": 10}
 		},
 		"blacksmith": {
 			"move_speed": 45.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 160, 32, 32)
+			"sprite_atlas_coords": Vector2i(8, 33), # was 32rogues Rect2i(64, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 10, "endurance": 14, "charisma": 8}
 		},
 		"scholar": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 160, 32, 32)
+			"sprite_atlas_coords": Vector2i(17, 33), # was 32rogues Rect2i(128, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 8, "intelligence": 16, "endurance": 8, "charisma": 12}
 		},
@@ -284,13 +284,13 @@ static func _build_profiles() -> Dictionary:
 		},
 		"hermit": {
 			"move_speed": 40.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(224, 160, 32, 32)
+			"sprite_atlas_coords": Vector2i(45, 33), # was 32rogues Rect2i(224, 160, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 10, "charisma": 6}
 		},
 		"forester": {
 			"move_speed": 52.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 192, 32, 32)
+			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 192, 32, 32)
 			"faction": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 12, "intelligence": 10, "endurance": 12, "charisma": 8}
 		}
@@ -300,7 +300,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 42.0,
 			"move_interval": 0.6,
 			"wander_radius": 3.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 160, 32, 32)
+			"sprite_atlas_coords": Vector2i(89, 33), # was 32rogues Rect2i(96, 160, 32, 32)
 			"behavior": "stay_near_shop",
 			"faction": "MERCHANT",
 			"dialogue": "merchant_dialogue",
@@ -315,7 +315,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"sprite_atlas_coords": Vector2i(91, 33), # was 32rogues Rect2i(160, 160, 32, 32)
 			"behavior": "stay_in_manor",
 			"faction": "NOBLE",
 			"dialogue": "noble_dialogue",
@@ -383,7 +383,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 72.0,
 			"move_interval": 0.3,
 			"wander_radius": 10.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 0, 32, 32)
+			"sprite_atlas_coords": Vector2i(71, 33), # was 32rogues Rect2i(0, 0, 32, 32)
 			"behavior": "aggressive",
 			"faction": "OUTLAW",
 			"dialogue": "bandit_dialogue",
@@ -449,7 +449,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 65.0,
 			"move_interval": 0.3,
 			"wander_radius": 12.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 160, 32, 32)
+			"sprite_atlas_coords": Vector2i(5, 32), # was 32rogues Rect2i(0, 160, 32, 32)
 			"behavior": "hunt",
 			"max_mana": 50,
 			"faction": "MONSTER",
@@ -639,7 +639,9 @@ func set_sprite():
 		return
 	
 	# One Sprite2D serves every NPC type; the type only decides which cell of the
-	# shared sheet it shows.
+	# shared sheet it shows. npc.tscn must therefore give the sprite the *whole*
+	# sheet texture — an AtlasTexture would clip this region to its own window
+	# (and, being a shared sub-resource, would leak between NPC instances).
 	npc_sprite.region_enabled = true
 	npc_sprite.region_rect = Rect2(
 		Vector2(coords * Layout.TILE_SIZE),
