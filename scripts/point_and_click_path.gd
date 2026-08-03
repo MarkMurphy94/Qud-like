@@ -11,6 +11,13 @@ var tile_size: int = 16
 var _astar: AStarGrid2D = null
 var _is_grid_ready: bool = false
 
+## Coordinate conversion borrowed from whoever built the grid. The grid origin
+## belongs to the active map (which is offset in the scene, and is swapped out
+## when the player descends into a local map), so it must never be re-derived
+## here from tile_size alone.
+var _to_tile: Callable = Callable()
+var _to_world: Callable = Callable()
+
 # ── Preview state ─────────────────────────────────────────────────────────────
 ## Tile-space path from player → mouse (includes both endpoints)
 var _preview_tiles: Array[Vector2i] = []
@@ -45,12 +52,17 @@ const RETICLE_HALF   := 5.0
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
 
-func setup_grid(rect: Rect2i, walkable_callable: Callable) -> void:
-	"""Build (or rebuild) the A* grid covering `rect` (in tile coordinates)."""
+func setup_grid(rect: Rect2i, walkable_callable: Callable,
+		to_tile: Callable = Callable(), to_world: Callable = Callable()) -> void:
+	"""Build (or rebuild) the A* grid covering `rect` (in tile coordinates).
+	`to_tile` / `to_world` convert between world space and tile space; pass the
+	active map's versions so the visuals land on the same grid the player walks."""
 	_is_grid_ready = false
 	_preview_tiles = []
 	_dest_tile = Vector2i(-9999, -9999)
 	_prev_player_tile = Vector2i(-9999, -9999)
+	_to_tile = to_tile
+	_to_world = to_world
 
 	_astar = AStarGrid2D.new()
 	_astar.region = Rect2i(rect.position, rect.size)
@@ -226,7 +238,9 @@ func _draw_reticle(center: Vector2, color: Color) -> void:
 # ─────────────────────────────────────────────────────────────────────────────
 
 func _w2t(world_pos: Vector2) -> Vector2i:
-	"""World position → tile coordinate (floor division)."""
+	"""World position → tile coordinate."""
+	if _to_tile.is_valid():
+		return _to_tile.call(world_pos)
 	return Vector2i(
 		int(floorf(world_pos.x / tile_size)),
 		int(floorf(world_pos.y / tile_size))
@@ -235,4 +249,6 @@ func _w2t(world_pos: Vector2) -> Vector2i:
 
 func _t2w_center(tile: Vector2i) -> Vector2:
 	"""Tile coordinate → world position at the tile's visual center."""
+	if _to_world.is_valid():
+		return _to_world.call(tile)
 	return Vector2(tile.x * tile_size + tile_size * 0.5, tile.y * tile_size + tile_size * 0.5)

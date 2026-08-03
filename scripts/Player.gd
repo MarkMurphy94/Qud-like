@@ -376,7 +376,7 @@ func rebuild_nav_grid() -> void:
 	if path_overlay == null or world_map == null:
 		return
 	path_overlay.tile_size = tile_size
-	path_overlay.setup_grid(world_map.bounds, is_tile_open)
+	path_overlay.setup_grid(world_map.bounds, is_tile_open, world_to_tile, tile_to_world)
 
 
 ## Refresh the hover path under the cursor, hiding it whenever a click would
