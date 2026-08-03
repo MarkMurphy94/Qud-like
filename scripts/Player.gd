@@ -153,6 +153,10 @@ func _enter_world() -> void:
 	snap_to_grid()
 	update_camera_limits()
 	rebuild_nav_grid()
+	# NPCs are spawned into local maps long after this runs, so watch the tree
+	# rather than only wiring up whoever happens to exist right now.
+	if not get_tree().node_added.is_connected(_on_tree_node_added):
+		get_tree().node_added.connect(_on_tree_node_added)
 	_connect_to_existing_npcs()
 
 
@@ -546,13 +550,31 @@ func _connect_to_existing_npcs() -> void:
 	var npcs = get_tree().get_nodes_in_group("NPCs")
 	print("npcs found: ", npcs.size())
 	for npc in npcs:
-		if npc.has_signal("npc_interaction_available"):
-			print("Player entered interaction range of %s" % (npc.npc_name if npc.npc_name else "an unnamed NPC"))
-			if not npc.npc_interaction_available.is_connected(_on_npc_interaction_available):
-				npc.npc_interaction_available.connect(_on_npc_interaction_available)
-		if npc.has_signal("npc_interaction_unavailable"):
-			if not npc.npc_interaction_unavailable.is_connected(_on_npc_interaction_unavailable):
-				npc.npc_interaction_unavailable.connect(_on_npc_interaction_unavailable)
+		_connect_npc(npc)
+
+## Fires for every node added anywhere in the tree. Only NPCs are of interest;
+## this is what picks up NPCSpawner's runtime spawns.
+func _on_tree_node_added(node: Node) -> void:
+	if node is NPC:
+		_connect_npc(node)
+
+## Wire one NPC's interaction signals. Safe to call twice on the same NPC.
+func _connect_npc(npc: Node) -> void:
+	if not npc.has_signal("npc_interaction_available"):
+		return
+	if not npc.npc_interaction_available.is_connected(_on_npc_interaction_available):
+		npc.npc_interaction_available.connect(_on_npc_interaction_available)
+	if not npc.npc_interaction_unavailable.is_connected(_on_npc_interaction_unavailable):
+		npc.npc_interaction_unavailable.connect(_on_npc_interaction_unavailable)
+	# An NPC freed while still in range never emits "unavailable", which would
+	# leave a dangling entry in available_npcs for every local map visited.
+	if not npc.tree_exiting.is_connected(_on_npc_tree_exiting):
+		npc.tree_exiting.connect(_on_npc_tree_exiting.bind(npc))
+
+func _on_npc_tree_exiting(npc: Node) -> void:
+	available_npcs.erase(npc)
+	if current_interacting_npc == npc:
+		current_interacting_npc = null
 
 func _on_npc_interaction_available(npc: NPC) -> void:
 	"""Called when an NPC becomes available for interaction"""
