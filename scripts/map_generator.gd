@@ -132,6 +132,40 @@ const BUILDING_COUNTS_BY_DENSITY = {
 	},
 }
 
+# How loosely a settlement sits inside its own footprint, per density tier.
+#
+# Buildings used to be dropped anywhere in the full 80x80 map, so a five-house
+# village came out as five homesteads a screen apart — the map was the search
+# area no matter how little there was to put in it. Instead the buildable core
+# is sized to what the buildings actually need: the radius of a disc that would
+# just hold their combined footprint, multiplied by the value below to buy room
+# for streets, yards and the gaps that make a place look lived-in.
+#
+# 1.0 would pack every building wall-to-wall. Villages take the smaller numbers
+# because a handful of houses has to hug to read as a hamlet at all; a city has
+# enough buildings to look dense at a looser ratio, and still ends up filling
+# most of the map.
+const SETTLEMENT_SPREAD := {
+	MapConfig.BuildingDensity.NONE: 1.65,
+	MapConfig.BuildingDensity.SMALL_VILLAGE: 1.65,
+	MapConfig.BuildingDensity.LARGE_VILLAGE: 1.70,
+	MapConfig.BuildingDensity.SMALL_TOWN: 1.70,
+	MapConfig.BuildingDensity.LARGE_TOWN: 1.45,
+	MapConfig.BuildingDensity.CITY: 1.50,
+}
+
+# Valid positions weighed up per building before one is chosen. One candidate is
+# "take the first random spot that fits" — the old behaviour, and the other half
+# of why settlements sprawled. Considering a couple of dozen lets the cohesion
+# score below actually pull the next building toward its neighbours.
+const SETTLEMENT_PLACEMENT_CANDIDATES := 24
+
+# Distance (in tiles, centre to centre) at which a building stops reading as
+# part of the same cluster as its nearest neighbour. Scores fall off linearly to
+# zero here, so anything further away is simply "detached" with no preference
+# between one gap and a bigger one.
+const SETTLEMENT_NEIGHBOUR_SPAN := 18.0
+
 # Foliage density multipliers per MapConfig.TreeDensity enum.
 # Values are lower than before because each foliage sprite now occupies many
 # tiles (e.g. a tree is 6×8).  The used_cells check prevents overlapping.
@@ -799,6 +833,9 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 			occupied_space_grid[y].append(false)
 
 	var placed_buildings: Array = []
+	# Everything this settlement will put down, so the buildable core can be
+	# sized before the first building is placed rather than growing to fit.
+	var core := _settlement_core_rect(area_size, building_counts, _settlement_spread())
 
 	for b: Structure in map_template.important_buildings:
 		if b == null:
@@ -810,7 +847,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 		var size: Vector2i = sprite_def["size"]
 		var pos: Vector2i = b.POSITION
 		if pos == Vector2i.ZERO:
-			pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, enum_type)
+			pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, enum_type, core, placed_buildings)
 			b.POSITION = pos
 		if pos.x != -1:
 			place_building_settlement(pos, size, enum_type)
@@ -825,7 +862,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 			continue
 		var size: Vector2i = sprite_def["size"]
 		for _i in count:
-			var pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, building_type)
+			var pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, building_type, core, placed_buildings)
 			if pos.x != -1:
 				place_building_settlement(pos, size, building_type)
 				mark_occupied_settlement(occupied_space_grid, pos, size, sprite_def["spacing"])
@@ -1592,6 +1629,14 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> A
 		Structure.StructureType.TAVERN,
 	]
 	var placed: Array = []
+	# A hamlet is a handful of buildings in open wilderness, so it needs the
+	# same bounded core a settlement gets — otherwise "cluster of huts" spreads
+	# over the whole local map. Sized as if every building were a house, which
+	# is what most of them are.
+	var core := _settlement_core_rect(
+		Vector2i(WIDTH, HEIGHT),
+		{Structure.StructureType.HOUSE: building_count},
+		SETTLEMENT_SPREAD[MapConfig.BuildingDensity.SMALL_VILLAGE])
 	var attempts: int = 0
 	while placed.size() < building_count and attempts < 100:
 		var building_type: int = hamlet_types[local_rng.randi() % hamlet_types.size()]
@@ -1601,7 +1646,7 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> A
 			continue
 		var size: Vector2i = sprite_def["size"]
 		var pos := find_valid_building_position_settlement(
-			Vector2i(WIDTH, HEIGHT), size, occupation_grid, local_rng, building_type)
+			Vector2i(WIDTH, HEIGHT), size, occupation_grid, local_rng, building_type, core, placed)
 		if pos.x != -1:
 			place_building_settlement(pos, size, building_type)
 			mark_occupied_settlement(occupation_grid, pos, size, sprite_def["spacing"])
@@ -1610,28 +1655,89 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> A
 	return placed
 
 # Settlement-specific building functions
-func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, settlement_rng: RandomNumberGenerator, building_type: int) -> Vector2i:
+
+## The patch of map a settlement may build in, centred on the map.
+##
+## Sized from the buildings themselves (see SETTLEMENT_SPREAD) rather than from
+## the map, so the search area shrinks with the settlement instead of scattering
+## a village across eighty tiles of wilderness. Falls back to the whole map when
+## there is nothing to measure.
+func _settlement_core_rect(area_size: Vector2i, counts: Dictionary, spread: float) -> Rect2i:
+	var footprint := 0.0
+	for building_type in counts:
+		var sprite_def = _building_def(building_type)
+		if sprite_def == null:
+			continue
+		var size: Vector2i = sprite_def["size"]
+		# Spacing is claimed on both sides: the placement check rejects anything
+		# within `spacing` of the footprint and mark_occupied_settlement then
+		# reserves that ring, so a house really costs (size + 2 * spacing).
+		var claim := Vector2i(size.x + 2 * sprite_def["spacing"], size.y + 2 * sprite_def["spacing"])
+		footprint += float(counts[building_type]) * float(claim.x * claim.y)
+	if footprint <= 0.0:
+		return Rect2i(Vector2i.ZERO, area_size)
+	var radius := ceili(sqrt(footprint / PI) * spread)
+	var half := Vector2i(radius, radius)
+	return Rect2i(area_size / 2 - half, half * 2).intersection(Rect2i(Vector2i.ZERO, area_size))
+
+
+func _settlement_spread() -> float:
+	if map_template == null:
+		return 1.7
+	return SETTLEMENT_SPREAD.get(int(map_template.building_density), 1.7)
+
+
+## How good a spot this is for a building that wants to belong to a settlement.
+##
+## Distance to the nearest neighbour dominates — that is what makes a cluster of
+## houses read as a village rather than scattered homesteads. A weaker pull
+## toward the core's centre keeps the settlement from drifting off in one
+## direction as it grows, and gives the first building (which has no neighbour
+## to measure against) somewhere sensible to stand.
+func _settlement_cohesion_score(pos: Vector2i, size: Vector2i, placed: Array, core: Rect2i) -> float:
+	var centre := Vector2(pos) + Vector2(size) * 0.5
+	var anchor := Vector2(core.get_center())
+	var anchor_span := maxf(1.0, maxf(core.size.x, core.size.y) * 0.5)
+	var anchor_score := 1.0 - clampf(centre.distance_to(anchor) / anchor_span, 0.0, 1.0)
+
+	var nearest := INF
+	for building in placed:
+		var other := Vector2(building["pos"]) + Vector2(building["size"]) * 0.5
+		nearest = minf(nearest, centre.distance_to(other))
+	if is_inf(nearest):
+		return anchor_score
+
+	var neighbour_score := 1.0 - clampf(nearest / SETTLEMENT_NEIGHBOUR_SPAN, 0.0, 1.0)
+	return neighbour_score + anchor_score * 0.35
+
+
+func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, settlement_rng: RandomNumberGenerator, building_type: int, core: Rect2i = Rect2i(), placed: Array = []) -> Vector2i:
 	var sprite_def = _building_def(building_type)
 	var spacing: int = sprite_def["spacing"] if sprite_def else 1
-	var attempts = 0
-	var best_pos = Vector2i(-1, -1)
-	var best_score = -1.0
-	var center = Vector2(area_size.x / 2.0, area_size.y / 2.0)
-	var max_distance = center.length()
-	
-	var density: int = int(map_template.building_density)
-	var use_scoring: bool = density >= MapConfig.BuildingDensity.SMALL_TOWN
-	var positions_to_try = 10 if use_scoring else 1
-	
-	while attempts < 100:
-		var x = settlement_rng.randi_range(spacing, area_size.x - size.x - spacing)
-		var y = settlement_rng.randi_range(spacing, area_size.y - size.y - spacing)
-		var valid = true
-		
+	var search := core if core.has_area() else Rect2i(Vector2i.ZERO, area_size)
+
+	# A tight core can be narrower than the building plus its spacing, so the
+	# range is clamped to the map rather than handed to randi_range inverted.
+	var min_x: int = clampi(search.position.x, spacing, maxi(spacing, area_size.x - size.x - spacing))
+	var max_x: int = clampi(search.end.x - size.x, min_x, maxi(min_x, area_size.x - size.x - spacing))
+	var min_y: int = clampi(search.position.y, spacing, maxi(spacing, area_size.y - size.y - spacing))
+	var max_y: int = clampi(search.end.y - size.y, min_y, maxi(min_y, area_size.y - size.y - spacing))
+
+	var best_pos := Vector2i(-1, -1)
+	var best_score := -INF
+	var candidates := SETTLEMENT_PLACEMENT_CANDIDATES
+	var attempts := 0
+
+	while attempts < 200 and candidates > 0:
+		attempts += 1
+		var x := settlement_rng.randi_range(min_x, max_x)
+		var y := settlement_rng.randi_range(min_y, max_y)
+
+		var valid := true
 		for dy in range(-spacing, size.y + spacing):
 			for dx in range(-spacing, size.x + spacing):
-				var check_x = x + dx
-				var check_y = y + dy
+				var check_x := x + dx
+				var check_y := y + dy
 				if check_x < 0 or check_x >= area_size.x or check_y < 0 or check_y >= area_size.y:
 					valid = false
 					break
@@ -1640,24 +1746,17 @@ func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i
 					break
 			if not valid:
 				break
-		
-		if valid:
-			if not use_scoring:
-				return Vector2i(x, y)
-			var pos_center = Vector2(x + size.x / 2.0, y + size.y / 2.0)
-			var distance = pos_center.distance_to(center)
-			var score = 1.0 - (distance / max_distance)
-			score += settlement_rng.randf_range(-0.1, 0.1)
-			if score > best_score:
-				best_score = score
-				best_pos = Vector2i(x, y)
-			positions_to_try -= 1
-			if positions_to_try <= 0:
-				return best_pos
-		
-		attempts += 1
-	
-	return best_pos if best_pos.x != -1 else Vector2i(-1, -1)
+		if not valid:
+			continue
+
+		candidates -= 1
+		var score := _settlement_cohesion_score(Vector2i(x, y), size, placed, search)
+		score += settlement_rng.randf_range(-0.08, 0.08)
+		if score > best_score:
+			best_score = score
+			best_pos = Vector2i(x, y)
+
+	return best_pos
 
 func mark_occupied_settlement(occupied_space_grid: Array, pos: Vector2i, size: Vector2i, spacing: int = 0) -> void:
 	for y in range(pos.y - spacing, pos.y + size.y + spacing):
