@@ -268,6 +268,105 @@ func generate_loot_drop(enemy_level: int = 1, _loot_table: String = "default") -
 	return drops
 
 
+# ═══════════════════════════════════════════════════════════════════════
+#  CONTAINER LOOT
+# ═══════════════════════════════════════════════════════════════════════
+
+## What a container is likely to hold, keyed by the `loot_table` name its tile
+## override carries (see the container-prop notes in resources/tileset_layout.gd).
+##
+## `rolls` is the min/max number of items drawn. Each draw picks a category by
+## weight, so a table is tuned by nudging numbers rather than writing code, and
+## a new kind of container only needs an entry here. Weight 0 categories are
+## simply left out. Categories map to the generate_* functions above.
+const LOOT_TABLES: Dictionary = {
+	# A peasant's shelf or cupboard: mostly food, occasionally something useful.
+	"household": {
+		"rolls": Vector2i(0, 3),
+		"weights": {"consumable": 8.0, "armor": 1.0, "weapon": 1.0},
+	},
+	# A locked chest is the one worth crossing a room for.
+	"chest": {
+		"rolls": Vector2i(1, 3),
+		"weights": {"weapon": 4.0, "armor": 4.0, "consumable": 3.0},
+	},
+	# Barracks and guard posts.
+	"military": {
+		"rolls": Vector2i(1, 3),
+		"weights": {"weapon": 5.0, "armor": 5.0, "consumable": 2.0},
+	},
+	# Shop stock — plentiful but plain.
+	"merchant": {
+		"rolls": Vector2i(2, 4),
+		"weights": {"consumable": 5.0, "weapon": 3.0, "armor": 3.0},
+	},
+	# Storage: bulk goods, little of value.
+	"storage": {
+		"rolls": Vector2i(0, 2),
+		"weights": {"consumable": 9.0, "armor": 1.0},
+	},
+}
+
+## Table used when a prop names one that does not exist, so a newly tagged prop
+## is lootable the moment it is placed.
+const DEFAULT_LOOT_TABLE := "household"
+
+## Roll the contents of a container.
+##
+## `level` scales rarity the same way enemy loot does. `seed_value` makes a
+## given container reproduce its contents on every visit, so a chest the player
+## walked past but never opened is still the same chest when they come back —
+## only touched containers need saving.
+func fill_container(loot_table: String, level: int = 1, seed_value: int = -1) -> Array[Item]:
+	if seed_value >= 0:
+		rng.seed = seed_value
+
+	var table: Dictionary = LOOT_TABLES.get(loot_table, LOOT_TABLES[DEFAULT_LOOT_TABLE])
+	var rolls: Vector2i = table.get("rolls", Vector2i(0, 2))
+	var weights: Dictionary = table.get("weights", {})
+
+	var contents: Array[Item] = []
+	for _i in rng.randi_range(rolls.x, rolls.y):
+		var item := _generate_for_category(_pick_loot_category(weights), level)
+		if item:
+			contents.append(item)
+	return contents
+
+
+## Weighted pick over a loot table's category weights. Returns "" when the
+## table has no usable weights, which the caller treats as an empty draw.
+func _pick_loot_category(weights: Dictionary) -> String:
+	var total: float = 0.0
+	for weight in weights.values():
+		total += float(weight)
+	if total <= 0.0:
+		return ""
+
+	var roll := rng.randf() * total
+	var cumulative: float = 0.0
+	for category in weights:
+		cumulative += float(weights[category])
+		if roll < cumulative:
+			return String(category)
+	return ""
+
+
+func _generate_for_category(category: String, level: int) -> Item:
+	var rarity: int = _roll_rarity_with_level(level)
+	match category:
+		"weapon":
+			return generate_random_weapon(rarity)
+		"armor":
+			return generate_random_armor(rarity)
+		"consumable":
+			var templates := ItemDatabase.get_consumable_template_ids()
+			if templates.is_empty():
+				return null
+			return generate_consumable(templates[rng.randi() % templates.size()])
+		_:
+			return null
+
+
 ## Roll a random rarity based on weights
 func _roll_rarity() -> Item.Rarity:
 	var total_weight = 0

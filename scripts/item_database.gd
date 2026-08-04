@@ -1,7 +1,11 @@
 extends Node
 
-## Default spritesheet for items that don't specify one
-var default_item_spritesheet: Resource = preload("res://assets/32rogues-0.5.0/32rogues/items.png")
+## Default spritesheet for items that don't specify one.
+## The transparent cut of the Backterria master sheet — the same art the map is
+## painted from (see resources/tileset_layout.gd), so an item's icon and its
+## world tile are the same 16px grid and an item is addressed by the atlas
+## coord it occupies there.
+var default_item_spritesheet: Resource = preload("res://assets/The Roguelike 1-15-1 Alpha.png")
 var default_tile_size: Vector2i = Vector2i(16, 16)
 
 ## ItemDatabase - Autoload singleton for managing item templates and unique items.
@@ -21,6 +25,7 @@ const ITEM_PATHS = {
 var weapon_templates: Dictionary = {}
 var armor_templates: Dictionary = {}
 var consumable_templates: Dictionary = {}
+var book_templates: Dictionary = {}
 var material_templates: Dictionary = {}
 
 ## Cache for unique/quest items (loaded from .tres files)
@@ -41,13 +46,16 @@ func _ready():
 
 func _load_templates():
 	## Load weapon templates
-	_load_folder_into_dict(ITEM_PATHS["templates"] + "weapons/", weapon_templates, true)
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "weapons/", weapon_templates, true, "ItemWeapon")
 	
 	## Load armor templates
-	_load_folder_into_dict(ITEM_PATHS["templates"] + "armor/", armor_templates, true)
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "armor/", armor_templates, true, "ItemArmor")
 
 	## Load consumable templates
-	_load_folder_into_dict(ITEM_PATHS["templates"] + "consumables/", consumable_templates, true)
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "consumables/", consumable_templates, true, "ItemConsumable")
+
+	## Load book templates
+	_load_folder_into_dict(ITEM_PATHS["templates"] + "books/", book_templates, true, "ItemBook")
 	
 	## Load material templates
 	_load_folder_into_dict(ITEM_PATHS["templates"] + "materials/", material_templates, true)
@@ -63,7 +71,13 @@ func _load_unique_items():
 	_load_folder_into_dict(ITEM_PATHS["consumables"], unique_items, true)
 
 
-func _load_folder_into_dict(path: String, target_dict: Dictionary, add_to_all: bool = false):
+## Index every .tres in `path` by item id.
+##
+## `expected_class` guards the typed getters below: a template folder is only a
+## convention, so a resource of the wrong class dropped into one would other-
+## wise be handed back by a getter that promises a narrower type and crash at
+## the return. Warn and skip instead — the file is misfiled, not malformed.
+func _load_folder_into_dict(path: String, target_dict: Dictionary, add_to_all: bool = false, expected_class: String = ""):
 	if not DirAccess.dir_exists_absolute(path):
 		return
 	
@@ -78,12 +92,26 @@ func _load_folder_into_dict(path: String, target_dict: Dictionary, add_to_all: b
 			var full_path = path + file_name
 			var item = load(full_path)
 			if item and item is Item:
-				var item_id = item.id if item.id else file_name.get_basename()
-				target_dict[item_id] = item
-				if add_to_all:
-					all_items[item_id] = item
+				if expected_class != "" and not _script_is(item, expected_class):
+					push_warning("[ItemDatabase] %s is not a %s — skipping (wrong folder?)" % [full_path, expected_class])
+				else:
+					var item_id = item.id if item.id else file_name.get_basename()
+					target_dict[item_id] = item
+					if add_to_all:
+						all_items[item_id] = item
 		file_name = dir.get_next()
 	dir.list_dir_end()
+
+
+## Whether `item`'s script chain declares `class_name` — Object.is_class() only
+## knows about engine classes, so a GDScript type has to be walked by hand.
+func _script_is(item: Item, class_name_str: String) -> bool:
+	var script: Script = item.get_script()
+	while script != null:
+		if script.get_global_name() == class_name_str:
+			return true
+		script = script.get_base_script()
+	return false
 
 
 ## Get a specific unique item by ID (returns a duplicate to avoid shared state)
@@ -134,6 +162,14 @@ func get_material_template(template_id: String) -> Item:
 	return null
 
 
+## Get a book template (returns original, not duplicate)
+func get_book_template(template_id: String) -> ItemBook:
+	if book_templates.has(template_id):
+		return book_templates[template_id]
+	push_warning("[ItemDatabase] Unknown book template: %s" % template_id)
+	return null
+
+
 ## Get a list of all weapon template IDs
 func get_weapon_template_ids() -> Array[String]:
 	var ids: Array[String] = []
@@ -158,6 +194,14 @@ func get_consumable_template_ids() -> Array[String]:
 	return ids
 
 
+## Get a list of all book template IDs
+func get_book_template_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for key in book_templates.keys():
+		ids.append(key)
+	return ids
+
+
 ## Check if an item exists
 func has_item(item_id: String) -> bool:
 	return all_items.has(item_id) or unique_items.has(item_id)
@@ -173,6 +217,7 @@ func reload():
 	weapon_templates.clear()
 	armor_templates.clear()
 	consumable_templates.clear()
+	book_templates.clear()
 	material_templates.clear()
 	unique_items.clear()
 	all_items.clear()

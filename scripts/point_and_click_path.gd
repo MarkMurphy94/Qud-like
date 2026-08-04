@@ -1,4 +1,5 @@
 extends Node2D
+class_name PointAndClickPath
 ## Point-and-click navigation overlay.
 ## Placed as a direct child of the game scene at (0,0) so that its local
 ## coordinate space equals world space. The Player calls the public API to
@@ -28,6 +29,28 @@ var _dest_blocked: bool = false
 ## When true the hover path is not drawn (e.g. while the player sprite is mid-tween).
 var _suppress_preview: bool = false
 
+## Sentinel for "no tile".
+const NO_TILE := Vector2i(-9999, -9999)
+
+## Tile under the cursor that holds something the player can interact with —
+## a chest, a dropped item — or NO_TILE. The Player sets this every frame. It
+## changes the reticle colour, and because most interactables stand on tiles
+## that cannot be walked on, it lets the preview route to a neighbouring tile
+## instead of giving up and flashing "blocked".
+var _interact_tile: Vector2i = NO_TILE
+
+
+func set_interact_hover(tile: Vector2i) -> void:
+	"""Tell the overlay which tile under the cursor is interactable (NO_TILE = none)."""
+	if _interact_tile == tile:
+		return
+	_interact_tile = tile
+	# The cached preview no longer describes this hover — force a recompute.
+	_dest_tile = NO_TILE
+	_prev_player_tile = NO_TILE
+	queue_redraw()
+
+
 func set_preview_suppressed(suppressed: bool) -> void:
 	"""Called by Player each frame to hide the path while the sprite is moving."""
 	if _suppress_preview != suppressed:
@@ -43,6 +66,7 @@ var _nav_pulse: float = 0.0   # 0..1 oscillating value for the destination highl
 const CRUMB_COLOR    := Color(0.0,  1.0,  0.8,  0.75)   # cyan breadcrumbs
 const DEST_COLOR     := Color(1.0,  0.85, 0.0,  0.95)   # gold reticle (walkable)
 const BLOCKED_COLOR  := Color(1.0,  0.25, 0.25, 0.85)   # red reticle (blocked)
+const INTERACT_COLOR := Color(0.55, 1.0,  0.45, 0.95)   # green reticle (interactable)
 const NAV_DEST_COLOR := Color(0.2,  0.9,  1.0,  1.0)    # bright cyan destination marker
 const CRUMB_RADIUS   := 2.0
 const RETICLE_HALF   := 5.0
@@ -98,8 +122,12 @@ func update_preview(player_world: Vector2, mouse_world: Vector2) -> void:
 
 	# Validate destination
 	if not _astar.is_in_boundsv(mt) or _astar.is_point_solid(mt):
+		# A solid tile is still a legitimate click target when something
+		# interactable stands on it — preview the walk up to it instead.
 		_preview_tiles = []
-		_dest_blocked = true
+		if mt == _interact_tile:
+			_preview_tiles = get_tile_path_adjacent(player_world, mt)
+		_dest_blocked = _preview_tiles.is_empty()
 		queue_redraw()
 		return
 
@@ -161,6 +189,26 @@ func get_tile_path(from_world: Vector2, to_world: Vector2) -> Array[Vector2i]:
 	return result
 
 
+func get_tile_path_adjacent(from_world: Vector2, target_tile: Vector2i) -> Array[Vector2i]:
+	"""Shortest route that stops on a walkable tile orthogonally adjacent to
+	`target_tile`. Chests, barrels and shelves are solid props, so "walk to the
+	chest" really means "walk to whichever side of it is cheapest to reach".
+	Empty if the target has no reachable neighbour."""
+	if not _is_grid_ready:
+		return []
+	var best: Array[Vector2i] = []
+	for offset: Vector2i in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+		var neighbour: Vector2i = target_tile + offset
+		if not _astar.is_in_boundsv(neighbour) or _astar.is_point_solid(neighbour):
+			continue
+		var route: Array[Vector2i] = get_tile_path(from_world, _t2w_center(neighbour))
+		if route.is_empty():
+			continue
+		if best.is_empty() or route.size() < best.size():
+			best = route
+	return best
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Drawing
 # ─────────────────────────────────────────────────────────────────────────────
@@ -206,18 +254,24 @@ func _draw() -> void:
 		return
 
 	var dest_world := _t2w_center(_dest_tile)
+	var hovering_interactable := _dest_tile == _interact_tile
 
 	if _dest_blocked or _preview_tiles.is_empty():
 		# Just show the blocked reticle at the cursor tile
 		_draw_reticle(dest_world, BLOCKED_COLOR)
 		return
 
-	# Breadcrumb dots — skip index 0 (player tile) and last (destination)
-	for i in range(1, _preview_tiles.size() - 1):
+	# Breadcrumb dots — skip index 0 (the player's own tile) and the last one,
+	# which the destination reticle already marks. A route that stops *beside*
+	# its destination (walking up to a solid chest) does not overlap the
+	# reticle, so there the final tile earns a dot of its own.
+	var stops_short := _preview_tiles[-1] != _dest_tile
+	var crumb_end := _preview_tiles.size() if stops_short else _preview_tiles.size() - 1
+	for i in range(1, crumb_end):
 		draw_circle(_t2w_center(_preview_tiles[i]), CRUMB_RADIUS, CRUMB_COLOR)
 
 	# Destination reticle
-	_draw_reticle(dest_world, DEST_COLOR)
+	_draw_reticle(dest_world, INTERACT_COLOR if hovering_interactable else DEST_COLOR)
 
 
 func _draw_reticle(center: Vector2, color: Color) -> void:

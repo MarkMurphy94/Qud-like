@@ -49,8 +49,18 @@ extends CharacterBody2D
 var _buffered_dir: Vector2i = Vector2i.ZERO
 ## Tiles still to walk on the active point-and-click route.
 var _nav_path: Array[Vector2i] = []
+## Thing to interact with once the active route finishes — set when the player
+## clicks a chest or a dropped item that is too far away to reach right now.
+var _pending_interaction: Node = null
 ## Tween that slides the visual sprite into the tile the body already moved to.
 var _slide_tween: Tween = null
+
+## Tiles searched for something to interact with, nearest first: the one the
+## player stands on, then the four cardinal neighbours. Reaching diagonally
+## would let the player open a chest through a wall corner.
+const INTERACT_OFFSETS: Array[Vector2i] = [
+	Vector2i.ZERO, Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP,
+]
 
 ## Movement actions and the tile offset each one requests.
 const MOVE_ACTIONS: Dictionary = {
@@ -166,7 +176,7 @@ func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("ui_inventory"):
 		_toggle_inventory_screen()
 	if Input.is_action_just_pressed("ui_interact"):
-		_try_interact_with_npc()
+		_try_interact()
 	if Input.is_action_just_pressed("ui_descend"):
 		_toggle_local_map()
 	if Input.is_action_just_pressed("ui_attack"):
@@ -189,6 +199,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _is_aiming:
 				_fire_pending_spell(get_global_mouse_position())
 				_exit_targeting_mode()
+			elif click_to_interact(get_global_mouse_position()):
+				pass   # handled: opened it, or set off walking toward it
 			elif not _nav_path.is_empty():
 				# Clicking mid-route means "stop here", not "start a new route".
 				cancel_navigation()
@@ -301,6 +313,13 @@ func _choose_next_step() -> void:
 
 	if not _nav_path.is_empty():
 		_advance_route()
+		return
+
+	# The route finished (or there never was one). Anything the player clicked
+	# on to walk toward happens now, one physics frame after the last step, so
+	# it never tries to spend a turn that is still resolving.
+	if _pending_interaction != null:
+		_resolve_pending_interaction()
 
 
 ## Direction of a movement key currently held down.
@@ -365,6 +384,112 @@ func navigate_to(world_pos: Vector2) -> void:
 	path_overlay.set_nav_destination(world_pos)
 
 
+## Handle a left-click that landed on something interactable — a container, a
+## dropped item. Returns true if the click was consumed.
+##
+## Clicking something already in reach interacts with it straight away;
+## clicking something further off walks there first and interacts on arrival,
+## which is the whole point of a point-and-click interface. Returns false when
+## there is nothing there, letting the click fall through to plain movement.
+func click_to_interact(world_pos: Vector2) -> bool:
+	if not can_act():
+		return false
+	var tile := world_to_tile(world_pos)
+	var target := interactable_at(tile)
+	if target == null:
+		return false
+
+	if _tile_within_reach(tile):
+		cancel_navigation()
+		return interact_with(target)
+
+	# Too far — walk up to it. Containers are solid props, so the route has to
+	# stop beside them rather than on them.
+	if path_overlay == null:
+		return false
+	var route: Array[Vector2i] = path_overlay.get_tile_path(global_position, tile_to_world(tile))
+	if route.size() < 2:
+		route = path_overlay.get_tile_path_adjacent(global_position, tile)
+	if route.size() < 2:
+		TurnManager.log_message("You can't reach that.", "info")
+		return true   # consumed: the player clearly meant the object, not the floor
+
+	cancel_navigation()
+	_nav_path = route.slice(1)
+	_pending_interaction = target
+	path_overlay.set_nav_destination(tile_to_world(tile))
+	return true
+
+
+## Whatever the player can interact with on `tile`: a container first (it is
+## the thing you can see), then an item lying there. Null if the tile holds
+## neither.
+func interactable_at(tile: Vector2i) -> Node:
+	var container := ItemContainer.at(get_tree(), tile)
+	if container != null:
+		return container
+	return _world_item_at(tile)
+
+
+func _world_item_at(tile: Vector2i) -> WorldItem:
+	for node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var world_item: WorldItem = node
+		if is_instance_valid(world_item) and world_to_tile(world_item.global_position) == tile:
+			return world_item
+	return null
+
+
+## Is `tile` the player's own tile or one of its four neighbours?
+func _tile_within_reach(tile: Vector2i) -> bool:
+	var origin := get_current_tile()
+	return INTERACT_OFFSETS.has(tile - origin)
+
+
+## The tile an interactable stands on.
+func _tile_of(target: Node) -> Vector2i:
+	if target is ItemContainer:
+		return (target as ItemContainer).tile
+	return world_to_tile((target as Node2D).global_position)
+
+
+## Interact with something in reach. Costs a turn. Returns true if it happened.
+func interact_with(target: Node) -> bool:
+	if not is_instance_valid(target) or not can_act():
+		return false
+
+	if target is ItemContainer:
+		# Spend the turn before the loot screen pauses the tree, so the world
+		# has already moved by the time the player is reading the contents.
+		TurnManager.take_player_action()
+		(target as ItemContainer).open(self)
+		return true
+
+	if target is WorldItem:
+		var world_item: WorldItem = target
+		var label := world_item.get_description()
+		if not world_item.try_pickup(self):
+			TurnManager.log_message("You cannot carry the %s." % label, "info")
+			return false
+		TurnManager.log_message("You pick up %s." % label, "info")
+		TurnManager.take_player_action()
+		return true
+
+	return false
+
+
+## Fire the interaction the player walked here for. The target may have been
+## picked up en route (auto-pickup on the last step) or the route may have
+## stopped short, so both are re-checked rather than assumed.
+func _resolve_pending_interaction() -> void:
+	var target := _pending_interaction
+	_pending_interaction = null
+	if not is_instance_valid(target):
+		return
+	if not _tile_within_reach(_tile_of(target)):
+		return
+	interact_with(target)
+
+
 ## Walk the next tile of the active route, re-checking as it goes so a route
 ## that has since been blocked is abandoned instead of walked into.
 func _advance_route() -> void:
@@ -381,6 +506,7 @@ func _advance_route() -> void:
 
 func cancel_navigation() -> void:
 	_nav_path.clear()
+	_pending_interaction = null
 	if path_overlay:
 		path_overlay.clear_nav_destination()
 
@@ -402,9 +528,14 @@ func _update_path_preview() -> void:
 	path_overlay.set_preview_suppressed(TurnManager.resolving)
 	if _is_aiming or _is_ui_open() or get_viewport().gui_get_hovered_control() != null:
 		path_overlay.clear_preview()
+		path_overlay.set_interact_hover(PointAndClickPath.NO_TILE)
 		return
 	if not TurnManager.resolving:
-		path_overlay.update_preview(global_position, get_global_mouse_position())
+		var mouse := get_global_mouse_position()
+		var hovered := world_to_tile(mouse)
+		path_overlay.set_interact_hover(
+			hovered if interactable_at(hovered) != null else PointAndClickPath.NO_TILE)
+		path_overlay.update_preview(global_position, mouse)
 
 
 func _is_ui_open() -> bool:
@@ -634,6 +765,29 @@ func _on_npc_interaction_unavailable(npc: NPC) -> void:
 	if npc in available_npcs:
 		available_npcs.erase(npc)
 		print("NPC no longer in range")
+
+## Single interact key, resolved nearest-first: a container underfoot or
+## beside you wins over dialogue, because a chest you are standing on is what
+## you meant. Falls through to the NPC handler when there is nothing to open.
+func _try_interact() -> void:
+	if Dialogic.current_timeline != null:
+		return
+	if _try_open_adjacent_container():
+		return
+	_try_interact_with_npc()
+
+## Open the container on the player's tile, or the first one orthogonally
+## adjacent. Returns true if one was found — opening it costs a turn.
+func _try_open_adjacent_container() -> bool:
+	if not can_act():
+		return false
+	var origin := get_current_tile()
+	for offset in INTERACT_OFFSETS:
+		var container := ItemContainer.at(get_tree(), origin + offset)
+		if container == null:
+			continue
+		return interact_with(container)
+	return false
 
 func _try_interact_with_npc() -> void:
 	"""Attempt to interact with the closest available NPC"""

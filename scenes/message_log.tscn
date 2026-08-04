@@ -1,42 +1,45 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://dbwjrif3t1fud"]
 
-[ext_resource type="Script" path="res://scripts/message_log.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://6cyit0wtw5yh" path="res://scripts/message_log.gd" id="1_script"]
 
-[node name="MessageLog" type="CanvasLayer"]
+[node name="MessageLog" type="CanvasLayer" unique_id=1574517050]
 layer = 12
 script = ExtResource("1_script")
 
-[node name="LogPanel" type="PanelContainer" parent="."]
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 6.0
-offset_top = -122.0
-offset_right = 286.0
-offset_bottom = -12.0
+[node name="LogPanel" type="PanelContainer" parent="." unique_id=1168516385]
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -278.0
+offset_top = -58.0
+offset_bottom = 58.0
+grow_horizontal = 0
+grow_vertical = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="LogPanel"]
+[node name="MarginContainer" type="MarginContainer" parent="LogPanel" unique_id=1827071693]
 layout_mode = 2
 theme_override_constants/margin_left = 4
 theme_override_constants/margin_top = 4
 theme_override_constants/margin_right = 4
 theme_override_constants/margin_bottom = 4
 
-[node name="VBoxContainer" type="VBoxContainer" parent="LogPanel/MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="LogPanel/MarginContainer" unique_id=1219541138]
 layout_mode = 2
 
-[node name="LogTitle" type="Label" parent="LogPanel/MarginContainer/VBoxContainer"]
+[node name="LogTitle" type="Label" parent="LogPanel/MarginContainer/VBoxContainer" unique_id=320164008]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.55, 0.55, 0.65, 1)
 theme_override_font_sizes/font_size = 11
 text = "Log"
 
-[node name="LogScroll" type="ScrollContainer" parent="LogPanel/MarginContainer/VBoxContainer"]
+[node name="LogScroll" type="ScrollContainer" parent="LogPanel/MarginContainer/VBoxContainer" unique_id=813295293]
 custom_minimum_size = Vector2(270, 88)
 layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="LogList" type="VBoxContainer" parent="LogPanel/MarginContainer/VBoxContainer/LogScroll"]
+[node name="LogList" type="VBoxContainer" parent="LogPanel/MarginContainer/VBoxContainer/LogScroll" unique_id=447721389]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1

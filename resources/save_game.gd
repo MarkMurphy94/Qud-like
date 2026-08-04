@@ -62,6 +62,13 @@ const MAX_SLOTS := 10
 ## Value = Array of item-key strings produced by main_game._make_item_key().
 @export var area_picked_up_items: Dictionary = {}
 
+# ─── Container records — only containers the player has actually taken  ─
+# ─── something out of. Everything else re-rolls from the map seed, so   ─
+# ─── an untouched chest costs the save file nothing.                    ─
+## Key = area identifier (same as area_picked_up_items).
+## Value = { "cell_x,cell_y" -> ItemContainer.to_dict() }.
+@export var area_container_state: Dictionary = {}
+
 # ═══════════════════════════════════════════════════════════════════════
 #  SLOT HELPERS
 # ═══════════════════════════════════════════════════════════════════════

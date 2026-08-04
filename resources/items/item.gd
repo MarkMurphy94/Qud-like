@@ -33,12 +33,17 @@ enum Rarity {
 @export var rarity: Rarity = Rarity.COMMON
 
 ## Visuals
+##
+## The normal way to give an item art is `sprite_index` — the (col, row) atlas
+## coordinate on the roguelike master sheet, the same coordinate system the map
+## tiles and NPC sprites use. `sprite_region` is the escape hatch for art that
+## does not sit on that grid; when its size is non-zero it wins outright.
 @export_group("Visuals")
 @export var icon: Texture2D  ## Direct icon texture (optional, overrides spritesheet)
-@export var spritesheet: Texture2D  ## The tileset/spritesheet containing the icon
-@export var sprite_region: Rect2i = Rect2i(0, 0, 16, 16)  ## Region within spritesheet
-@export var sprite_index: Vector2i = Vector2i(0, 0)  ## Alternative: tile coordinates (col, row)
-@export var tile_size: Vector2i = Vector2i(16, 16)  ## Size of each tile in spritesheet
+@export var spritesheet: Texture2D  ## Overrides ItemDatabase.default_item_spritesheet
+@export var sprite_region: Rect2i = Rect2i(0, 0, 0, 0)  ## Explicit pixel region; zero size = use sprite_index
+@export var sprite_index: Vector2i = Vector2i(0, 0)  ## Atlas coordinate (col, row) — the usual way to set an icon
+@export var tile_size: Vector2i = Vector2i(0, 0)  ## Zero = ItemDatabase.default_tile_size
 
 ## Inventory properties
 @export_group("Inventory")
@@ -120,11 +125,12 @@ func _create_atlas_texture(sheet: Texture2D) -> AtlasTexture:
 func get_sprite_rect() -> Rect2:
     if sprite_region.size.x > 0 and sprite_region.size.y > 0:
         return Rect2(sprite_region)
+    var ts = _get_tile_size()
     return Rect2(
-        sprite_index.x * tile_size.x,
-        sprite_index.y * tile_size.y,
-        tile_size.x,
-        tile_size.y
+        sprite_index.x * ts.x,
+        sprite_index.y * ts.y,
+        ts.x,
+        ts.y
     )
 
 

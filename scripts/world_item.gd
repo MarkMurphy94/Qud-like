@@ -32,12 +32,17 @@ class_name WorldItem
 ## and is used by the save system to prevent the item from respawning.
 signal picked_up(item: Item, qty: int, spawn_position: Vector2)
 
+## Group every dropped/placed item joins, so a tile lookup never has to walk
+## the whole tree. Mirrors ItemContainer.GROUP.
+const GROUP := &"world_items"
+
 ## Animation variables
 var _bob_time: float = 0.0
 var _base_y: float = 0.0
 
 
 func _ready():
+	add_to_group(GROUP)
 	_base_y = position.y
 	_bob_time = randf() * TAU  # Random start phase so items don't all bob in sync
 	_update_visual()

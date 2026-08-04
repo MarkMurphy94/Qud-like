@@ -1,39 +1,49 @@
 extends Node2D
 class_name ItemContainer
 
-## A world container (barrel, chest, box, etc.) that holds items.
-## Uses the shared Inventory system for storage.
-## Tracks which items have been removed so they don't respawn on reload.
+## A lootable container standing on one map tile — a chest, a shelf, a barrel.
+##
+## The container owns no art. The prop tile the map generator painted *is* the
+## container: its sprite and its collision come from the tileset like any other
+## prop (see the container-prop notes in resources/tileset_layout.gd). This node
+## is only the contents, the lock, and the record of what has been taken out.
+##
+## Interaction is grid-based and costs a turn, like everything else in this
+## world — the player opens whatever container is on or beside their tile via
+## `ui_interact`. There is no proximity area and no per-frame input handling.
 
-# ── Container type ────────────────────────────────────────────────────────────
-enum ContainerType { CHEST, BARREL, BOX, CRATE, SACK }
+## Group every container joins, so a tile lookup never has to walk the tree.
+const GROUP := &"containers"
 
-## Sprite region rects for each container type on the 32rogues tiles.png sheet.
-## Each Vector4 is (x, y, width, height) in pixels.
-const SPRITE_REGIONS: Dictionary = {
-	ContainerType.CHEST:  Rect2(0, 544, 32, 32),
-	ContainerType.BARREL: Rect2(128, 544, 32, 32),
-	# ContainerType.BOX:    Rect2(96, 480, 32, 32),
-	# ContainerType.CRATE:  Rect2(128, 480, 32, 32),
-	ContainerType.SACK:   Rect2(160, 544, 32, 32),
+## Human-readable label per role. Roles are plain strings (the value of a tile's
+## `container` override), so a new kind of container needs no code change beyond
+## an entry here — and an unlisted role still reads sensibly.
+const ROLE_LABELS: Dictionary = {
+	"chest": "Chest",
+	"shelf": "Shelf",
+	"barrel": "Barrel",
+	"crate": "Crate",
+	"sack": "Sack",
+	"cupboard": "Cupboard",
 }
 
-# ── Exports ───────────────────────────────────────────────────────────────────
-@export var container_type: ContainerType = ContainerType.CHEST:
-	set(value):
-		container_type = value
-		if is_inside_tree():
-			_update_sprite()
+# ── Identity ──────────────────────────────────────────────────────────────────
+## Tile this container occupies, in the local map's grid.
+@export var tile: Vector2i = Vector2i.ZERO
+## What kind of container this is ("chest", "shelf", …). Picks the label and,
+## by default, the loot table.
+@export var role: String = "chest"
+## ItemGenerator loot table used to fill it. Empty falls back to `role`.
+@export var loot_table: String = ""
+## Stable key for save/load. Derived from role + tile when left blank.
+@export var container_id: String = ""
 
-@export var container_id: String = ""       ## Unique ID for save/load. Auto-generated if blank.
-@export var container_label: String = "Chest"  ## Display name shown to the player.
-@export var max_slots: int = 20
+# ── Contents ──────────────────────────────────────────────────────────────────
+@export var max_slots: int = 12
 @export var is_locked: bool = false
 @export var lock_key_id: String = ""        ## Item ID required to unlock. Empty = any key.
-@export var is_destructible: bool = false    ## If true, player can smash it open.
 @export var initial_items: Array[Item] = [] ## Items pre-loaded into the container in the editor.
 
-# ── State ─────────────────────────────────────────────────────────────────────
 var inventory: Inventory = null
 
 ## Tracks items that have been taken out, as { item_id -> quantity_removed }.
@@ -43,10 +53,15 @@ var removed_log: Dictionary = {}
 var is_open: bool = false
 var is_emptied: bool = false  ## True once all items have been taken.
 
-# ── Node refs ─────────────────────────────────────────────────────────────────
-@onready var sprite: Sprite2D = $Sprite2D
-@onready var interact_area: Area2D = $Area2D
-@onready var interact_label: Label = $InteractLabel
+# ── Tile art ──────────────────────────────────────────────────────────────────
+## The map this container's tile belongs to, and how to repaint that tile once
+## it has been opened. All optional — a container whose prop has no distinct
+## "open" sprite simply never changes appearance.
+var map: Node = null
+var layer_name: String = ""
+var source_id: int = -1
+var closed_atlas: Vector2i = Vector2i(-1, -1)
+var open_atlas: Vector2i = Vector2i(-1, -1)
 
 var _inventory_screen_scene := preload("res://scenes/inventory_screen.tscn")
 var _inventory_screen_instance: InventoryScreen = null
@@ -60,22 +75,17 @@ signal container_unlocked(container: ItemContainer)
 
 # ── Ready ─────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	add_to_group(GROUP)
 	if container_id.is_empty():
-		container_id = "container_%s" % str(get_instance_id())
+		container_id = "%s@%d,%d" % [role, tile.x, tile.y]
 
 	_setup_inventory()
-	_update_sprite()
 	_populate_initial_items()
-
-	interact_area.body_entered.connect(_on_body_entered)
-	interact_area.body_exited.connect(_on_body_exited)
-
-	if interact_label:
-		interact_label.visible = false
-		interact_label.text = "[E] Open %s" % container_label
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 func _setup_inventory() -> void:
+	if inventory != null:
+		return
 	inventory = Inventory.new()
 	inventory.max_slots = max_slots
 	inventory.max_weight = -1.0  # Containers are weight-unlimited by default
@@ -88,34 +98,59 @@ func _populate_initial_items() -> void:
 		if item:
 			inventory.add_item(item, 1)
 
-func _update_sprite() -> void:
-	if not sprite:
-		return
-	if SPRITE_REGIONS.has(container_type):
-		sprite.region_enabled = true
-		sprite.region_rect = SPRITE_REGIONS[container_type]
+## Configure a freshly built container from one of MapGenerator.container_cells.
+## Call before adding the node to the tree.
+func configure(source_map: Node, cell: Vector2i, record: Dictionary) -> void:
+	map = source_map
+	tile = cell
+	role = String(record.get("role", "chest"))
+	loot_table = String(record.get("loot_table", role))
+	layer_name = String(record.get("layer", ""))
+	source_id = int(record.get("source_id", -1))
+	closed_atlas = record.get("atlas", Vector2i(-1, -1))
+	open_atlas = record.get("open_atlas", closed_atlas)
+	container_id = "%s@%d,%d" % [role, tile.x, tile.y]
+
+# ── Lookup ────────────────────────────────────────────────────────────────────
+
+## The container standing on `cell`, or null. Cheap enough to call once per
+## interaction: a settlement holds tens of containers, not thousands.
+static func at(tree: SceneTree, cell: Vector2i) -> ItemContainer:
+	for node in tree.get_nodes_in_group(GROUP):
+		var container: ItemContainer = node
+		if is_instance_valid(container) and container.tile == cell:
+			return container
+	return null
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-## Try to open the container. Returns false if locked.
+## Display name for the loot screen and the message log.
+var container_label: String:
+	get:
+		return ROLE_LABELS.get(role, role.capitalize())
+
+## Open the container. Returns true if the attempt cost a turn — a locked lid
+## the player cannot pick still costs the attempt.
 func open(opener: Node = null) -> bool:
-	if is_locked:
-		# Check if opener has the required key
-		if opener and opener.has_method("has_item"):
-			var has_key: bool = lock_key_id.is_empty() or opener.has_item(lock_key_id)
-			if has_key:
-				unlock(opener)
-			else:
-				return false
-		else:
-			return false
+	if is_locked and not _try_unlock(opener):
+		TurnManager.log_message("The %s is locked." % container_label.to_lower(), "info")
+		return true
+
+	_repaint(open_atlas)
+
+	if inventory.get_slot_count() == 0:
+		TurnManager.log_message("The %s is empty." % container_label.to_lower(), "info")
+		return true
 
 	is_open = true
 	container_opened.emit(self)
+	TurnManager.log_message("You open the %s." % container_label.to_lower(), "info")
 	_open_container_screen(opener)
 	return true
 
 func close() -> void:
+	if not is_open:
+		return
 	is_open = false
 	container_closed.emit(self)
 	if _inventory_screen_instance and is_instance_valid(_inventory_screen_instance) and _inventory_screen_instance.visible:
@@ -137,7 +172,29 @@ func unlock(opener: Node = null) -> void:
 	if not lock_key_id.is_empty() and opener and opener.has_method("remove_item_from_inventory"):
 		opener.remove_item_from_inventory(lock_key_id, 1)
 	is_locked = false
+	TurnManager.log_message("You unlock the %s." % container_label.to_lower(), "info")
 	container_unlocked.emit(self)
+
+func _try_unlock(opener: Node) -> bool:
+	if opener == null or not opener.has_method("has_item"):
+		return false
+	if not lock_key_id.is_empty() and not opener.has_item(lock_key_id):
+		return false
+	unlock(opener)
+	return true
+
+## Swap the container's tile to another atlas coord. A no-op when the prop has
+## no distinct open sprite, or when the container was placed without a map.
+func _repaint(atlas: Vector2i) -> void:
+	if map == null or source_id < 0 or atlas.x < 0 or atlas == closed_atlas:
+		return
+	if not map.has_method("layer_named"):
+		return
+	var layer: TileMapLayer = map.layer_named(layer_name)
+	if layer == null:
+		return
+	layer.set_cell(tile, source_id, atlas)
+	closed_atlas = atlas
 
 ## Take a quantity of an item out, logging the removal. Returns actual quantity taken.
 func take_item(item_id: String, quantity: int = 1) -> int:
@@ -155,42 +212,9 @@ func loot_all(target_inventory: Inventory) -> void:
 	for slot in slots:
 		inventory.transfer_to(target_inventory, slot.item.id, slot.quantity)
 
-## True once the container has been opened at least once.
+## True once anything has been taken out.
 func has_been_looted() -> bool:
 	return not removed_log.is_empty()
-
-# ── Interaction ───────────────────────────────────────────────────────────────
-func _on_body_entered(body: Node2D) -> void:
-	if _is_player(body):
-		if interact_label:
-			interact_label.text = "[E] %s %s" % ["Unlock" if is_locked else "Open", container_label]
-			interact_label.visible = true
-
-func _on_body_exited(body: Node2D) -> void:
-	if _is_player(body):
-		if interact_label:
-			interact_label.visible = false
-		if is_open:
-			close()
-
-func _input(event: InputEvent) -> void:
-	# Only process interact key when a player is nearby (label is visible)
-	if not interact_label or not interact_label.visible:
-		return
-	if event.is_action_pressed("ui_interact") or (event is InputEventKey and event.pressed and event.keycode == KEY_E):
-		var player := _find_nearby_player()
-		if player:
-			open(player)
-		get_viewport().set_input_as_handled()
-
-func _is_player(node: Node) -> bool:
-	return node.is_in_group("player") or node.name == "Player"
-
-func _find_nearby_player() -> Node:
-	for body in interact_area.get_overlapping_bodies():
-		if _is_player(body):
-			return body
-	return null
 
 # ── Inventory signal handlers ─────────────────────────────────────────────────
 func _on_inventory_changed() -> void:
@@ -210,20 +234,24 @@ func _on_item_removed_from_inventory(item: Item, quantity: int) -> void:
 func to_dict() -> Dictionary:
 	return {
 		"container_id": container_id,
-		"container_type": container_type,
+		"tile": [tile.x, tile.y],
+		"role": role,
+		"loot_table": loot_table,
 		"is_locked": is_locked,
-		"is_open": is_open,
 		"is_emptied": is_emptied,
 		"removed_log": removed_log.duplicate(),
 		"inventory": inventory.to_dict(),
 	}
 
 func from_dict(data: Dictionary) -> void:
+	_setup_inventory()
 	if data.has("container_id"): container_id = data.container_id
-	if data.has("container_type"): container_type = data.container_type
+	if data.has("tile"):
+		var saved_tile: Array = data.tile
+		tile = Vector2i(int(saved_tile[0]), int(saved_tile[1]))
+	if data.has("role"): role = data.role
+	if data.has("loot_table"): loot_table = data.loot_table
 	if data.has("is_locked"): is_locked = data.is_locked
-	if data.has("is_open"): is_open = data.is_open
 	if data.has("is_emptied"): is_emptied = data.is_emptied
-	if data.has("removed_log"): removed_log = data.removed_log
+	if data.has("removed_log"): removed_log = data.removed_log.duplicate()
 	if data.has("inventory"): inventory.from_dict(data.inventory)
-	_update_sprite()

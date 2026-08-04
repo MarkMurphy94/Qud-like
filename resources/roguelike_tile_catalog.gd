@@ -141,6 +141,13 @@ static func build(ts: TileSet) -> Dictionary:
 				"placement": meta.get("placement", "both"),
 				# How strongly this tile is favoured when a prop pool is sampled.
 				"weight": meta.get("weight", Layout.DEFAULT_PROP_WEIGHT),
+				# Non-empty for props that stand in for a lootable container.
+				# MapGenerator records where these land so a container can be
+				# spawned on the cell; see tileset_layout.gd for the fields.
+				"container": meta.get("container", Layout.NO_CONTAINER),
+				"loot_table": meta.get("loot_table", ""),
+				"open_atlas": meta.get("open_atlas", coords),
+				"locked_chance": meta.get("locked_chance", 0.0),
 				# Kept so entries stay shape-compatible with the custom-data
 				# catalog MapGenerator builds for the older tilesets.
 				"subtype": "",

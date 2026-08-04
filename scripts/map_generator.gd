@@ -275,6 +275,12 @@ var _all_cells: Array[Vector2i] = []
 # Structure: tile_catalog[category][type] = Array[{source_id, atlas, size, tag_1, tag_2}]
 var tile_catalog: Dictionary = {}
 
+## Cells where a prop tagged as a container (see tileset_layout.gd) was painted.
+## Vector2i cell → { role, loot_table, layer, atlas, open_atlas, locked_chance }.
+## The tile itself is ordinary scenery — this is only the note that something
+## lootable belongs there, which ContainerSpawner reads after generation.
+var container_cells: Dictionary = {}
+
 # Normalized copy of the TileMetadata dict passed to generate_local_map()
 # (runtime wilderness path); empty for settlement/editor generation.
 var current_metadata: Dictionary = {}
@@ -325,6 +331,7 @@ func clear_all_layers() -> void:
 	structures_interior.clear()
 	decor_exterior.clear()
 	decor_interior.clear()
+	container_cells.clear()
 
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
@@ -1128,6 +1135,38 @@ func _pick_weighted(pool: Array, rng: RandomNumberGenerator) -> Dictionary:
 			return entry
 	return pool[pool.size() - 1]
 
+## Remember that `entry` was painted at `cell` if it stands in for a lootable
+## container. Called right after the prop is set, so the note and the tile can
+## never disagree about where the container is.
+func _note_container(cell: Vector2i, entry: Dictionary, layer_name: String) -> void:
+	var role: String = String(entry.get("container", ""))
+	if role.is_empty():
+		return
+	var loot_table: String = String(entry.get("loot_table", ""))
+	container_cells[cell] = {
+		"role": role,
+		# An untagged container falls back to a table named after its role, so a
+		# new prop only needs `container` set to be lootable.
+		"loot_table": loot_table if not loot_table.is_empty() else role,
+		"layer": layer_name,
+		"source_id": entry["source_id"],
+		"atlas": entry["atlas"],
+		"open_atlas": entry.get("open_atlas", entry["atlas"]),
+		"locked_chance": float(entry.get("locked_chance", 0.0)),
+	}
+
+## The TileMapLayer a container record was painted on, or null. Lets a
+## container repaint its own tile without holding a node reference that a
+## regenerate would leave dangling.
+func layer_named(layer_name: String) -> TileMapLayer:
+	match layer_name:
+		"decor_interior":
+			return decor_interior
+		"decor_exterior":
+			return decor_exterior
+		_:
+			return null
+
 func add_decor_exterior(placed_buildings: Array) -> void:
 	var all_tiles: Array = _prop_pool(false)
 	if all_tiles.is_empty():
@@ -1171,6 +1210,7 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 					if not fits: break
 				if fits:
 					decor_exterior.set_cell(cell, entry["source_id"], entry["atlas"])
+					_note_container(cell, entry, "decor_exterior")
 					for edy in esize.y:
 						for edx in esize.x:
 							used_cells[cell + Vector2i(edx, edy)] = true
@@ -1204,6 +1244,7 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 					if not fits: break
 				if fits:
 					decor_exterior.set_cell(cell, entry["source_id"], entry["atlas"])
+					_note_container(cell, entry, "decor_exterior")
 					for edy in esize.y:
 						for edx in esize.x:
 							used_cells[cell + Vector2i(edx, edy)] = true
@@ -1268,6 +1309,7 @@ func add_decor_interior(placed_buildings: Array) -> void:
 
 			# Interior props live on their own dedicated layer.
 			decor_interior.set_cell(cell, entry["source_id"], entry["atlas"])
+			_note_container(cell, entry, "decor_interior")
 			for edy in esize.y:
 				for edx in esize.x:
 					used_cells[cell + Vector2i(edx, edy)] = true

@@ -129,6 +129,19 @@ const CATEGORY_BANDS := [
 const DEFAULT_PROP_WEIGHT := 1.0
 const COMMON_PROP_WEIGHT := 8.0
 
+# --- container props ---
+# A prop whose override carries a `container` role is not just scenery: the
+# generator records the cell it was painted on and ContainerSpawner stands a
+# lootable ItemContainer there. The tile itself is painted exactly as any other
+# prop, so the container's art and collision keep coming from the tileset.
+#   container     : role name, shown to the player and used to pick a loot table
+#                   ("chest", "shelf", "barrel", …). Absent or "" = plain scenery.
+#   loot_table    : ItemGenerator loot table that fills it. Defaults to the role.
+#   open_atlas    : coord to repaint the cell with once it has been opened.
+#                   Omit for props that have no "open" sprite.
+#   locked_chance : 0–1 odds the container starts locked. Defaults to 0.
+const NO_CONTAINER := ""
+
 # --- per-tile overrides (win over the band defaults) ---
 # Key is "col,row" (atlas coords). Any subset of keys may be supplied.
 # Use `placement` for prop tiles that should only appear in a specific context:
@@ -145,13 +158,36 @@ const OVERRIDES := {
 	Vector2i(6, 22): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
 
 	# Bookshelf → empty pot: the common interior props.
-	Vector2i(4, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
-	Vector2i(5, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	# TODO: identify the remaining coords in this row and give the storage
+	# furniture a `container` role. Every prop tagged here becomes lootable with
+	# no code change — see the container-prop notes above.
+	Vector2i(4, 24): {
+		"placement": "interior", 
+		"weight": COMMON_PROP_WEIGHT,
+		"container": "shelf", 
+		"loot_table": "household"
+		},
+	Vector2i(5, 24): {
+		"placement": "interior", 
+		"weight": COMMON_PROP_WEIGHT,
+		"container": "cupboard", 
+		"loot_table": "household"
+		},	
 	Vector2i(6, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
 	Vector2i(7, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
-	Vector2i(8, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(8, 24): {
+		"placement": "interior", 
+		"weight": COMMON_PROP_WEIGHT,
+		"container": "chest", 
+		"loot_table": "household"
+		},
 	Vector2i(9, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
-	Vector2i(10, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(10, 24): {
+		"placement": "interior", 
+		"weight": COMMON_PROP_WEIGHT,
+		"container": "chest", 
+		"loot_table": "household"
+		},
 	Vector2i(11, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
 	Vector2i(12, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
 	Vector2i(13, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
@@ -202,7 +238,19 @@ static func resolve(coord: Vector2i) -> Dictionary:
 		"use_alpha": band.get("use_alpha", false),
 		"placement": band.get("placement", "both"),
 		"weight": band.get("weight", DEFAULT_PROP_WEIGHT),
+		# Container fields are declared here (rather than only in OVERRIDES) so
+		# every resolved tile has the same shape and callers can read them without
+		# guarding. A role of "" means the prop is scenery.
+		"container": band.get("container", NO_CONTAINER),
+		"loot_table": band.get("loot_table", ""),
+		"locked_chance": band.get("locked_chance", 0.0),
 	}
 	if OVERRIDES.has(coord):
 		data.merge(OVERRIDES[coord], true)
 	return data
+
+
+## True when the tile at `coord` should carry a lootable container.
+static func is_container(coord: Vector2i) -> bool:
+	var meta := resolve(coord)
+	return String(meta.get("container", NO_CONTAINER)) != NO_CONTAINER

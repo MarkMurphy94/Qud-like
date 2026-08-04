@@ -11,6 +11,9 @@ extends Node
 ## Populates the current local map with NPCs. Lives inside local_scene.tscn so
 ## its NPCs share the map's lifetime.
 @onready var npc_spawner = local_scene.get_node_or_null("npc_spawner") if local_scene else null
+## Stands lootable containers on the cells the generator marked for them. Also
+## lives inside local_scene.tscn, for the same lifetime reason.
+@onready var container_spawner = local_scene.get_node_or_null("container_spawner") if local_scene else null
 
 var _save := SaveGameResource.new()
 var world_tile_data: Dictionary = {}
@@ -21,6 +24,10 @@ var overworld_tile_seeds: Dictionary = {}
 ## Key = area identifier (scene path or "x,y").  Value = Array of item-key strings.
 ## Populated at runtime and persisted through save/load to prevent re-spawning.
 var area_picked_up_items: Dictionary = {}
+## Key = area identifier.  Value = { "cell_x,cell_y" -> container dict }.
+## Only containers the player has actually looted are recorded — everything
+## else re-rolls from the map seed, so an untouched chest costs nothing.
+var area_container_state: Dictionary = {}
 var _play_timer: float = 0.0        ## Accumulated play-time for the current session
 var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = none)
 
@@ -72,6 +79,7 @@ func create_or_load_save():
 	_save.player_overworld_position = player.global_position
 	_save.player_current_scene_path = get_tree().current_scene.scene_file_path
 	area_picked_up_items.clear()  # fresh world — nothing picked up yet
+	area_container_state.clear()  # …and nothing looted
 	generate_world_metadata()
 	generate_overworld_tile_seeds()
 
@@ -188,6 +196,8 @@ func enter_local_map() -> void:
 	player.rebuild_nav_grid()
 	if npc_spawner:
 		npc_spawner.populate_local_map(meta)
+	if container_spawner:
+		container_spawner.populate_local_map(1, _container_state_for_tile(tile))
 	print("[MainGame] Entered local map for tile %s (seed %d)" % [tile, map_seed])
 
 ## Return to the overworld tile the player descended from.
@@ -198,6 +208,11 @@ func exit_local_map() -> void:
 		# NPCs belong to the map that is being torn down; leaving them alive would
 		# strand them under a hidden local_scene.
 		npc_spawner.clear()
+	# Harvest looted containers before the spawner drops them, or the record of
+	# what the player emptied dies with the map.
+	_store_container_state(player.overworld_tile)
+	if container_spawner:
+		container_spawner.clear()
 	if local_scene:
 		# Wiping the layers also drops their collision, which would otherwise
 		# keep blocking overworld tiles while the local map sits hidden.
@@ -290,6 +305,11 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 		_save.overworld_tile_seeds["%d,%d" % [tile.x, tile.y]] = overworld_tile_seeds[tile]
 	# ── Item pickup records ─────────────────────────────────────
 	_save.area_picked_up_items = area_picked_up_items.duplicate(true)
+	# ── Container records ───────────────────────────────────────
+	# The live map's containers are only in memory until now.
+	if player.in_local_area:
+		_store_container_state(player.overworld_tile)
+	_save.area_container_state = area_container_state.duplicate(true)
 
 	# ── Local-area bookmark (so we can re-enter on load) ───────
 	if player.in_local_area and local_scene:
@@ -333,6 +353,7 @@ func load_game_from_slot(slot: int) -> bool:
 
 	# ── Item pickup records ─────────────────────────────────────
 	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
+	area_container_state = _save.area_container_state.duplicate(true)
 	# ── Overworld tile seeds ─────────────────────────────────
 	overworld_tile_seeds.clear()
 	for key_str in _save.overworld_tile_seeds:
@@ -419,12 +440,16 @@ func load_game_from_slot(slot: int) -> bool:
 		player.update_camera_limits()
 		if npc_spawner:
 			npc_spawner.populate_local_map(meta_dict)
+		if container_spawner:
+			container_spawner.populate_local_map(1, _container_state_for_tile(player.overworld_tile))
 	else:
 		# Overworld. A save taken inside a local area lands the player back on
 		# the overworld tile they descended from.
 		if player.in_local_area:
 			if npc_spawner:
 				npc_spawner.clear()
+			if container_spawner:
+				container_spawner.clear()
 			if local_scene:
 				local_scene.clear_all_layers()
 				local_scene.visible = false
@@ -605,6 +630,25 @@ func _assign_road_exits() -> void:
 
 func _area_key_from_tile(tile: Vector2i) -> String:
 	return "%d,%d" % [tile.x, tile.y]
+
+## Saved state for the containers of one overworld tile, or {} if the player
+## has never looted anything there.
+func _container_state_for_tile(tile: Vector2i) -> Dictionary:
+	return area_container_state.get(_area_key_from_tile(tile), {})
+
+## Fold the live map's looted containers back into the persistent record.
+## Called before the containers are freed, since their state only exists on
+## the nodes themselves.
+func _store_container_state(tile: Vector2i) -> void:
+	if container_spawner == null:
+		return
+	var dirty: Dictionary = container_spawner.get_dirty_state()
+	if dirty.is_empty():
+		return
+	var area_key := _area_key_from_tile(tile)
+	var existing: Dictionary = area_container_state.get(area_key, {})
+	existing.merge(dirty, true)
+	area_container_state[area_key] = existing
 
 ## Connects WorldItem pickup signals and removes already-collected items for
 ## a generated local area.
