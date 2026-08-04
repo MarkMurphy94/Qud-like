@@ -28,6 +28,10 @@ ItemGenerator="*res://scripts/item_generator.gd"
 CombatManager="*res://scripts/combat_manager.gd"
 TurnManager="*res://scripts/turn_manager.gd"
 
+[debug]
+
+gdscript/warnings/integer_division=0
+
 [dialogic]
 
 directories/dch_directory={

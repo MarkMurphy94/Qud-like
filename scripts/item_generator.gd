@@ -224,7 +224,7 @@ func generate_random_armor(forced_rarity: int = -1) -> ItemArmor:
 ## Generate loot drops for an enemy
 ## enemy_level: Used to adjust drop quality
 ## loot_table: Name of the loot table to use (for future expansion)
-func generate_loot_drop(enemy_level: int = 1, loot_table: String = "default") -> Array[Item]:
+func generate_loot_drop(enemy_level: int = 1, _loot_table: String = "default") -> Array[Item]:
 	var drops: Array[Item] = []
 	
 	# Number of drops scales slightly with level

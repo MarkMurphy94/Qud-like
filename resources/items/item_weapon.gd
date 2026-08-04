@@ -60,13 +60,13 @@ func get_crit_chance() -> float:
 	return crit_chance + crit_bonus
 
 
-## Rolls a damage value within the weapon's range
+## Rolls a damage value within the weapon's weapon_range
 func roll_damage(rng: RandomNumberGenerator = null) -> int:
-	var range = get_damage_range()
+	var weapon_range = get_damage_range()
 	if rng:
-		return rng.randi_range(range.x, range.y)
+		return rng.randi_range(weapon_range.x, weapon_range.y)
 	else:
-		return randi_range(range.x, range.y)
+		return randi_range(weapon_range.x, weapon_range.y)
 
 
 ## Returns a formatted string describing the weapon's stats

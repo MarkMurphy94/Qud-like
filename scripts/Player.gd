@@ -119,7 +119,7 @@ var _targeting_label: Label = null
 var _reticle: Node2D = null
 
 
-# ═══════════════════════════════════════════════════════════════════════
+# region Lifecycle═══════════════════════════════════════════════════════════════════════
 #  LIFECYCLE
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -203,8 +203,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		_exit_targeting_mode()
 		get_viewport().set_input_as_handled()
 
+# endregion
 
-# ═══════════════════════════════════════════════════════════════════════
+
+
+
+
+
+# region movement ═══════════════════════════════════════════════════════════════════════
 #  MOVEMENT
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -325,8 +331,14 @@ func is_tile_open(tile: Vector2i) -> bool:
 		return true
 	return world_map.is_walkable(tile)
 
+# endregion
 
-# ═════════════════════════════════════════════════════════════════════
+
+
+
+
+
+# region nav and local map visits ═════════════════════════════════════════════════════════════════════
 #  LOCAL MAP VISITS
 # ═════════════════════════════════════════════════════════════════════
 
@@ -344,11 +356,6 @@ func _toggle_local_map() -> void:
 			game.exit_local_map()
 	elif game.has_method("enter_local_map"):
 		game.enter_local_map()
-
-
-# ═══════════════════════════════════════════════════════════════════════
-#  POINT-AND-CLICK NAVIGATION
-# ═══════════════════════════════════════════════════════════════════════
 
 ## Build a route to the clicked position and start walking it.
 func navigate_to(world_pos: Vector2) -> void:
@@ -428,6 +435,7 @@ func _hostile_in_view() -> bool:
 			return true
 	return false
 
+# endregion
 
 # ═══════════════════════════════════════════════════════════════════════
 #  GRID / CAMERA

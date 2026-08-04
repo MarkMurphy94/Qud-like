@@ -741,10 +741,15 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 	for terrain in terrain_cells:
 		_paint_surface(ground, terrain_cells[terrain], terrain)
 
-	_generate_misc_features(local_rng)
+	var placed_buildings := _generate_misc_features(local_rng)
 	generate_edge_roads()
 	add_terrain_features(local_rng)
 	add_foliage()
+	# Decor runs on the same footprints the settlement path uses. Skipping it
+	# here was why a hamlet reached in-game had walls but no barrels, firepits
+	# or furniture.
+	add_decor_exterior(placed_buildings)
+	add_decor_interior(placed_buildings)
 
 func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	map_template.SEED = settlement_rng.seed
@@ -1516,7 +1521,9 @@ func _is_physics_blocked(pos: Vector2i) -> bool:
 			return true
 	return false
 
-func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> void:
+## Places a small cluster of buildings and returns them as
+## [{type, pos, size}, …] so the caller can run the decor passes over them.
+func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> Array:
 	var building_count: int = 0
 	match hamlet_type:
 		"village":
@@ -1538,9 +1545,9 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> v
 		Structure.StructureType.SHOP,
 		Structure.StructureType.TAVERN,
 	]
-	var buildings_placed: int = 0
+	var placed: Array = []
 	var attempts: int = 0
-	while buildings_placed < building_count and attempts < 100:
+	while placed.size() < building_count and attempts < 100:
 		var building_type: int = hamlet_types[local_rng.randi() % hamlet_types.size()]
 		var sprite_def = _building_def(building_type)
 		if sprite_def == null:
@@ -1552,8 +1559,9 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> v
 		if pos.x != -1:
 			place_building_settlement(pos, size, building_type)
 			mark_occupied_settlement(occupation_grid, pos, size, sprite_def["spacing"])
-			buildings_placed += 1
+			placed.append({"type": building_type, "pos": pos, "size": size})
 		attempts += 1
+	return placed
 
 # Settlement-specific building functions
 func find_valid_building_position_settlement(area_size: Vector2i, size: Vector2i, occupied_space_grid: Array, settlement_rng: RandomNumberGenerator, building_type: int) -> Vector2i:
@@ -1939,13 +1947,18 @@ func generate_edge_roads() -> void:
 
 ## Process MapConfig.misc_features to place hamlets, farms, camps, etc.
 ## This replaces the old random 30% hamlet-chance logic with data-driven features.
-func _generate_misc_features(local_rng: RandomNumberGenerator) -> void:
+## Places every misc feature the config asks for and returns the buildings they
+## put down, in the {type, pos, size} shape the decor passes expect. Without
+## this the local-area path had no building list, so props had nothing to
+## cluster around and none were ever placed.
+func _generate_misc_features(local_rng: RandomNumberGenerator) -> Array:
+	var placed: Array = []
 	for feature in map_template.misc_features:
 		match feature:
 			MapConfig.MiscFeatures.HAMLET:
-				generate_hamlet("village", local_rng)
+				placed.append_array(generate_hamlet("village", local_rng))
 			MapConfig.MiscFeatures.FARM:
-				generate_hamlet("farm", local_rng)
+				placed.append_array(generate_hamlet("farm", local_rng))
 			MapConfig.MiscFeatures.DUNGEON_ENTRANCE:
 				# TODO: generate dungeon entrance
 				pass
@@ -1961,3 +1974,4 @@ func _generate_misc_features(local_rng: RandomNumberGenerator) -> void:
 			MapConfig.MiscFeatures.HIDDEN_SITE:
 				# TODO: generate hidden site
 				pass
+	return placed

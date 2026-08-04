@@ -1273,7 +1273,7 @@ func end_interaction() -> void:
 	else:
 		set_state(NPCState.WANDER)
 
-func _start_dialogue_interaction(interactor: Node2D) -> void:
+func _start_dialogue_interaction(_interactor: Node2D) -> void:
 	"""Handle dialogue-based interaction"""
 	print("%s: Hello there!" % npc_name if npc_name else "NPC says hello!")
 	# TODO: Implement actual dialogue system integration
@@ -1281,7 +1281,7 @@ func _start_dialogue_interaction(interactor: Node2D) -> void:
 	var greeting = _get_greeting_message()
 	print(greeting)
 
-func _start_trade_interaction(interactor: Node2D) -> void:
+func _start_trade_interaction(_interactor: Node2D) -> void:
 	"""Handle trade-based interaction"""
 	print("%s: Would you like to see my wares?" % npc_name if npc_name else "Merchant opens shop")
 	# TODO: Implement actual trade system
