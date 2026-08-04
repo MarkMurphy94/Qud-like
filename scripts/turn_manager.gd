@@ -113,20 +113,42 @@ func get_player() -> Node2D:
 	return _player
 
 
+## Tile a world position falls on. Resolved through the player's world map so
+## the grid origin has one definition every actor agrees with; the arithmetic
+## fallback only applies in scenes with no map loaded.
+func tile_of(world_pos: Vector2) -> Vector2i:
+	var player := get_player()
+	if player != null:
+		return player.world_to_tile(world_pos)
+	var cell := float(MainGameState.TILE_SIZE)
+	return Vector2i(floori(world_pos.x / cell), floori(world_pos.y / cell))
+
+
 ## The actor standing on `tile`, or null. Used for bump-to-attack, so the
 ## player never has to guess whether a body is in the way.
 func actor_at(tile: Vector2i) -> Node2D:
-	var player := get_player()
-	if player == null:
-		return null
 	for actor in get_tree().get_nodes_in_group("NPCs"):
 		if not is_instance_valid(actor):
 			continue
 		if actor.has_method("is_alive") and not actor.is_alive():
 			continue
-		if player.world_to_tile(actor.global_position) == tile:
+		if tile_of(actor.global_position) == tile:
 			return actor
 	return null
+
+
+## Is `tile` held by any living actor other than `asker`? The player counts,
+## so NPCs cannot step onto them and wedge the two bodies together.
+##
+## Tile occupancy — not physics overlap — is what decides whether actors may
+## share a square. Everything on the grid asks this one question, so an actor
+## can never end up standing inside another and getting stuck.
+func is_tile_occupied(tile: Vector2i, asker: Node = null) -> bool:
+	var player := get_player()
+	if player != null and player != asker and tile_of(player.global_position) == tile:
+		return true
+	var occupant := actor_at(tile)
+	return occupant != null and occupant != asker
 
 
 func log_message(text: String, category: String = "info") -> void:

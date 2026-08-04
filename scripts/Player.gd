@@ -14,11 +14,12 @@ extends CharacterBody2D
 #  A step is instantaneous in game-logic terms — the body teleports a whole
 #  tile and the sprite tweens to catch up — so a turn never resolves halfway.
 #
-#  Collision and pathfinding lean on the engine rather than on custom code:
-#    • each step is cleared with CharacterBody2D.test_move(), which asks the
-#      physics server directly instead of using hand-placed RayCast2Ds
+#  Collision is decided by the grid, not by physics overlap:
+#    • terrain and props come from the world map's is_walkable()
+#    • other actors come from TurnManager.actor_at()
 #    • routes come from AStarGrid2D (via the PointAndClickPath overlay)
-#    • terrain walkability is read off the world map's TileMapLayers
+#  Physics never gets a vote, so two bodies that somehow overlap — a spawn on
+#  top of an NPC, say — can always walk apart again instead of wedging.
 # ═══════════════════════════════════════════════════════════════════════
 
 @export var tile_size: int = 16
@@ -238,12 +239,6 @@ func try_step(dir: Vector2i) -> bool:
 	if not is_tile_open(target_tile):
 		return false
 
-	# Ask the physics server whether the move would hit anything solid — one
-	# call that covers stray bodies and tileset collision polygons alike.
-	var motion := Vector2(dir) * tile_size
-	if test_move(global_transform, motion):
-		return false
-
 	_face(dir)
 	_move_to_tile(target_tile)
 	TurnManager.take_player_action()
@@ -325,7 +320,8 @@ func can_act() -> bool:
 		and not _is_ui_open()
 
 
-## Terrain-only walkability. Physics bodies are handled by test_move().
+## Terrain and static obstacles (walls, props, water). Actors are handled
+## separately by TurnManager.actor_at() in try_step().
 func is_tile_open(tile: Vector2i) -> bool:
 	if world_map == null:
 		return true

@@ -1158,7 +1158,13 @@ func _grid_can_move(dir: Vector2) -> bool:
 		return false
 	rc.enabled = true
 	rc.force_raycast_update()
-	return not rc.is_colliding()
+	if rc.is_colliding():
+		return false
+	# The raycast answers "is there scenery in the way"; occupancy answers "is
+	# someone already standing there". Without the second check an NPC can step
+	# onto the player and wedge the two bodies into the same tile.
+	var target_tile = TurnManager.tile_of(global_position + dir * tile_size)
+	return not TurnManager.is_tile_occupied(target_tile, self)
 
 func _grid_try_move(dir: Vector2) -> bool:
 	if dir == Vector2.ZERO:

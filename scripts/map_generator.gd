@@ -1489,7 +1489,11 @@ func is_walkable(pos: Vector2i) -> bool:
 
 	# The band table already says which categories block, so a decorative
 	# plant or grass tuft on the foliage layer does not wall the tile off.
-	for layer: TileMapLayer in [foliage, terrain_features, structures_exterior]:
+	# Decor layers are included because props (barrels, wells, furniture) are
+	# solid objects, not paint — leaving them out let the player walk through
+	# every crate in a settlement.
+	for layer: TileMapLayer in [foliage, terrain_features, structures_exterior,
+			decor_exterior, decor_interior]:
 		if not _band_walkable(layer, pos):
 			return false
 
