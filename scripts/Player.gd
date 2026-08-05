@@ -28,6 +28,10 @@ extends CharacterBody2D
 ## turns per player turn.
 @export var speed: int = 100
 
+## Right-click menu, preloaded rather than referenced by class name so the
+## script resolves even before Godot has rescanned for global classes.
+const ContextMenuUI := preload("res://scripts/context_menu.gd")
+
 # ── Scene references ─────────────────────────────────────────────────────
 # The cross-scene ones are deliberately untyped: they are reached by path and
 # resolved dynamically, so a missing node degrades to null instead of failing
@@ -52,6 +56,9 @@ var _nav_path: Array[Vector2i] = []
 ## Thing to interact with once the active route finishes — set when the player
 ## clicks a chest or a dropped item that is too far away to reach right now.
 var _pending_interaction: Node = null
+## What to do with `_pending_interaction` on arrival. See ContextMenu's actions;
+## a plain left click uses the default "interact".
+var _pending_action: StringName = &"interact"
 ## Tween that slides the visual sprite into the tile the body already moved to.
 var _slide_tween: Tween = null
 
@@ -155,6 +162,7 @@ func _ready() -> void:
 
 	_initialize_inventory()
 	_setup_inventory_screen()
+	_setup_context_menu()
 	_refresh_hud_bars()
 
 	# The world map computes its bounds in its own _ready(), and the Player
@@ -232,8 +240,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				navigate_to(get_global_mouse_position())
 			get_viewport().set_input_as_handled()
-		elif event.button_index == MOUSE_BUTTON_RIGHT and _is_aiming:
-			_exit_targeting_mode()
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			if _is_aiming:
+				_exit_targeting_mode()
+			else:
+				_open_context_menu(get_global_mouse_position())
 			get_viewport().set_input_as_handled()
 		return
 
@@ -442,6 +453,7 @@ func click_to_interact(world_pos: Vector2) -> bool:
 	cancel_navigation()
 	_nav_path = route.slice(1)
 	_pending_interaction = target
+	_pending_action = &"interact"
 	path_overlay.set_nav_destination(tile_to_world(tile))
 	return true
 
@@ -507,12 +519,177 @@ func interact_with(target: Node) -> bool:
 ## stopped short, so both are re-checked rather than assumed.
 func _resolve_pending_interaction() -> void:
 	var target := _pending_interaction
+	var action := _pending_action
 	_pending_interaction = null
+	_pending_action = &"interact"
 	if not is_instance_valid(target):
 		return
 	if not _tile_within_reach(_tile_of(target)):
 		return
-	interact_with(target)
+	_perform_target_action(target, action)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  CONTEXT MENU
+#
+#  Right-clicking anything the player can act on offers the things that can
+#  be done with it. Choosing one walks there first if it is out of reach, so
+#  the menu never has to care how far away its target is.
+# ═══════════════════════════════════════════════════════════════════════
+
+var _context_menu: ContextMenuUI = null
+var _attack_confirm: ConfirmationDialog = null
+## Who the open attack confirmation refers to.
+var _confirm_target: Node = null
+
+
+func _setup_context_menu() -> void:
+	if hud == null:
+		return
+	_context_menu = ContextMenuUI.new()
+	hud.add_child(_context_menu)
+	_context_menu.action_chosen.connect(_on_context_action)
+
+
+## Right-click: offer whatever can be done with the thing under the cursor.
+func _open_context_menu(world_pos: Vector2) -> void:
+	if _context_menu == null:
+		return
+	var target := _target_at(world_to_tile(world_pos))
+	if target == null:
+		return
+	_context_menu.open_for(target, get_viewport().get_mouse_position())
+
+
+## What a click on `tile` refers to: an actor first (it is standing on top of
+## everything else), then a container, then an item lying on the floor.
+func _target_at(tile: Vector2i) -> Node:
+	var occupant: Node2D = TurnManager.actor_at(tile)
+	if occupant != null and occupant != self:
+		return occupant
+	return interactable_at(tile)
+
+
+func _on_context_action(action: StringName, target: Node) -> void:
+	if not is_instance_valid(target):
+		return
+	match action:
+		ContextMenuUI.ACTION_INSPECT:
+			_inspect(target)
+		ContextMenuUI.ACTION_ATTACK:
+			_confirm_attack(target)
+		_:
+			_approach_and(target, action)
+
+
+## Walk to `target` if it is out of reach and do `action` on arrival, or do it
+## right now if the player is already standing next to it.
+func _approach_and(target: Node, action: StringName) -> void:
+	if not can_act():
+		return
+	var tile := _tile_of(target)
+	if _tile_within_reach(tile):
+		cancel_navigation()
+		_perform_target_action(target, action)
+		return
+	if path_overlay == null:
+		return
+	# Actors and containers both occupy their tile, so the route stops beside it.
+	var route: Array[Vector2i] = path_overlay.get_tile_path_adjacent(global_position, tile)
+	if route.size() < 2:
+		TurnManager.log_message("You can't reach that.", "info")
+		return
+	cancel_navigation()
+	_nav_path = route.slice(1)
+	_pending_interaction = target
+	_pending_action = action
+	path_overlay.set_nav_destination(tile_to_world(tile))
+
+
+## Do one context-menu action on something already in reach.
+func _perform_target_action(target: Node, action: StringName) -> void:
+	match action:
+		ContextMenuUI.ACTION_TALK:
+			_talk_to(target as NPC)
+		ContextMenuUI.ACTION_ATTACK:
+			if not can_act():
+				return
+			_face(_tile_of(target) - get_current_tile())
+			attack(target as Node2D)
+		_:
+			interact_with(target)
+
+
+## Open dialogue with an adjacent NPC.
+func _talk_to(npc: NPC) -> void:
+	if npc == null or not can_act():
+		return
+	if not npc.can_interact():
+		TurnManager.log_message("%s has nothing to say." % _target_label(npc), "info")
+		return
+	_interact_with_npc(npc)
+
+
+## Attacking someone who is not already fighting you is the kind of thing you
+## only do on purpose, so it asks first.
+func _confirm_attack(target: Node) -> void:
+	if is_hostile(target):
+		_approach_and(target, ContextMenuUI.ACTION_ATTACK)
+		return
+	if _attack_confirm == null:
+		_attack_confirm = ConfirmationDialog.new()
+		_attack_confirm.title = "Attack"
+		_attack_confirm.ok_button_text = "Attack"
+		_attack_confirm.process_mode = Node.PROCESS_MODE_ALWAYS
+		_attack_confirm.confirmed.connect(_on_attack_confirmed)
+		hud.add_child(_attack_confirm)
+	_confirm_target = target
+	_attack_confirm.dialog_text = "Attack %s?" % _target_label(target)
+	_attack_confirm.popup_centered()
+
+
+func _on_attack_confirmed() -> void:
+	var target := _confirm_target
+	_confirm_target = null
+	if is_instance_valid(target):
+		_approach_and(target, ContextMenuUI.ACTION_ATTACK)
+
+
+## Look at something. Free — a glance costs no turn.
+func _inspect(target: Node) -> void:
+	TurnManager.log_message(_describe(target), "info")
+
+
+## Placeholder flavour text. Real per-entity descriptions come later.
+func _describe(target: Node) -> String:
+	if target is NPC:
+		var npc: NPC = target
+		if not npc.is_alive():
+			return "The corpse of %s." % _target_label(npc)
+		var type_name: String = MainGameState.NpcType.keys()[npc.npc_type].to_lower()
+		return "%s, a %s of the %s. They look ordinary enough." \
+			% [_target_label(npc).capitalize(), type_name, npc.faction.to_lower()]
+	if target is ItemContainer:
+		return "A %s. There is no telling what is inside until you open it." \
+			% (target as ItemContainer).container_label.to_lower()
+	if target is WorldItem:
+		var world_item: WorldItem = target
+		if world_item.item_resource and world_item.item_resource.description != "":
+			return world_item.item_resource.description
+		return "%s, lying on the ground." % world_item.get_description()
+	return "You see nothing special."
+
+
+## Short name for messages and prompts.
+func _target_label(target: Node) -> String:
+	if target is NPC:
+		var npc: NPC = target
+		return npc.npc_name if npc.npc_name != "" else "the stranger"
+	if target is ItemContainer:
+		return (target as ItemContainer).container_label.to_lower()
+	if target is WorldItem:
+		return (target as WorldItem).get_description()
+	return String(target.name)
 
 
 ## Walk the next tile of the active route, re-checking as it goes so a route
@@ -532,6 +709,7 @@ func _advance_route() -> void:
 func cancel_navigation() -> void:
 	_nav_path.clear()
 	_pending_interaction = null
+	_pending_action = &"interact"
 	if path_overlay:
 		path_overlay.clear_nav_destination()
 
@@ -566,7 +744,9 @@ func _update_path_preview() -> void:
 func _is_ui_open() -> bool:
 	return (inventory_screen != null and inventory_screen.visible) \
 		or (spell_book_screen != null and spell_book_screen.visible) \
-		or (trade_screen != null and trade_screen.visible)
+		or (trade_screen != null and trade_screen.visible) \
+		or (_context_menu != null and _context_menu.visible) \
+		or (_attack_confirm != null and _attack_confirm.visible)
 
 
 ## Fired once per resolved turn. Tick anything measured in turns, and abandon

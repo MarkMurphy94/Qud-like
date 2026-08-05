@@ -1227,7 +1227,14 @@ func _on_interact_radius_body_exited(body: Node2D) -> void:
 
 func can_interact() -> bool:
 	"""Check if this NPC can currently be interacted with"""
-	return player_in_interact_range and state != NPCState.DEAD and not is_interacting
+	if state == NPCState.DEAD or is_interacting:
+		return false
+	if player_in_interact_range:
+		return true
+	# The interact_radius Area2D only reports other *areas*, and the player is a
+	# plain body — so standing next to someone is measured directly instead.
+	return player_reference != null and is_instance_valid(player_reference) \
+		and global_position.distance_to(player_reference.global_position) <= interaction_range
 
 func get_interaction_priority() -> float:
 	"""Returns a priority value for interaction selection (lower is higher priority)
