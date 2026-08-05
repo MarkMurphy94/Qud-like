@@ -55,6 +55,17 @@ var _pending_interaction: Node = null
 ## Tween that slides the visual sprite into the tile the body already moved to.
 var _slide_tween: Tween = null
 
+# ── Camera panning ───────────────────────────────────────────────────────
+## Holding the middle mouse button drags the view around the map, the way a
+## paper map is shoved across a table. Letting go leaves the view where it was
+## dragged — a left click is what brings it back to the player.
+var _is_panning: bool = false
+## Current camera displacement from the player, in world pixels.
+var _pan_offset: Vector2 = Vector2.ZERO
+var _pan_recenter_tween: Tween = null
+## How long the camera takes to glide back to the player on release.
+const PAN_RECENTER_DURATION: float = 0.15
+
 ## Tiles searched for something to interact with, nearest first: the one the
 ## player stands on, then the four cardinal neighbours. Reaching diagonally
 ## would let the player open a chest through a wall corner.
@@ -172,6 +183,7 @@ func _enter_world() -> void:
 
 func _process(_delta: float) -> void:
 	_update_path_preview()
+	_keep_pan_in_bounds()
 
 	if Input.is_action_just_pressed("ui_inventory"):
 		_toggle_inventory_screen()
@@ -194,8 +206,21 @@ func _physics_process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# Reaching _unhandled_input already means no Control consumed the event,
 	# so clicks that land on the HUD never get here.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		_set_panning(event.pressed)
+		get_viewport().set_input_as_handled()
+		return
+
+	if _is_panning and event is InputEventMouseMotion:
+		_pan_camera((event as InputEventMouseMotion).relative)
+		get_viewport().set_input_as_handled()
+		return
+
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
+			# Any left click ends a look-around and brings the view home first,
+			# so the click always acts on a view centred on the player.
+			_recenter_camera()
 			if _is_aiming:
 				_fire_pending_spell(get_global_mouse_position())
 				_exit_targeting_mode()
@@ -525,12 +550,12 @@ func rebuild_nav_grid() -> void:
 func _update_path_preview() -> void:
 	if path_overlay == null:
 		return
-	path_overlay.set_preview_suppressed(TurnManager.resolving)
-	if _is_aiming or _is_ui_open() or get_viewport().gui_get_hovered_control() != null:
+	path_overlay.set_preview_suppressed(TurnManager.resolving or _is_panning)
+	if _is_aiming or _is_panning or _is_ui_open() or get_viewport().gui_get_hovered_control() != null:
 		path_overlay.clear_preview()
 		path_overlay.set_interact_hover(PointAndClickPath.NO_TILE)
 		return
-	if not TurnManager.resolving:
+	if not TurnManager.resolving and not _is_panning:
 		var mouse := get_global_mouse_position()
 		var hovered := world_to_tile(mouse)
 		path_overlay.set_interact_hover(
@@ -597,6 +622,14 @@ func snap_to_grid() -> void:
 	if _slide_tween:
 		_slide_tween.kill()
 		_slide_tween = null
+	# Entering a new map with a stale pan offset would drop the player off-screen.
+	_is_panning = false
+	if _pan_recenter_tween:
+		_pan_recenter_tween.kill()
+		_pan_recenter_tween = null
+	_pan_offset = Vector2.ZERO
+	if camera:
+		camera.offset = Vector2.ZERO
 	if sprite:
 		sprite.global_position = global_position
 	if animated_sprite:
@@ -612,6 +645,90 @@ func update_camera_limits() -> void:
 	camera.limit_top = int(extent.position.y)
 	camera.limit_right = int(extent.end.x)
 	camera.limit_bottom = int(extent.end.y)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  CAMERA PANNING
+# ═══════════════════════════════════════════════════════════════════════
+
+## Start or stop a middle-mouse drag. The view stays where it was dragged
+## after the button comes up; only a left click recentres it.
+func _set_panning(active: bool) -> void:
+	if camera == null or _is_panning == active:
+		return
+	_is_panning = active
+	if active:
+		if _pan_recenter_tween:
+			_pan_recenter_tween.kill()
+			_pan_recenter_tween = null
+		_pan_offset = camera.offset
+
+
+## Drag the view by `screen_delta` (mouse movement in screen pixels). The view
+## moves opposite to the drag so the map follows the cursor.
+func _pan_camera(screen_delta: Vector2) -> void:
+	if camera == null:
+		return
+	var zoom: Vector2 = camera.zoom
+	var world_delta := Vector2(
+		screen_delta.x / (zoom.x if zoom.x != 0.0 else 1.0),
+		screen_delta.y / (zoom.y if zoom.y != 0.0 else 1.0))
+	_pan_offset -= world_delta
+	_clamp_pan_offset()
+	camera.offset = _pan_offset
+
+
+## Keep the panned view inside the map. Camera2D's limits clamp where the
+## camera sits, but `offset` is applied on top of them and is free to wander
+## off the map, so the pan is clamped by hand — against the visible rectangle,
+## not the view centre, so no void is ever shown past an edge.
+func _clamp_pan_offset() -> void:
+	if camera == null or world_map == null:
+		return
+	var extent: Rect2 = world_map.bounds_px()
+	var half: Vector2 = get_viewport_rect().size / camera.zoom * 0.5
+	var min_centre := extent.position + half
+	var max_centre := extent.end - half
+	# A map smaller than the window can only ever sit centred.
+	var map_centre := extent.get_center()
+	if min_centre.x > max_centre.x:
+		min_centre.x = map_centre.x
+		max_centre.x = map_centre.x
+	if min_centre.y > max_centre.y:
+		min_centre.y = map_centre.y
+		max_centre.y = map_centre.y
+	# Measure from where the unpanned view actually is — the camera's limits have
+	# already pulled it inside the map when the player stands near an edge.
+	var base := Vector2(
+		clampf(global_position.x, min_centre.x, max_centre.x),
+		clampf(global_position.y, min_centre.y, max_centre.y))
+	var centre := base + _pan_offset
+	centre.x = clampf(centre.x, min_centre.x, max_centre.x)
+	centre.y = clampf(centre.y, min_centre.y, max_centre.y)
+	_pan_offset = centre - base
+
+
+## Re-clamp a held pan as the player walks or the window resizes, so the view
+## cannot drift off the map without the mouse moving.
+func _keep_pan_in_bounds() -> void:
+	if camera == null or _pan_offset == Vector2.ZERO:
+		return
+	_clamp_pan_offset()
+	camera.offset = _pan_offset
+
+
+## Slide the camera back onto the player.
+func _recenter_camera() -> void:
+	if camera == null:
+		return
+	if _pan_offset == Vector2.ZERO and camera.offset == Vector2.ZERO:
+		return
+	if _pan_recenter_tween:
+		_pan_recenter_tween.kill()
+	_pan_offset = Vector2.ZERO
+	_pan_recenter_tween = create_tween()
+	_pan_recenter_tween.tween_property(camera, "offset", Vector2.ZERO,
+		PAN_RECENTER_DURATION).set_trans(Tween.TRANS_SINE)
 
 
 # ═══════════════════════════════════════════════════════════════════════
