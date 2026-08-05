@@ -17,6 +17,11 @@ const Layout := preload("res://resources/tileset_layout.gd")
 @onready var forests: TileMapLayer = $forests
 @onready var mountains: TileMapLayer = $mountains
 @onready var locations: TileMapLayer = $locations
+## Political division of the map into faction territory. Grown from the
+## settlement icons on `locations` — see scripts/alternate_mode/province_map.gd.
+## Untyped like the other cross-script references in this project, so the map
+## still loads if the node is missing or its script has not been scanned yet.
+@onready var provinces = get_node_or_null("provinces")
 
 ## Tile categories that block movement when painted on the base layer.
 const BLOCKING_BASE_CATEGORIES: Array[String] = ["liquid"]
@@ -35,6 +40,10 @@ func _ready() -> void:
 	var tile_set: TileSet = base.tile_set
 	if tile_set:
 		_category_layer = tile_set.get_custom_data_layer_by_name("category")
+	# Provinces are grown from this map, so they can only be built once the
+	# bounds and the category lookup above are in place.
+	if provinces:
+		provinces.build(self)
 
 
 ## Merge the used-rects of every layer so the bounds always cover what is
@@ -145,6 +154,13 @@ func biome_at(tile: Vector2i) -> String:
 ## True when a settlement / point-of-interest marker sits on this tile.
 func has_location(tile: Vector2i) -> bool:
 	return locations.get_cell_source_id(tile) != -1
+
+
+## Which province holds this tile (ProvinceMap.NO_PROVINCE for sea and void).
+func province_at(tile: Vector2i) -> int:
+	if provinces == null:
+		return -1
+	return int(provinces.province_at(tile))
 
 
 ## Land tile = painted base ground that is not liquid. Mountains and forests

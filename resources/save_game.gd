@@ -52,6 +52,13 @@ const MAX_SLOTS := 10
 # ─── Settlement runtime state (MainGameState.settlements snapshot) ─────
 @export var settlements_data: Dictionary = {}
 
+# ─── Province ownership ────────────────────────────────────────────────
+# Province *shapes* are grown deterministically from the settlements painted on
+# the world map (see ProvinceMap), so they are rebuilt on load rather than
+# stored. Who holds each one is the only part play can change.
+## Key = province id as a String.  Value = faction id.
+@export var province_ownership: Dictionary = {}
+
 # ─── Local area the player was in when they saved (empty = overworld) ──
 @export var local_area_metadata: Dictionary = {}
 @export var local_area_settlement_path: String = ""

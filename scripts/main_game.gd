@@ -30,6 +30,9 @@ var area_picked_up_items: Dictionary = {}
 var area_container_state: Dictionary = {}
 var _play_timer: float = 0.0        ## Accumulated play-time for the current session
 var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = none)
+## Province the player was last known to be standing in, so entering a new one
+## can be announced once instead of every turn. See _announce_province_change().
+var _last_province: int = -1
 
 # ═══════════════════════════════════════════════════════════════════════
 #  LIFECYCLE
@@ -44,12 +47,19 @@ func _ready() -> void:
 		local_scene.visible = false
 	_spawn_message_log()
 	create_or_load_save()
+	TurnManager.turn_resolved.connect(_on_turn_resolved)
 	# Check if the main menu requested we load a specific slot
 	if MainGameState.has_meta("pending_load_slot"):
 		var slot: int = MainGameState.get_meta("pending_load_slot")
 		MainGameState.remove_meta("pending_load_slot")
 		# Defer so the scene tree is fully set up first
 		call_deferred("load_game_from_slot", slot)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_provinces"):
+		_toggle_province_overlay()
+		get_viewport().set_input_as_handled()
 
 ## The turn log lives with the game scene rather than as an autoload so it dies
 ## with the run and never overlaps the main menu.
@@ -62,6 +72,44 @@ func _spawn_message_log() -> void:
 
 func _process(delta: float) -> void:
 	_play_timer += delta
+
+# ═══════════════════════════════════════════════════════════════════════
+#  PROVINCES
+# ═══════════════════════════════════════════════════════════════════════
+
+## The overworld's political map, or null in scene layouts that have none.
+func province_map():
+	return world_map.get_node_or_null("provinces") if world_map else null
+
+
+func _toggle_province_overlay() -> void:
+	var provinces = province_map()
+	if provinces == null:
+		return
+	var shown := bool(provinces.toggle_overlay())
+	TurnManager.log_message("Political map %s." % ("shown" if shown else "hidden"), "info")
+
+
+## Name the territory the player walks into. Driven off resolved turns rather
+## than a per-frame position check, because that is the only time the player's
+## tile can have changed.
+func _on_turn_resolved(_world_time: int) -> void:
+	_announce_province_change()
+
+
+func _announce_province_change() -> void:
+	var provinces = province_map()
+	if provinces == null or player == null or player.in_local_area:
+		return
+	var current := int(provinces.province_at(world_map.world_to_tile(player.global_position)))
+	if current == _last_province:
+		return
+	_last_province = current
+	var province = provinces.get_province(current)
+	if province == null:
+		return
+	var holder: String = "" if province.faction == "unclaimed" else " (%s)" % province.faction
+	TurnManager.log_message("You enter %s%s." % [province.display_name, holder], "info")
 
 # ═══════════════════════════════════════════════════════════════════════
 #  DETERMINISTIC SEED
@@ -299,6 +347,11 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 
 	# ── Settlements ────────────────────────────────────────────
 	_save.settlements_data = MainGameState.settlements.duplicate(true)
+	# ── Province ownership ─────────────────────────────────────
+	# Only who holds what: the borders themselves are regrown on load.
+	var provinces = province_map()
+	if provinces:
+		_save.province_ownership = provinces.ownership_dict()
 	# ── Overworld tile seeds ─────────────────────────────────
 	_save.overworld_tile_seeds.clear()
 	for tile: Vector2i in overworld_tile_seeds:
@@ -350,6 +403,14 @@ func load_game_from_slot(slot: int) -> bool:
 	# ── Settlements ────────────────────────────────────────────
 	if not _save.settlements_data.is_empty():
 		MainGameState.settlements = _save.settlements_data.duplicate(true)
+
+	# ── Province ownership ─────────────────────────────────────
+	# The provinces were already grown from the map when world_map entered the
+	# tree; this only hands them back to their owners.
+	var provinces = province_map()
+	if provinces and not _save.province_ownership.is_empty():
+		provinces.apply_ownership(_save.province_ownership)
+	_last_province = -1
 
 	# ── Item pickup records ─────────────────────────────────────
 	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
