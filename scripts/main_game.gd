@@ -108,7 +108,7 @@ func _announce_province_change() -> void:
 	var province = provinces.get_province(current)
 	if province == null:
 		return
-	var holder: String = "" if province.faction == "unclaimed" else " (%s)" % province.faction
+	var holder: String = "" if province.ruling_faction == "unclaimed" else " (%s)" % province.ruling_faction
 	TurnManager.log_message("You enter %s%s." % [province.display_name, holder], "info")
 
 # ═══════════════════════════════════════════════════════════════════════

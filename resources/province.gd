@@ -41,7 +41,7 @@ class_name Province
 ## Who holds it. A plain string rather than an enum so new factions are content,
 ## not a script change. This is the one field that changes during play, and so
 ## the only one the save file carries.
-@export var faction: String = "unclaimed"
+@export var ruling_faction: String = "unclaimed"
 
 ## Overlay colour. Alpha is ignored — ProvinceMap supplies it, using a stronger
 ## value on border tiles so provinces read as outlined regions.

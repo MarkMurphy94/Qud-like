@@ -340,7 +340,7 @@ func province_for_tile(tile: Vector2i) -> ProvinceDef:
 ## The faction holding a tile, or "" where nobody does.
 func faction_at(tile: Vector2i) -> String:
 	var province := province_for_tile(tile)
-	return province.faction if province else ""
+	return province.ruling_faction if province else ""
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -350,7 +350,7 @@ func faction_at(tile: Vector2i) -> String:
 func set_faction(id: int, faction: String) -> void:
 	var province := get_province(id)
 	if province:
-		province.faction = faction
+		province.ruling_faction = faction
 
 
 ## Snapshot for the save file: province id (as a String key, because that is
@@ -358,7 +358,7 @@ func set_faction(id: int, faction: String) -> void:
 func ownership_dict() -> Dictionary:
 	var out: Dictionary = {}
 	for province in provinces:
-		out[str(province.id)] = province.faction
+		out[str(province.id)] = province.ruling_faction
 	return out
 
 
@@ -366,7 +366,7 @@ func apply_ownership(data: Dictionary) -> void:
 	for key: String in data:
 		var province := get_province(int(key))
 		if province:
-			province.faction = str(data[key])
+			province.ruling_faction = str(data[key])
 
 
 # ═══════════════════════════════════════════════════════════════════════
