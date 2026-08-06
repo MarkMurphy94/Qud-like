@@ -646,6 +646,8 @@ func set_sprite():
 	if profile.is_empty():
 		return
 	
+	# _apply_faction_recolor(profile)
+	
 	var coords: Vector2i = profile.get("sprite_atlas_coords", SPRITE_TODO)
 	if coords == SPRITE_TODO:
 		push_warning("NPC type %s variant '%s' has no roguelike sheet coords yet" % [npc_type, npc_variant])
@@ -660,6 +662,17 @@ func set_sprite():
 		Vector2(coords * Layout.TILE_SIZE),
 		Vector2(Layout.TILE_SIZE, Layout.TILE_SIZE)
 	)
+
+## Several variants share one cell of the master sheet, so faction is told apart
+## by hue-swapping the sprite's cloth rather than by separate art. Runs after
+## apply_type_profile(), which is what resolves `faction`. A profile may name its
+## own `recolor_hue_window` when its art keeps cloth in an unusual hue; factions
+## with no palette entry get a null material and are drawn exactly as before.
+func _apply_faction_recolor(profile: Dictionary) -> void:
+	if npc_sprite == null:
+		return
+	var window: Vector2 = profile.get("recolor_hue_window", FactionPalette.DEFAULT_HUE_WINDOW)
+	npc_sprite.material = FactionPalette.material_for(faction, window)
 
 func _enter_state(s: int):
 	match s:
