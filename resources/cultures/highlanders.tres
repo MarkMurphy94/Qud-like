@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://pe52alx1r0rg"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_culture"]
+
+[resource]
+script = ExtResource("1_culture")
+display_name = "Highlanders"
+culture_id = "highlander"
+origin_tile = Vector2i(34, 19)
+spread = 60
+color = Color(0.47, 0.63, 0.78, 1)
+description = "Clans of the northern range. Low reach on purpose — being a highlander stops meaning anything past the foot of the mountains, so their border is the mountains."
+traits = {
+"architecture": "stone_longhouse",
+"faith": "the_old_stones",
+"hospitality": "obligated"
+}

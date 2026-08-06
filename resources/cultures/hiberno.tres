@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://dyi78b8fyar5m"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_j2xgk"]
+
+[resource]
+script = ExtResource("1_j2xgk")
+display_name = "Hiberns"
+culture_id = "5"
+origin_tile = Vector2i(24, 26)
+spread = 70
+color = Color(0.40392157, 0.72156864, 0.37254903, 1)
+metadata/_custom_type_script = "uid://cx64eymxo8cxf"

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://ctbyyfax2lbkx"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_reqrm"]
+
+[resource]
+script = ExtResource("1_reqrm")
+display_name = "Sinzheim"
+culture_id = "sinzheim"
+origin_tile = Vector2i(84, 46)
+spread = 60
+color = Color(0.7019608, 0.5882353, 0.25882354, 1)
+metadata/_custom_type_script = "uid://cx64eymxo8cxf"

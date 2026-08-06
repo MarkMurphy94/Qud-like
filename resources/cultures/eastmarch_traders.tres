@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Culture" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/culture.gd" id="1_culture"]
+
+[resource]
+script = ExtResource("1_culture")
+display_name = "Eastmarch Traders"
+culture_id = "eastmarch"
+origin_tile = Vector2i(109, 35)
+spread = 160
+color = Color(0.78, 0.45, 0.62, 1)
+description = "Coast-and-caravan people of the eastern reaches. High reach: they follow the trade roads far past anywhere they could be said to be from."
+traits = {
+"architecture": "tiled_courtyard",
+"faith": "the_ledger",
+"hospitality": "transactional"
+}

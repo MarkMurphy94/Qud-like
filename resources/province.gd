@@ -34,19 +34,10 @@ class_name Province
 ## Shown to the player ("You enter Varmark").
 @export var display_name: String = ""
 
-## The settlement this province grew from. For an override .tres this is the
-## *key*: it is how the definition finds the province it belongs to.
 @export var capital_tile: Vector2i = Vector2i.ZERO
 
-## Who holds it. A plain string rather than an enum so new factions are content,
-## not a script change. This is the one field that changes during play, and so
-## the only one the save file carries.
 @export var ruling_faction: String = "unclaimed"
 
-## Overlay colour. Alpha is ignored — ProvinceMap supplies it, using a stronger
-## value on border tiles so provinces read as outlined regions.
 @export var color: Color = Color.WHITE
 
-## Tiles the province ended up with. Filled in at build time; useful for area
-## checks and for anything that wants to scatter something across a territory.
 var tile_count: int = 0

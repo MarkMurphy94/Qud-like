@@ -33,6 +33,8 @@ var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = n
 ## Province the player was last known to be standing in, so entering a new one
 ## can be announced once instead of every turn. See _announce_province_change().
 var _last_province: int = -1
+## Same, for the people whose land the player is walking through.
+var _last_culture: int = -1
 
 # ═══════════════════════════════════════════════════════════════════════
 #  LIFECYCLE
@@ -60,6 +62,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_provinces"):
 		_toggle_province_overlay()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("toggle_cultures"):
+		_toggle_culture_overlay()
+		get_viewport().set_input_as_handled()
 
 ## The turn log lives with the game scene rather than as an autoload so it dies
 ## with the run and never overlaps the main menu.
@@ -74,12 +79,17 @@ func _process(delta: float) -> void:
 	_play_timer += delta
 
 # ═══════════════════════════════════════════════════════════════════════
-#  PROVINCES
+#  PROVINCES AND CULTURES
 # ═══════════════════════════════════════════════════════════════════════
 
 ## The overworld's political map, or null in scene layouts that have none.
 func province_map():
 	return world_map.get_node_or_null("provinces") if world_map else null
+
+
+## The overworld's map of peoples, or null in scene layouts that have none.
+func culture_map():
+	return world_map.get_node_or_null("cultures") if world_map else null
 
 
 func _toggle_province_overlay() -> void:
@@ -90,11 +100,20 @@ func _toggle_province_overlay() -> void:
 	TurnManager.log_message("Political map %s." % ("shown" if shown else "hidden"), "info")
 
 
+func _toggle_culture_overlay() -> void:
+	var cultures = culture_map()
+	if cultures == null:
+		return
+	var shown := bool(cultures.toggle_overlay())
+	TurnManager.log_message("Culture map %s." % ("shown" if shown else "hidden"), "info")
+
+
 ## Name the territory the player walks into. Driven off resolved turns rather
 ## than a per-frame position check, because that is the only time the player's
 ## tile can have changed.
 func _on_turn_resolved(_world_time: int) -> void:
 	_announce_province_change()
+	_announce_culture_change()
 
 
 func _announce_province_change() -> void:
@@ -110,6 +129,22 @@ func _announce_province_change() -> void:
 		return
 	var holder: String = "" if province.ruling_faction == "unclaimed" else " (%s)" % province.ruling_faction
 	TurnManager.log_message("You enter %s%s." % [province.display_name, holder], "info")
+
+
+## Name the people whose land the player crosses into. Separate from the
+## province announcement because the two borders deliberately do not line up.
+func _announce_culture_change() -> void:
+	var cultures = culture_map()
+	if cultures == null or player == null or player.in_local_area:
+		return
+	var current := int(cultures.culture_at(world_map.world_to_tile(player.global_position)))
+	if current == _last_culture:
+		return
+	_last_culture = current
+	var culture = cultures.get_culture(current)
+	if culture == null:
+		return
+	TurnManager.log_message("This is %s country." % culture.display_name, "info")
 
 # ═══════════════════════════════════════════════════════════════════════
 #  DETERMINISTIC SEED

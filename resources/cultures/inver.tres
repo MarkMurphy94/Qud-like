@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://byghpsmsrmadc"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_alydv"]
+
+[resource]
+script = ExtResource("1_alydv")
+display_name = "Inver"
+culture_id = "inver"
+origin_tile = Vector2i(43, 16)
+spread = 80
+color = Color(0.5686275, 0.5686275, 0.5686275, 1)
+metadata/_custom_type_script = "uid://cx64eymxo8cxf"

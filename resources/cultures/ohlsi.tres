@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://467u2tumdhrx"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_qv2aa"]
+
+[resource]
+script = ExtResource("1_qv2aa")
+display_name = "Ohlsi"
+culture_id = "ohlsi"
+origin_tile = Vector2i(113, 38)
+spread = 40
+color = Color(0.70096, 0.5304, 0.78, 1)
+metadata/_custom_type_script = "uid://cx64eymxo8cxf"

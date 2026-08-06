@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://com3bbgwlfeoh"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_culture"]
+
+[resource]
+script = ExtResource("1_culture")
+display_name = "Southfolk"
+culture_id = "southfolk"
+origin_tile = Vector2i(54, 87)
+spread = 70
+color = Color(0.6837542, 0.6763926, 0.45503914, 1)
+description = "Fen and river people of the southern lowlands. They keep to the water and consider anyone who lives out of sight of it to be lost."
+traits = {
+"architecture": "stilted_timber",
+"faith": "the_drowned_saints",
+"hospitality": "open"
+}

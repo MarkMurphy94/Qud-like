@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://b02nbtpgn21r3"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_culture"]
+
+[resource]
+script = ExtResource("1_culture")
+display_name = "Midlanders"
+culture_id = "midlander"
+origin_tile = Vector2i(32, 32)
+spread = 120
+color = Color(0.5803922, 0, 0, 1)
+description = "Farmers and townsfolk of the open central plains. Theirs is the tongue the roads are signed in, and they assume everyone else's is a dialect of it."
+traits = {
+"architecture": "temperate_medieval_village",
+"faith": "the_founders",
+"hospitality": "wary"
+}

@@ -3,6 +3,14 @@
 [ext_resource type="TileSet" uid="uid://cl85gl6rje07u" path="res://resources/the_roguelike.tres" id="1_mamx8"]
 [ext_resource type="Script" uid="uid://cny1pk1okfynu" path="res://scripts/alternate_mode/qud_like_world_map.gd" id="1_w72x0"]
 [ext_resource type="Script" uid="uid://d0lf0trrr3lqb" path="res://scripts/alternate_mode/province_map.gd" id="2_prov0"]
+[ext_resource type="Script" uid="uid://dasuwcx0lmw2l" path="res://scripts/alternate_mode/culture_map.gd" id="3_cult0"]
+[ext_resource type="Resource" uid="uid://b02nbtpgn21r3" path="res://resources/cultures/midlanders.tres" id="4_cult1"]
+[ext_resource type="Resource" uid="uid://ctbyyfax2lbkx" path="res://resources/cultures/sinzheim.tres" id="7_ugq76"]
+[ext_resource type="Resource" uid="uid://c2jv847yyvbwh" path="res://resources/cultures/boucourte.tres" id="8_bku4g"]
+[ext_resource type="Resource" uid="uid://cgjh2fmoyas18" path="res://resources/cultures/skjurni.tres" id="9_1fbfi"]
+[ext_resource type="Resource" uid="uid://dyi78b8fyar5m" path="res://resources/cultures/hiberno.tres" id="9_n1k08"]
+[ext_resource type="Resource" uid="uid://467u2tumdhrx" path="res://resources/cultures/ohlsi.tres" id="10_f2qiv"]
+[ext_resource type="Resource" uid="uid://byghpsmsrmadc" path="res://resources/cultures/inver.tres" id="11_bku4g"]
 
 [node name="world_map" type="Node2D" unique_id=608102656]
 script = ExtResource("1_w72x0")
@@ -28,3 +36,8 @@ tile_set = ExtResource("1_mamx8")
 
 [node name="provinces" type="Node2D" parent="." unique_id=1722447836]
 script = ExtResource("2_prov0")
+
+[node name="cultures" type="Node2D" parent="." unique_id=1283403602]
+script = ExtResource("3_cult0")
+overlay_visible_on_start = true
+culture_defs = Array[Resource]([ExtResource("4_cult1"), ExtResource("9_n1k08"), ExtResource("7_ugq76"), ExtResource("8_bku4g"), ExtResource("9_1fbfi"), ExtResource("10_f2qiv"), ExtResource("11_bku4g")])

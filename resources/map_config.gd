@@ -100,7 +100,7 @@ enum TreeDensity {
 @export var map_name: String
 @export var biome: Biome = Biome.TEMPERATE
 @export var terrain: TerrainType = TerrainType.PLAINS
-@export var culture: Culture = Culture.MIDLANDS
+@export var culture: Culture 
 @export var map_type: MapType = MapType.NON_SETTLEMENT
 @export var important_npcs: Array[NPCConfig] = []
 @export var building_density: BuildingDensity = BuildingDensity.SMALL_VILLAGE

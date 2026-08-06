@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Culture" format=3 uid="uid://cgjh2fmoyas18"]
+
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="1_1v2ob"]
+
+[resource]
+script = ExtResource("1_1v2ob")
+display_name = "Skjurni"
+culture_id = "skjurni"
+origin_tile = Vector2i(88, 18)
+color = Color(0.116199985, 0.83, 0.83, 1)
+metadata/_custom_type_script = "uid://cx64eymxo8cxf"

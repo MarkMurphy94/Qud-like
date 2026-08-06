@@ -8,18 +8,13 @@ class_name ProvinceMap
 ## Nothing is painted by hand. Every settlement icon already on the world map's
 ## `locations` layer is taken as a provincial capital, and the land is handed
 ## out by a multi-source Dijkstra flood from all of them at once: a tile joins
-## whichever capital can reach it for the least travel effort.
+## whichever capital can reach it for the least travel effort. The flood itself
+## lives in scripts/alternate_mode/region_growth.gd, which cultures share — all
+## this script decides is where the seeds come from.
 ##
-## That single rule buys the two things a hand-drawn map is usually needed for:
-##   • Borders follow the terrain. Mountains and forest cost several times what
-##     open ground does, so the fill flows around a range rather than over it
-##     and the frontier settles on the ridge — which is where real borders sit.
-##   • The map stays editable. Move, add or delete a settlement icon and the
-##     provinces redraw themselves; there is no second map to keep in sync.
-##
-## The fill is deterministic (fixed seed order, fixed neighbour order, integer
-## costs), so it is recomputed on load rather than saved. Only `faction` — the
-## one thing play changes — goes into the save file, keyed by province id.
+## The fill is deterministic, so it is recomputed on load rather than saved.
+## Only `faction` — the one thing play changes — goes into the save file, keyed
+## by province id.
 ##
 ## USAGE
 ##   province_at(tile) -> int        province id, or NO_PROVINCE for sea/void
@@ -31,30 +26,14 @@ class_name ProvinceMap
 ## generated name / faction / colour. Everything else keeps its generated ones.
 
 const ProvinceDef := preload("res://resources/province.gd")
+const Growth = preload("res://scripts/alternate_mode/region_growth.gd")
 
 ## Returned by province_at() for water, unpainted void, and land no capital
 ## could reach (an island with no settlement on it).
-const NO_PROVINCE := -1
+const NO_PROVINCE := Growth.NO_REGION
 
-# ── Travel cost of entering a tile, in tenths of a plains step ───────────
-# The ratios are what shape the borders, not the absolute numbers. Forest is
-# expensive enough that a province stops at a large wood rather than absorbing
-# it whole; mountains are dear enough that a range almost always ends up as a
-# frontier, but not infinite — a ridge still belongs to somebody.
-const COST_PLAIN := 10
-const COST_FOREST := 18
-const COST_MOUNTAIN := 45
-## Marks a tile provinces cannot spread through at all (sea, void).
-const COST_IMPASSABLE := 0
-
-## Four-way, matching how the world is actually walked (the A* grid runs with
-## DIAGONAL_MODE_NEVER). Fixed order so the fill is reproducible.
-const NEIGHBOURS: Array[Vector2i] = [
-	Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0),
-]
-
-## Sentinel distance for "not reached yet".
-const UNREACHED := 0x7FFFFFFF
+## Above the culture overlay — with both up, borders should be what you read.
+const OVERLAY_Z := 100
 
 ## Tile category on the `locations` layer that counts as a settlement. That
 ## layer also carries roads (category "road"), which must not seed provinces.
@@ -90,19 +69,10 @@ var _origin: Vector2i = Vector2i.ZERO
 var _w: int = 0
 var _h: int = 0
 var _ids := PackedInt32Array()
-var _cost := PackedInt32Array()
 
 
 func _ready() -> void:
-	_overlay = Sprite2D.new()
-	_overlay.name = "overlay"
-	_overlay.centered = false
-	# One pixel per tile, blown up to tile size — so the political map must not
-	# be smoothed or every border would blur across its neighbours.
-	_overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	# Above the tile layers, which sit at the default z.
-	_overlay.z_index = 100
-	_overlay.visible = overlay_visible_on_start
+	_overlay = Growth.make_overlay_sprite(OVERLAY_Z, overlay_visible_on_start)
 	add_child(_overlay)
 
 
@@ -131,10 +101,11 @@ func build(map) -> void:
 		push_warning("[Provinces] No settlement icons on the locations layer — no capitals to grow from.")
 		return
 
-	_build_cost_field()
 	for i in capitals.size():
 		provinces.append(_make_province(i, capitals[i]))
-	_grow(capitals)
+	var cost := Growth.build_cost_field(map, _origin, _w, _h)
+	# Every capital pulls equally hard — hence the empty reach array.
+	_ids = Growth.grow(capitals, PackedInt32Array(), cost, _origin, _w, _h)
 	var claimed := _count_tiles()
 	refresh_overlay()
 
@@ -160,93 +131,6 @@ func _collect_capitals() -> Array[Vector2i]:
 	return out
 
 
-## One pass over the map turning terrain into travel cost, so the flood itself
-## never has to touch a tilemap again.
-func _build_cost_field() -> void:
-	_cost = PackedInt32Array()
-	_cost.resize(_w * _h)
-	var mountains: TileMapLayer = _world_map.mountains
-	var forests: TileMapLayer = _world_map.forests
-	for y in _h:
-		for x in _w:
-			var tile := _origin + Vector2i(x, y)
-			var value := COST_IMPASSABLE
-			if _world_map.is_land(tile):
-				if mountains.get_cell_source_id(tile) != -1:
-					value = COST_MOUNTAIN
-				elif forests.get_cell_source_id(tile) != -1:
-					value = COST_FOREST
-				else:
-					value = COST_PLAIN
-			_cost[y * _w + x] = value
-
-
-## Multi-source Dijkstra from every capital at once.
-##
-## The queue is a bucket queue rather than a heap: costs are small integers and
-## the frontier only ever moves outward, so "the cheapest tile still waiting"
-## is just the next non-empty bucket, and the scan over `cost` never rewinds.
-func _grow(capitals: Array[Vector2i]) -> void:
-	var cell_count := _w * _h
-	_ids.resize(cell_count)
-	_ids.fill(NO_PROVINCE)
-	var dist := PackedInt32Array()
-	dist.resize(cell_count)
-	dist.fill(UNREACHED)
-
-	var buckets: Dictionary = {}
-	for i in capitals.size():
-		var idx := _index(capitals[i])
-		dist[idx] = 0
-		_ids[idx] = i
-		_push(buckets, 0, idx)
-
-	var cost := 0
-	var max_cost := 0
-	while cost <= max_cost:
-		if not buckets.has(cost):
-			cost += 1
-			continue
-		var bucket: Array = buckets[cost]
-		buckets.erase(cost)
-		for idx: int in bucket:
-			# A cheaper route reached this tile after it was queued.
-			if dist[idx] != cost:
-				continue
-			var id := _ids[idx]
-			var x := idx % _w
-			var y := idx / _w
-			for dir: Vector2i in NEIGHBOURS:
-				var nx := x + dir.x
-				var ny := y + dir.y
-				if nx < 0 or ny < 0 or nx >= _w or ny >= _h:
-					continue
-				var n := ny * _w + nx
-				var step := _cost[n]
-				if step == COST_IMPASSABLE:
-					continue
-				var next_cost := cost + step
-				# `>=` keeps the first claimant on a tie, which is what makes
-				# the result depend only on capital order and not on timing.
-				if next_cost >= dist[n]:
-					continue
-				dist[n] = next_cost
-				_ids[n] = id
-				_push(buckets, next_cost, n)
-				if next_cost > max_cost:
-					max_cost = next_cost
-		cost += 1
-
-
-func _push(buckets: Dictionary, cost: int, idx: int) -> void:
-	# Untyped Array on purpose: it is a reference, so appending does not copy
-	# the bucket back into the dictionary the way a packed array would.
-	var bucket: Array = buckets.get(cost, [])
-	if bucket.is_empty():
-		buckets[cost] = bucket
-	bucket.append(idx)
-
-
 func _make_province(id: int, capital: Vector2i) -> ProvinceDef:
 	for def: Resource in province_defs:
 		if def is ProvinceDef and (def as ProvinceDef).capital_tile == capital:
@@ -270,11 +154,11 @@ func _make_province(id: int, capital: Vector2i) -> ProvinceDef:
 
 ## Tally each province's size, and report how much land was claimed in total.
 func _count_tiles() -> int:
+	var counts := Growth.count_tiles(_ids, provinces.size())
 	var claimed := 0
-	for id in _ids:
-		if id != NO_PROVINCE:
-			provinces[id].tile_count += 1
-			claimed += 1
+	for i in provinces.size():
+		provinces[i].tile_count = counts[i]
+		claimed += counts[i]
 	return claimed
 
 
@@ -304,7 +188,7 @@ func _generated_name(capital: Vector2i) -> String:
 ## Hues walked by the golden ratio, which spreads any number of neighbouring
 ## ids as far apart on the colour wheel as they can get.
 func _generated_color(id: int) -> Color:
-	return Color.from_hsv(fposmod(id * 0.6180339887, 1.0), 0.55, 0.95)
+	return Growth.generated_color(id)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -373,39 +257,15 @@ func apply_ownership(data: Dictionary) -> void:
 #  POLITICAL MAP OVERLAY
 # ═══════════════════════════════════════════════════════════════════════
 
-## Repaint the overlay from the current provinces. One pixel per tile, scaled
-## up to tile size, so the whole political map is a single texture instead of
-## thousands of draw calls.
+## Repaint the overlay from the current provinces.
 func refresh_overlay() -> void:
 	if _overlay == null or _ids.is_empty():
 		return
-	var image := Image.create_empty(_w, _h, false, Image.FORMAT_RGBA8)
-	image.fill(Color(0, 0, 0, 0))
-	for y in _h:
-		for x in _w:
-			var id := _ids[y * _w + x]
-			if id == NO_PROVINCE:
-				continue
-			var color: Color = provinces[id].color
-			color.a = border_alpha if _is_border(x, y, id) else overlay_alpha
-			image.set_pixel(x, y, color)
-	_overlay.texture = ImageTexture.create_from_image(image)
-
-	var rect: Rect2 = _world_map.bounds_px()
-	_overlay.position = rect.position
-	_overlay.scale = rect.size / Vector2(_w, _h)
-
-
-## Border = touches anything that is not this province, coastline included.
-func _is_border(x: int, y: int, id: int) -> bool:
-	for dir: Vector2i in NEIGHBOURS:
-		var nx := x + dir.x
-		var ny := y + dir.y
-		if nx < 0 or ny < 0 or nx >= _w or ny >= _h:
-			return true
-		if _ids[ny * _w + nx] != id:
-			return true
-	return false
+	var colors := PackedColorArray()
+	for province in provinces:
+		colors.append(province.color)
+	Growth.paint_overlay(_overlay, _ids, _w, _h, colors,
+		_world_map.bounds_px(), overlay_alpha, border_alpha)
 
 
 func is_overlay_visible() -> bool:

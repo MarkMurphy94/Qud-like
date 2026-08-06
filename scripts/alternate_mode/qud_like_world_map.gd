@@ -22,6 +22,9 @@ const Layout := preload("res://resources/tileset_layout.gd")
 ## Untyped like the other cross-script references in this project, so the map
 ## still loads if the node is missing or its script has not been scanned yet.
 @onready var provinces = get_node_or_null("provinces")
+## Division of the map into peoples. Grown the same way as provinces, but from
+## hand-authored homelands — see scripts/alternate_mode/culture_map.gd.
+@onready var cultures = get_node_or_null("cultures")
 
 ## Tile categories that block movement when painted on the base layer.
 const BLOCKING_BASE_CATEGORIES: Array[String] = ["liquid"]
@@ -41,9 +44,12 @@ func _ready() -> void:
 	if tile_set:
 		_category_layer = tile_set.get_custom_data_layer_by_name("category")
 	# Provinces are grown from this map, so they can only be built once the
-	# bounds and the category lookup above are in place.
+	# bounds and the category lookup above are in place. Cultures are grown the
+	# same way and have the same prerequisite.
 	if provinces:
 		provinces.build(self)
+	if cultures:
+		cultures.build(self)
 
 
 ## Merge the used-rects of every layer so the bounds always cover what is
@@ -161,6 +167,19 @@ func province_at(tile: Vector2i) -> int:
 	if provinces == null:
 		return -1
 	return int(provinces.province_at(tile))
+
+
+## Which culture lives on this tile (CultureMap.NO_CULTURE for sea and void).
+func culture_at(tile: Vector2i) -> int:
+	if cultures == null:
+		return -1
+	return int(cultures.culture_at(tile))
+
+
+func culture_id_at(tile: Vector2i) -> String:
+	if cultures == null:
+		return ""
+	return str(cultures.culture_id_at(tile))
 
 
 ## Land tile = painted base ground that is not liquid. Mountains and forests
