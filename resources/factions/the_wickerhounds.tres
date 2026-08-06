@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="Faction" format=3 uid="uid://duj8fpktyywlf"]
+
+[ext_resource type="Script" uid="uid://du68fji8l507p" path="res://resources/faction.gd" id="1_faction"]
+
+[resource]
+script = ExtResource("1_faction")
+display_name = "The Wickerhounds"
+faction_id = "the_wickerhounds"
+faction_type = 3
+seat_tile = Vector2i(28, 78)
+color = Color(0.42, 0.16, 0.14, 1)
+description = "Southern road-thieves who wear wicker masks so nobody can swear to a face in front of a magistrate. They rule nothing and never will, but four days' ride of the southern road pays them anyway."
+relations = {
+"house_vellier": -60,
+"the_ashen_banner": 15
+}
+traits = {
+"camp_name": "the Wicker Hollow",
+"tribute": "road_toll"
+}

@@ -4,8 +4,8 @@
 
 [resource]
 script = ExtResource("1_culture")
-display_name = "Midlanders"
-culture_id = "midlander"
+display_name = "Apton"
+culture_id = "apton"
 origin_tile = Vector2i(32, 32)
 spread = 120
 color = Color(0.5803922, 0, 0, 1)

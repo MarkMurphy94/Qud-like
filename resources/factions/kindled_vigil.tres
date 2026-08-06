@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Faction" format=3 uid="uid://bu4c72bkn7itb"]
+
+[ext_resource type="Script" uid="uid://du68fji8l507p" path="res://resources/faction.gd" id="1_faction"]
+
+[resource]
+script = ExtResource("1_faction")
+display_name = "Order of the Kindled Vigil"
+faction_id = "kindled_vigil"
+faction_type = 1
+color = Color(0.85, 0.7, 0.25, 1)
+starting_provinces = Array[Vector2i]([Vector2i(45, 47)])
+home_culture = "apton"
+description = "Keeps the founders' fires, keeps the roads' shrines, and keeps very good records. The Vigil rules one province and has a chapter house in every third village, which is the sort of arithmetic nobles notice too late."
+motto = "The flame is passed, never lit."
+relations = {
+"eastmarch_compact": -30,
+"house_auberne": 25,
+"the_ashen_banner": -50
+}
+traits = {
+"faith": "the_founders",
+"hospitality": "obligatory",
+"seat_name": "The Vigil House"
+}

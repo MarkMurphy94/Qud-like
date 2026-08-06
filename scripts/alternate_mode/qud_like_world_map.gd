@@ -25,6 +25,9 @@ const Layout := preload("res://resources/tileset_layout.gd")
 ## Division of the map into peoples. Grown the same way as provinces, but from
 ## hand-authored homelands — see scripts/alternate_mode/culture_map.gd.
 @onready var cultures = get_node_or_null("cultures")
+## The organisations on the map — who influences what land, and who rules it.
+## See scripts/alternate_mode/faction_map.gd.
+@onready var factions = get_node_or_null("factions")
 
 ## Tile categories that block movement when painted on the base layer.
 const BLOCKING_BASE_CATEGORIES: Array[String] = ["liquid"]
@@ -50,6 +53,10 @@ func _ready() -> void:
 		provinces.build(self)
 	if cultures:
 		cultures.build(self)
+	# Factions read the land they rule straight off the provinces, so they have
+	# to come last.
+	if factions:
+		factions.build(self)
 
 
 ## Merge the used-rects of every layer so the bounds always cover what is
@@ -180,6 +187,27 @@ func culture_id_at(tile: Vector2i) -> String:
 	if cultures == null:
 		return ""
 	return str(cultures.culture_id_at(tile))
+
+
+## Which faction this tile answers to — whoever rules it, or failing that
+## whoever's reach covers it (FactionMap.NO_FACTION for neither).
+func faction_at(tile: Vector2i) -> int:
+	if factions == null:
+		return -1
+	return int(factions.faction_at(tile))
+
+
+## Which faction actually holds this tile, ignoring mere influence.
+func ruler_at(tile: Vector2i) -> int:
+	if factions == null:
+		return -1
+	return int(factions.ruler_at(tile))
+
+
+func faction_id_at(tile: Vector2i) -> String:
+	if factions == null:
+		return ""
+	return str(factions.faction_id_at(tile))
 
 
 ## Land tile = painted base ground that is not liquid. Mountains and forests

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="Faction" format=3 uid="uid://db0q0de37cluh"]
+
+[ext_resource type="Script" uid="uid://du68fji8l507p" path="res://resources/faction.gd" id="1_faction"]
+
+[resource]
+script = ExtResource("1_faction")
+display_name = "House Auberne"
+faction_id = "house_auberne"
+seat_tile = Vector2i(85, 49)
+influence = 130
+color = Color(0.16, 0.28, 0.62, 1)
+starting_provinces = Array[Vector2i]([Vector2i(85, 49), Vector2i(83, 57)])
+home_culture = "sinzheim"
+description = "The oldest surviving name in the eastern heartland, and the only one that never had to change it. Auberne rules little in its own hand and a great deal through cousins, marriages and debts owed two generations ago."
+motto = "We were here first."
+relations = {
+"eastmarch_compact": -20,
+"house_vellier": 45,
+"the_ashen_banner": -80
+}
+traits = {
+"heraldry": "silver heron on blue",
+"seat_name": "Auberne Hall",
+"succession": "primogeniture"
+}

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="Faction" format=3]
+
+[ext_resource type="Script" path="res://resources/faction.gd" id="1_faction"]
+
+[resource]
+script = ExtResource("1_faction")
+display_name = "The Eastmarch Compact"
+faction_id = "eastmarch_compact"
+faction_type = 2
+seat_tile = Vector2i(109, 35)
+influence = 0
+color = Color(0.16, 0.52, 0.34, 1)
+starting_provinces = Array[Vector2i]([Vector2i(109, 35), Vector2i(103, 40)])
+liege = ""
+home_culture = "ohlsi"
+description = "Eleven trading houses that agreed, once, to stop undercutting each other, and have been agreeing ever since. The Compact rules two provinces outright and sets the price of iron in a dozen it does not."
+motto = "Terms are terms."
+relations = {
+"house_auberne": -20,
+"kindled_vigil": -30,
+"the_wickerhounds": -70
+}
+traits = {
+"charter": "sealed_eleven",
+"seat_name": "The Long Counting Hall",
+"trade_goods": ["iron", "salt", "dyed_wool"]
+}

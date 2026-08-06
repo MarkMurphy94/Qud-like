@@ -4,13 +4,20 @@
 [ext_resource type="Script" uid="uid://cny1pk1okfynu" path="res://scripts/alternate_mode/qud_like_world_map.gd" id="1_w72x0"]
 [ext_resource type="Script" uid="uid://d0lf0trrr3lqb" path="res://scripts/alternate_mode/province_map.gd" id="2_prov0"]
 [ext_resource type="Script" uid="uid://dasuwcx0lmw2l" path="res://scripts/alternate_mode/culture_map.gd" id="3_cult0"]
-[ext_resource type="Resource" uid="uid://b02nbtpgn21r3" path="res://resources/cultures/midlanders.tres" id="4_cult1"]
+[ext_resource type="Resource" uid="uid://b02nbtpgn21r3" path="res://resources/cultures/apton.tres" id="4_cult1"]
 [ext_resource type="Resource" uid="uid://ctbyyfax2lbkx" path="res://resources/cultures/sinzheim.tres" id="7_ugq76"]
 [ext_resource type="Resource" uid="uid://c2jv847yyvbwh" path="res://resources/cultures/boucourte.tres" id="8_bku4g"]
 [ext_resource type="Resource" uid="uid://cgjh2fmoyas18" path="res://resources/cultures/skjurni.tres" id="9_1fbfi"]
 [ext_resource type="Resource" uid="uid://dyi78b8fyar5m" path="res://resources/cultures/hiberno.tres" id="9_n1k08"]
 [ext_resource type="Resource" uid="uid://467u2tumdhrx" path="res://resources/cultures/ohlsi.tres" id="10_f2qiv"]
 [ext_resource type="Resource" uid="uid://byghpsmsrmadc" path="res://resources/cultures/inver.tres" id="11_bku4g"]
+[ext_resource type="Script" uid="uid://bgjawkcfti68b" path="res://scripts/alternate_mode/faction_map.gd" id="12_fact0"]
+[ext_resource type="Resource" uid="uid://db0q0de37cluh" path="res://resources/factions/house_auberne.tres" id="13_fact1"]
+[ext_resource type="Resource" path="res://resources/factions/house_vellier.tres" id="14_fact2"]
+[ext_resource type="Resource" path="res://resources/factions/kindled_vigil.tres" id="15_fact3"]
+[ext_resource type="Resource" path="res://resources/factions/eastmarch_compact.tres" id="16_fact4"]
+[ext_resource type="Resource" path="res://resources/factions/the_wickerhounds.tres" id="17_fact5"]
+[ext_resource type="Resource" path="res://resources/factions/the_ashen_banner.tres" id="18_fact6"]
 
 [node name="world_map" type="Node2D" unique_id=608102656]
 script = ExtResource("1_w72x0")
@@ -39,5 +46,9 @@ script = ExtResource("2_prov0")
 
 [node name="cultures" type="Node2D" parent="." unique_id=1283403602]
 script = ExtResource("3_cult0")
-overlay_visible_on_start = true
 culture_defs = Array[Resource]([ExtResource("4_cult1"), ExtResource("9_n1k08"), ExtResource("7_ugq76"), ExtResource("8_bku4g"), ExtResource("9_1fbfi"), ExtResource("10_f2qiv"), ExtResource("11_bku4g")])
+
+[node name="factions" type="Node2D" parent="." unique_id=1994003117]
+script = ExtResource("12_fact0")
+overlay_visible_on_start = true
+faction_defs = Array[Resource]([ExtResource("13_fact1"), ExtResource("14_fact2"), ExtResource("15_fact3"), ExtResource("16_fact4"), ExtResource("17_fact5"), ExtResource("18_fact6")])

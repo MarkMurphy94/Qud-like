@@ -174,20 +174,28 @@ static func make_overlay_sprite(z: int, start_visible: bool) -> Sprite2D:
 
 ## `rect` is the map's painted extent in pixels. Border cells are drawn more
 ## strongly so regions read as outlined territories rather than a wash of colour.
+##
+## `emphasis` optionally flags cells that should be filled at `emphasis_alpha`
+## instead of `interior_alpha` — factions use it to pick the land they actually
+## rule out of the wider haze of land they merely influence.
 static func paint_overlay(sprite: Sprite2D, ids: PackedInt32Array, w: int, h: int,
 		colors: PackedColorArray, rect: Rect2,
-		interior_alpha: float, border_alpha: float) -> void:
+		interior_alpha: float, border_alpha: float,
+		emphasis := PackedInt32Array(), emphasis_alpha: float = -1.0) -> void:
 	if sprite == null or ids.is_empty() or w <= 0 or h <= 0:
 		return
+	var use_emphasis := emphasis_alpha >= 0.0 and emphasis.size() == ids.size()
 	var image := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
 	image.fill(Color(0, 0, 0, 0))
 	for y in h:
 		for x in w:
-			var id := ids[y * w + x]
+			var idx := y * w + x
+			var id := ids[idx]
 			if id == NO_REGION or id >= colors.size():
 				continue
 			var color: Color = colors[id]
-			color.a = border_alpha if is_border(ids, w, h, x, y, id) else interior_alpha
+			var fill := emphasis_alpha if use_emphasis and emphasis[idx] != 0 else interior_alpha
+			color.a = border_alpha if is_border(ids, w, h, x, y, id) else fill
 			image.set_pixel(x, y, color)
 	sprite.texture = ImageTexture.create_from_image(image)
 	sprite.position = rect.position

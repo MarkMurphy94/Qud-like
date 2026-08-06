@@ -41,9 +41,6 @@ class_name Culture
 
 @export var display_name: String = ""
 
-## Stable string key for content lookups — name lists, architecture sets,
-## dialogue variants. A plain string rather than an enum so a new culture is
-## content, not a script change. Falls back to a slug of `display_name`.
 @export var culture_id: String = ""
 
 @export var origin_tile: Vector2i = Vector2i.ZERO
@@ -62,6 +59,4 @@ class_name Culture
 ## A dictionary rather than fixed fields so new hooks cost nothing.
 @export var traits: Dictionary = {}
 
-## Tiles this culture ended up covering. Filled in at build time; useful for
-## sanity-checking that a homeland is not walled in by mountains.
 var tile_count: int = 0

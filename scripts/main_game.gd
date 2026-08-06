@@ -35,6 +35,8 @@ var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = n
 var _last_province: int = -1
 ## Same, for the people whose land the player is walking through.
 var _last_culture: int = -1
+## Same, for whoever's writ runs where the player is standing.
+var _last_faction: int = -1
 
 # ═══════════════════════════════════════════════════════════════════════
 #  LIFECYCLE
@@ -65,6 +67,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("toggle_cultures"):
 		_toggle_culture_overlay()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("toggle_factions"):
+		_toggle_faction_overlay()
+		get_viewport().set_input_as_handled()
 
 ## The turn log lives with the game scene rather than as an autoload so it dies
 ## with the run and never overlaps the main menu.
@@ -79,7 +84,7 @@ func _process(delta: float) -> void:
 	_play_timer += delta
 
 # ═══════════════════════════════════════════════════════════════════════
-#  PROVINCES AND CULTURES
+#  PROVINCES, CULTURES AND FACTIONS
 # ═══════════════════════════════════════════════════════════════════════
 
 ## The overworld's political map, or null in scene layouts that have none.
@@ -90,6 +95,11 @@ func province_map():
 ## The overworld's map of peoples, or null in scene layouts that have none.
 func culture_map():
 	return world_map.get_node_or_null("cultures") if world_map else null
+
+
+## The overworld's map of organisations, or null in scene layouts that have none.
+func faction_map():
+	return world_map.get_node_or_null("factions") if world_map else null
 
 
 func _toggle_province_overlay() -> void:
@@ -108,12 +118,21 @@ func _toggle_culture_overlay() -> void:
 	TurnManager.log_message("Culture map %s." % ("shown" if shown else "hidden"), "info")
 
 
+func _toggle_faction_overlay() -> void:
+	var factions = faction_map()
+	if factions == null:
+		return
+	var shown := bool(factions.toggle_overlay())
+	TurnManager.log_message("Faction map %s." % ("shown" if shown else "hidden"), "info")
+
+
 ## Name the territory the player walks into. Driven off resolved turns rather
 ## than a per-frame position check, because that is the only time the player's
 ## tile can have changed.
 func _on_turn_resolved(_world_time: int) -> void:
 	_announce_province_change()
 	_announce_culture_change()
+	_announce_faction_change()
 
 
 func _announce_province_change() -> void:
@@ -145,6 +164,30 @@ func _announce_culture_change() -> void:
 	if culture == null:
 		return
 	TurnManager.log_message("This is %s country." % culture.display_name, "info")
+
+
+## Name whoever's writ runs here. Ruled land names its holder and the liege
+## behind them; land that is only influenced says so in weaker words, because
+## that difference is the whole point of the faction map.
+func _announce_faction_change() -> void:
+	var factions = faction_map()
+	if factions == null or player == null or player.in_local_area:
+		return
+	var tile: Vector2i = world_map.world_to_tile(player.global_position)
+	var current := int(factions.faction_at(tile))
+	if current == _last_faction:
+		return
+	_last_faction = current
+	var faction = factions.get_faction(current)
+	if faction == null:
+		return
+	if int(factions.ruler_at(tile)) != current:
+		TurnManager.log_message("%s hold sway here." % faction.display_name, "info")
+		return
+	var liege = factions.liege_of(faction.faction_id)
+	var sworn: String = "" if liege == null else ", sworn to %s" % liege.display_name
+	var failed: String = " \u2014 or claims to" if faction.causes_failed_state() else ""
+	TurnManager.log_message("%s rules here%s%s." % [faction.display_name, sworn, failed], "info")
 
 # ═══════════════════════════════════════════════════════════════════════
 #  DETERMINISTIC SEED

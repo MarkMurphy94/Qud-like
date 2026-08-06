@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="Faction" format=3]
+
+[ext_resource type="Script" path="res://resources/faction.gd" id="1_faction"]
+
+[resource]
+script = ExtResource("1_faction")
+display_name = "House Vellier"
+faction_id = "house_vellier"
+faction_type = 0
+seat_tile = Vector2i(70, 56)
+influence = 0
+color = Color(0.3, 0.55, 0.7, 1)
+starting_provinces = Array[Vector2i]([Vector2i(70, 56), Vector2i(69, 43)])
+liege = "house_auberne"
+home_culture = "boucourte"
+description = "Sworn to Auberne within living memory, and not quietly. Vellier holds the river crossings, which means it holds Auberne's grain, which is the sort of arrangement that stays polite exactly as long as the harvests do."
+motto = "By the crossing, held."
+relations = {
+"house_auberne": 20,
+"the_wickerhounds": -60
+}
+traits = {
+"heraldry": "three fords argent",
+"seat_name": "Vellier Bridgehouse"
+}
