@@ -73,6 +73,16 @@ var _pan_recenter_tween: Tween = null
 ## How long the camera takes to glide back to the player on release.
 const PAN_RECENTER_DURATION: float = 0.15
 
+# ── Camera zoom ──────────────────────────────────────────────
+## Multiplier per wheel notch. Multiplicative rather than additive so a notch
+## covers the same proportion of the view however far in or out it already is.
+const ZOOM_STEP: float = 1.1
+## Closest the camera will go, in Camera2D zoom units (1.0 = one screen pixel
+## per world pixel).
+const MAX_ZOOM: float = 4.0
+## Fallback floor for scenes with no world map to measure against.
+const MIN_ZOOM_FLOOR: float = 0.1
+
 ## Tiles searched for something to interact with, nearest first: the one the
 ## player stands on, then the four cardinal neighbours. Reaching diagonally
 ## would let the player open a chest through a wall corner.
@@ -181,6 +191,7 @@ func _ready() -> void:
 func _enter_world() -> void:
 	snap_to_grid()
 	update_camera_limits()
+	_clamp_zoom()
 	rebuild_nav_grid()
 	# NPCs are spawned into local maps long after this runs, so watch the tree
 	# rather than only wiring up whoever happens to exist right now.
@@ -191,7 +202,7 @@ func _enter_world() -> void:
 
 func _process(_delta: float) -> void:
 	_update_path_preview()
-	_keep_pan_in_bounds()
+	_keep_view_in_bounds()
 
 	if Input.is_action_just_pressed("ui_inventory"):
 		_toggle_inventory_screen()
@@ -245,6 +256,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				_exit_targeting_mode()
 			else:
 				_open_context_menu(get_global_mouse_position())
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom_by(ZOOM_STEP)
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom_by(1.0 / ZOOM_STEP)
 			get_viewport().set_input_as_handled()
 		return
 
@@ -666,6 +683,7 @@ func _describe(target: Node) -> String:
 		var npc: NPC = target
 		if not npc.is_alive():
 			return "The corpse of %s." % _target_label(npc)
+			# TODO: more specific descriptions
 		var type_name: String = MainGameState.NpcType.keys()[npc.npc_type].to_lower()
 		return "%s, a %s of the %s. They look ordinary enough." \
 			% [_target_label(npc).capitalize(), type_name, npc.faction.to_lower()]
@@ -889,12 +907,63 @@ func _clamp_pan_offset() -> void:
 
 
 ## Re-clamp a held pan as the player walks or the window resizes, so the view
-## cannot drift off the map without the mouse moving.
-func _keep_pan_in_bounds() -> void:
-	if camera == null or _pan_offset == Vector2.ZERO:
+## cannot drift off the map without the mouse moving. Zoom first: how far the
+## pan may go depends on how much of the map is on screen.
+func _keep_view_in_bounds() -> void:
+	if camera == null:
+		return
+	_clamp_zoom()
+	if _pan_offset == Vector2.ZERO:
 		return
 	_clamp_pan_offset()
 	camera.offset = _pan_offset
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  CAMERA ZOOM
+# ═══════════════════════════════════════════════════════════════════════
+
+## Zoom one wheel notch. Above 1.0 zooms in, below 1.0 zooms out.
+func _zoom_by(factor: float) -> void:
+	if camera == null:
+		return
+	_set_zoom(camera.zoom.x * factor)
+
+
+## Pull the zoom back inside its limits after something else changed them —
+## a window resize, or entering a map of a different size.
+func _clamp_zoom() -> void:
+	if camera == null:
+		return
+	_set_zoom(camera.zoom.x)
+
+
+## Apply a zoom level, clamped, and fix up anything that depended on the old
+## one. Both axes are kept equal so the world is never stretched.
+func _set_zoom(level: float) -> void:
+	var low := _min_zoom()
+	var clamped := clampf(level, low, maxf(low, MAX_ZOOM))
+	if is_equal_approx(clamped, camera.zoom.x):
+		return
+	camera.zoom = Vector2(clamped, clamped)
+	# The visible rectangle just changed size, so a pan that was legal a moment
+	# ago can now hang over an edge.
+	_clamp_pan_offset()
+	camera.offset = _pan_offset
+
+
+## The widest the view may get: exactly the zoom at which the map fills the
+## window. Anything below it would show void past an edge no matter where the
+## camera sat, so the floor is a property of the map and the window rather
+## than a number picked in advance. The tighter of the two axes wins.
+func _min_zoom() -> float:
+	if world_map == null:
+		return MIN_ZOOM_FLOOR
+	var extent: Rect2 = world_map.bounds_px()
+	if extent.size.x <= 0.0 or extent.size.y <= 0.0:
+		return MIN_ZOOM_FLOOR
+	var view: Vector2 = get_viewport_rect().size
+	return maxf(view.x / extent.size.x, view.y / extent.size.y)
 
 
 ## Slide the camera back onto the player.
