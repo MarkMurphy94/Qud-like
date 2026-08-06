@@ -46,14 +46,6 @@ const THEME_BANDS := [
 	{"theme": "cyberpunk",       "cols": [98, 108]}, # don't use
 ]
 
-# --- BIOME column sub-bands --- CONFIRMED
-# Inside the medieval_fantasy block each of the ten columns is one biome: the
-# same tile role (a tree, a patch of ground) drawn for ten environments. That is
-# a finer split than THEME_BANDS, which treats the whole block as one theme.
-#
-# Only the categories in BIOME_CATEGORIES vary this way. A wall, door or prop is
-# biome-neutral — it looks the same in a swamp as on a steppe — and resolves to
-# an empty biome, as does every theme outside the fantasy block.
 const BIOME_THEME := "medieval_fantasy"
 const BIOME_COLUMNS := {
 	4: "temperate",

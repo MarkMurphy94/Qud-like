@@ -650,7 +650,14 @@ func set_sprite():
 	
 	var coords: Vector2i = profile.get("sprite_atlas_coords", SPRITE_TODO)
 	if coords == SPRITE_TODO:
-		push_warning("NPC type %s variant '%s' has no roguelike sheet coords yet" % [npc_type, npc_variant])
+		# Fall back to the type's own default art rather than to whatever region
+		# npc.tscn ships with — that baked region is one arbitrary cell (a
+		# peasant), so leaving it would draw an unmigrated soldier as a farmhand.
+		coords = _default_sprite_coords()
+		push_warning("NPC type %s variant '%s' has no roguelike sheet coords yet — falling back to the type default"
+			% [npc_type, npc_variant])
+	if coords == SPRITE_TODO:
+		push_warning("NPC type %s has no roguelike sheet coords at all" % npc_type)
 		return
 	
 	# One Sprite2D serves every NPC type; the type only decides which cell of the
@@ -662,6 +669,14 @@ func set_sprite():
 		Vector2(coords * Layout.TILE_SIZE),
 		Vector2(Layout.TILE_SIZE, Layout.TILE_SIZE)
 	)
+
+
+## Art for this NPC's type with no variant applied, used to rescue variants that
+## have not been given their own cell on the sheet yet.
+func _default_sprite_coords() -> Vector2i:
+	var type_data: Dictionary = get_profiles().get(npc_type, {})
+	var default_profile: Dictionary = type_data.get("default", {})
+	return default_profile.get("sprite_atlas_coords", SPRITE_TODO)
 
 ## Several variants share one cell of the master sheet, so faction is told apart
 ## by hue-swapping the sprite's cloth rather than by separate art. Runs after
