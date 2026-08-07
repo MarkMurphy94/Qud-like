@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MarkovProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/markov/markov_profile.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "npc_full_name"
+template = "{npc_given_name} of {place_name}"
+min_length = 0
+max_length = 0
+casing = 0
+reject_source_forms = false
+max_attempts = 1
+prefixes = PackedStringArray()
+suffixes = PackedStringArray()
+affix_chance = 0.0

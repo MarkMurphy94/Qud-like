@@ -175,10 +175,21 @@ const NAME_TAILS: Array[String] = [
 	"gard", "shire", "vale", "stead", "hollow", "crest", "mere",
 ]
 
-## Named from its capital's coordinates, using the same mixing constants as
-## main_game._deterministic_seed — so a province keeps its name for as long as
-## its capital stays put, with nothing stored anywhere.
+## TextGenerator profile consulted before the head/tail table below.
+const NAME_PROFILE := "place_name"
+
+## Named from its capital's coordinates, so a province keeps its name for as
+## long as its capital stays put, with nothing stored anywhere.
+##
+## The Markov chain is the real generator; the head/tail table is kept as a
+## fallback for when the profile is missing (its models are content, and
+## content can be absent).
 func _generated_name(capital: Vector2i) -> String:
+	if TextGenerator.has_profile(NAME_PROFILE):
+		var generated = TextGenerator.generate(NAME_PROFILE, TextGenerator.seed_from(capital))
+		if not generated.is_empty():
+			return generated
+	# Same mixing constants as main_game._deterministic_seed.
 	var hash_value := absi((capital.x * 73856093) ^ (capital.y * 19349663))
 	var head: String = NAME_HEADS[hash_value % NAME_HEADS.size()]
 	var tail: String = NAME_TAILS[(hash_value / NAME_HEADS.size()) % NAME_TAILS.size()]

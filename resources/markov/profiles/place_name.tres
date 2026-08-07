@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MarkovProfile" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/markov/markov_profile.gd" id="1_script"]
+[ext_resource type="Resource" path="res://resources/markov/corpora/place_names.tres" id="2_corpus"]
+
+[resource]
+script = ExtResource("1_script")
+id = "place_name"
+corpus = ExtResource("2_corpus")
+template = ""
+min_length = 5
+max_length = 14
+casing = 1
+reject_source_forms = true
+max_attempts = 24
+prefixes = PackedStringArray("Upper ", "Lower ", "Old ", "New ", "Great ", "Little ")
+suffixes = PackedStringArray()
+affix_chance = 0.12

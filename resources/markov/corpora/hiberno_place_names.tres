@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="MarkovCorpus" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/markov/markov_corpus.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "hiberno_place_names"
+mode = 0
+order = 3
+lowercase_input = true
+samples = PackedStringArray()
+source_files = PackedStringArray()
+split_sentences = false

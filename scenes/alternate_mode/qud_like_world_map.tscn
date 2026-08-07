@@ -14,9 +14,9 @@
 [ext_resource type="Script" uid="uid://bgjawkcfti68b" path="res://scripts/alternate_mode/faction_map.gd" id="12_fact0"]
 [ext_resource type="Resource" uid="uid://db0q0de37cluh" path="res://resources/factions/house_auberne.tres" id="13_fact1"]
 [ext_resource type="Resource" path="res://resources/factions/house_vellier.tres" id="14_fact2"]
-[ext_resource type="Resource" path="res://resources/factions/kindled_vigil.tres" id="15_fact3"]
+[ext_resource type="Resource" uid="uid://bu4c72bkn7itb" path="res://resources/factions/kindled_vigil.tres" id="15_fact3"]
 [ext_resource type="Resource" path="res://resources/factions/eastmarch_compact.tres" id="16_fact4"]
-[ext_resource type="Resource" path="res://resources/factions/the_wickerhounds.tres" id="17_fact5"]
+[ext_resource type="Resource" uid="uid://duj8fpktyywlf" path="res://resources/factions/the_wickerhounds.tres" id="17_fact5"]
 [ext_resource type="Resource" path="res://resources/factions/the_ashen_banner.tres" id="18_fact6"]
 
 [node name="world_map" type="Node2D" unique_id=608102656]
@@ -43,6 +43,10 @@ tile_set = ExtResource("1_mamx8")
 
 [node name="provinces" type="Node2D" parent="." unique_id=1722447836]
 script = ExtResource("2_prov0")
+overlay_alpha = null
+border_alpha = null
+overlay_visible_on_start = null
+province_defs = null
 
 [node name="cultures" type="Node2D" parent="." unique_id=1283403602]
 script = ExtResource("3_cult0")

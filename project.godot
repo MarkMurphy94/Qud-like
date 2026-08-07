@@ -27,6 +27,7 @@ ItemDatabase="*res://scripts/item_database.gd"
 ItemGenerator="*res://scripts/item_generator.gd"
 CombatManager="*res://scripts/combat_manager.gd"
 TurnManager="*res://scripts/turn_manager.gd"
+TextGenerator="*res://scripts/markov/text_generator.gd"
 
 [debug]
 
