@@ -1,5 +1,7 @@
 extends Node
 
+const SPRITE_TODO := Vector2i(-1, -1)
+
 ## NPC types — canonical list used by NPCSpawner, NPC, and dialogue systems.
 enum NpcType {PEASANT, SOLDIER, MERCHANT, NOBLE, BANDIT, ANIMAL, MONSTER}
 
@@ -16,41 +18,7 @@ var player_turn = false
 
 ## Runtime state for each known settlement, keyed by make_settlement_key() or a
 ## human-readable name for hand-crafted settlements.
-var settlements = {
-	"town_1": {
-		"name": "First town",
-		"pos": Vector2i(13, 21),
-		"seed": 1605628986,
-		"map_type": MapConfig.MapType.SETTLEMENT,
-		"density": MapConfig.BuildingDensity.LARGE_TOWN,
-		"buildings": {
-			"house_1": {
-				"pos": Vector2i(13, 21),
-				"size": Vector2i(2, 2),
-				"type": "house",
-				"inhabitants": ["npc_1", "npc_2"],
-			}
-		},
-		"important_npcs": {}
-	},
-	"town_2": {
-		"name": "town_2",
-		"map_type": MapConfig.MapType.SETTLEMENT,
-		"density": MapConfig.BuildingDensity.LARGE_VILLAGE,
-		"pos": Vector2i(17, 18),
-		"seed": 1471873267,
-		"width": 80,
-		"height": 80,
-		"buildings": {},
-		"important_npcs": {}
-	},
-	"town_3": {
-		"name": "town_3",
-		"map_type": MapConfig.MapType.CASTLE_INTERIOR,
-		"density": MapConfig.BuildingDensity.NONE,
-		"pos": Vector2i(7, 22),
-	},
-}
+var settlements = {}
 
 # ─── NPC counts per density tier ────────────────────────────────────────────────────────
 
