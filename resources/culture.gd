@@ -59,4 +59,43 @@ class_name Culture
 ## A dictionary rather than fixed fields so new hooks cost nothing.
 @export var traits: Dictionary = {}
 
+@export_group("Naming")
+## TextGenerator profile ids — the id a MarkovProfile .tres in
+## resources/markov/profiles/ declares, not a path to it, since TextGenerator
+## already discovers and indexes every profile in that folder at startup.
+## Leave one empty and this people are named from the generic profile, so a
+## culture with no corpus of its own still gets sensible names.
+@export var place_name_profile: String = ""
+@export var given_name_profile: String = ""
+
+## Profiles used by cultures that name no profile of their own, and by land no
+## culture reached. Keyed by role so callers ask for "a given name" rather than
+## knowing which profile that means.
+const DEFAULT_NAME_PROFILES := {
+	"place": "place_name",
+	"given": "npc_given_name",
+}
+
 var tile_count: int = 0
+
+
+## The TextGenerator profile that writes `role` ("place" or "given") names for
+## this people.
+func name_profile(role: String) -> String:
+	var chosen := ""
+	match role:
+		"place":
+			chosen = place_name_profile
+		"given":
+			chosen = given_name_profile
+	if chosen != "":
+		return chosen
+	return DEFAULT_NAME_PROFILES.get(role, "")
+
+
+## Null-safe form for callers holding the result of CultureMap.culture_for_tile(),
+## which is null over sea, void, and land no culture reached.
+static func profile_for(culture: Culture, role: String) -> String:
+	if culture:
+		return culture.name_profile(role)
+	return DEFAULT_NAME_PROFILES.get(role, "")

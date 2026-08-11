@@ -83,6 +83,10 @@ var energy: int = 0
 ## Left empty, a name is drawn from the Markov TextGenerator in _ready(),
 ## seeded off npc_id — see generate_name(). Fill it in to name someone by hand.
 @export var npc_name: String = ""
+## TextGenerator profile ids of the people this NPC belongs to, keyed by role
+## ("place", "given") — set by NPCSpawner from the tile metadata. Empty means
+## the generic name lists, which is also what an unclaimed tile resolves to.
+var culture_name_profiles: Dictionary = {}
 @export var faction: String = "NEUTRAL" # Group this NPC belongs to
 @export var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
 @export var inventory: Inventory = null  # Proper inventory system with stacking
@@ -635,7 +639,25 @@ func generate_name(force: bool = false) -> void:
 	if profile_id.is_empty() or not TextGenerator.has_profile(profile_id):
 		return
 	var name_key: String = npc_id if npc_id != "" else str(get_path())
-	npc_name = TextGenerator.generate(profile_id, TextGenerator.seed_from(name_key))
+	var seed_value := TextGenerator.seed_from(name_key)
+	var slots: Dictionary = {}
+	if profile_id == Culture.DEFAULT_NAME_PROFILES["given"]:
+		# A bare given name: the culture's list replaces it outright.
+		profile_id = _culture_profile("given")
+	else:
+		# A template, like the nobles' "X of Y": the type still decides the shape
+		# of the name, so the culture fills its slots instead of replacing it.
+		slots["npc_given_name"] = TextGenerator.generate(_culture_profile("given"), seed_value)
+		slots["place_name"] = TextGenerator.generate(_culture_profile("place"),
+			TextGenerator.seed_from(name_key + ":place"))
+	npc_name = TextGenerator.generate(profile_id, seed_value, slots)
+
+## The profile this NPC's people use for `role`, falling back to the generic one.
+func _culture_profile(role: String) -> String:
+	var chosen := str(culture_name_profiles.get(role, ""))
+	if chosen != "" and TextGenerator.has_profile(chosen):
+		return chosen
+	return Culture.DEFAULT_NAME_PROFILES.get(role, "")
 
 ## Which TextGenerator profile writes this NPC's name. A profile table entry may
 ## override it with its own `name_profile`; "" means unnamed, which is how beasts

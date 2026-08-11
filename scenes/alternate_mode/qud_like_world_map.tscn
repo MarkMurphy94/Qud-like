@@ -47,9 +47,9 @@ script = ExtResource("2_prov0")
 
 [node name="cultures" type="Node2D" parent="." unique_id=1283403602]
 script = ExtResource("3_cult0")
+overlay_visible_on_start = true
 culture_defs = Array[Resource]([ExtResource("4_cult1"), ExtResource("9_n1k08"), ExtResource("7_ugq76"), ExtResource("8_bku4g"), ExtResource("9_1fbfi"), ExtResource("10_f2qiv"), ExtResource("11_bku4g")])
 
 [node name="factions" type="Node2D" parent="." unique_id=1994003117]
 script = ExtResource("12_fact0")
-overlay_visible_on_start = true
 faction_defs = Array[Resource]([ExtResource("13_fact1"), ExtResource("14_fact2"), ExtResource("15_fact3"), ExtResource("16_fact4"), ExtResource("17_fact5"), ExtResource("18_fact6"), ExtResource("19_lbdot")])

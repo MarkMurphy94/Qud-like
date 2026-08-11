@@ -91,6 +91,13 @@ class_name TileMetadata
 @export var road_exits: int = 0
 ## Terrain used to paint the road surface ("dirt" or "stone").
 @export var road_terrain: String = "dirt"
+## The people whose land this is (Culture.culture_id), or "" where none reached.
+@export var culture_id: String = ""
+## TextGenerator profile ids this tile's people name things with, keyed by role
+## ("place", "given"). Resolved from the culture when the metadata is built, so
+## everything downstream — map generator, NPC spawner — gets the answer without
+## needing the culture map in scope. See resources/culture.gd.
+@export var name_profiles: Dictionary = {}
 
 static func from_dict(d: Dictionary) -> TileMetadata:
 	var t := TileMetadata.new()
@@ -137,6 +144,8 @@ static func from_dict(d: Dictionary) -> TileMetadata:
 	t.encounter_difficulty = d.get("encounter_difficulty", t.encounter_difficulty)
 	t.road_exits = d.get("road_exits", 0)
 	t.road_terrain = d.get("road_terrain", "dirt")
+	t.culture_id = d.get("culture_id", "")
+	t.name_profiles = d.get("name_profiles", {})
 	return t
 
 func to_dict() -> Dictionary:
@@ -182,5 +191,7 @@ func to_dict() -> Dictionary:
 		"foliage_profile": foliage_profile,
 		"encounter_difficulty": encounter_difficulty,
 		"road_exits": road_exits,
-		"road_terrain": road_terrain
+		"road_terrain": road_terrain,
+		"culture_id": culture_id,
+		"name_profiles": name_profiles
 	}

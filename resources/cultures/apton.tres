@@ -15,3 +15,4 @@ traits = {
 "faith": "the_founders",
 "hospitality": "wary"
 }
+place_name_profile = "place_name"

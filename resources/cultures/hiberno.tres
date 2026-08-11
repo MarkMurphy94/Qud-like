@@ -9,4 +9,5 @@ culture_id = "5"
 origin_tile = Vector2i(24, 26)
 spread = 70
 color = Color(0.40392157, 0.72156864, 0.37254903, 1)
+place_name_profile = "hiberno_place_name"
 metadata/_custom_type_script = "uid://cx64eymxo8cxf"

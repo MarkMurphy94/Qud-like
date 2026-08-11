@@ -277,6 +277,16 @@ func _build_local_map_metadata(tile: Vector2i, seed_value: int, base_metadata: D
 	overworld_data["biome"] = meta["biome"]
 	meta["overworld"] = overworld_data
 
+	# Resolve the tile's people here, once, rather than handing the culture map
+	# down to every system that names something.
+	var cultures = culture_map()
+	var culture = cultures.culture_for_tile(tile) if cultures else null
+	meta["culture_id"] = culture.culture_id if culture else ""
+	meta["name_profiles"] = {
+		"place": Culture.profile_for(culture, "place"),
+		"given": Culture.profile_for(culture, "given"),
+	}
+
 	# Keep top-level aliases for backward-compatible readers.
 	meta["has_settlement"] = overworld_data["has_settlement"]
 	meta["is_forest"] = overworld_data["is_forest"]

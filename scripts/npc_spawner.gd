@@ -76,6 +76,13 @@ func _has_settlement() -> bool:
 		return bool(overworld["has_settlement"])
 	return bool(area_metadata.get("has_settlement", false))
 
+## Naming profiles of the people whose land this is, stamped into the metadata
+## by MainGame. Empty for areas built without a culture map, which leaves the
+## NPC on the generic name lists.
+func _name_profiles() -> Dictionary:
+	var profiles = area_metadata.get("name_profiles", {})
+	return profiles if profiles is Dictionary else {}
+
 # ─── Settlement spawning ───────────────────────────────────────────────────────
 
 ## Spawns a settlement's population. `density_override` supplies a
@@ -199,9 +206,10 @@ func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: St
 		variant = _get_random_variant_for_type(npc_type)
 	inst.npc_variant = variant
 	inst.npc_id = npc_id
-	# Type, variant and id are set before add_child, so the NPC's own _ready
-	# applies the profile and generates a name seeded off that id — the same NPC
-	# comes back with the same name on every revisit.
+	inst.culture_name_profiles = _name_profiles()
+	# Type, variant, id and culture are set before add_child, so the NPC's own
+	# _ready applies the profile and generates a name seeded off that id — the
+	# same NPC comes back with the same name on every revisit.
 	add_child(inst)
 	inst.global_position = world_pos
 	inst.add_to_group("NPCs")

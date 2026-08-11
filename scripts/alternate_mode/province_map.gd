@@ -175,18 +175,22 @@ const NAME_TAILS: Array[String] = [
 	"gard", "shire", "vale", "stead", "hollow", "crest", "mere",
 ]
 
-## TextGenerator profile consulted before the head/tail table below.
+## TextGenerator profile consulted before the head/tail table below, for land
+## whose culture names no profile of its own.
 const NAME_PROFILE := "place_name"
 
 ## Named from its capital's coordinates, so a province keeps its name for as
-## long as its capital stays put, with nothing stored anywhere.
+## long as its capital stays put, with nothing stored anywhere. The people
+## living around the capital decide which name list it is drawn from, so a
+## province in the Hiberno homeland reads differently from one in the south.
 ##
 ## The Markov chain is the real generator; the head/tail table is kept as a
 ## fallback for when the profile is missing (its models are content, and
 ## content can be absent).
 func _generated_name(capital: Vector2i) -> String:
-	if TextGenerator.has_profile(NAME_PROFILE):
-		var generated = TextGenerator.generate(NAME_PROFILE, TextGenerator.seed_from(capital))
+	var profile := _place_name_profile(capital)
+	if TextGenerator.has_profile(profile):
+		var generated = TextGenerator.generate(profile, TextGenerator.seed_from(capital))
 		if not generated.is_empty():
 			return generated
 	# Same mixing constants as main_game._deterministic_seed.
@@ -194,6 +198,16 @@ func _generated_name(capital: Vector2i) -> String:
 	var head: String = NAME_HEADS[hash_value % NAME_HEADS.size()]
 	var tail: String = NAME_TAILS[(hash_value / NAME_HEADS.size()) % NAME_TAILS.size()]
 	return head + tail
+
+
+## Which name list the people at `tile` draw place names from. Falls back to the
+## generic profile where no culture reached, and where the map has no culture
+## node at all.
+func _place_name_profile(tile: Vector2i) -> String:
+	var cultures = _world_map.cultures if _world_map else null
+	if cultures == null:
+		return NAME_PROFILE
+	return Culture.profile_for(cultures.culture_for_tile(tile), "place")
 
 
 ## Hues walked by the golden ratio, which spreads any number of neighbouring

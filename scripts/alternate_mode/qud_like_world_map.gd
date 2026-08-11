@@ -48,11 +48,12 @@ func _ready() -> void:
 		_category_layer = tile_set.get_custom_data_layer_by_name("category")
 	# Provinces are grown from this map, so they can only be built once the
 	# bounds and the category lookup above are in place. Cultures are grown the
-	# same way and have the same prerequisite.
-	if provinces:
-		provinces.build(self)
+	# same way and have the same prerequisite — and come first, because a
+	# province takes its name from the people living around its capital.
 	if cultures:
 		cultures.build(self)
+	if provinces:
+		provinces.build(self)
 	# Factions read the land they rule straight off the provinces, so they have
 	# to come last.
 	if factions:
