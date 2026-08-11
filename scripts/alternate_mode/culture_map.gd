@@ -43,7 +43,7 @@ const OVERLAY_Z := 99
 @export var overlay_visible_on_start: bool = false
 
 @export_group("Authoring")
-@export var culture_defs: Array[Resource] = []
+@export var culture_defs: Array[Culture] = []
 
 ## Working copies of the authored .tres files, indexed by id, so build-time
 ## fields (`id`, `tile_count`) never write back to disk.

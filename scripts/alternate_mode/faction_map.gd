@@ -49,7 +49,7 @@ const UNCLAIMED := "unclaimed"
 @export var overlay_visible_on_start: bool = false
 
 @export_group("Authoring")
-@export var faction_defs: Array[Resource] = []
+@export var faction_defs: Array[Faction] = []
 ## Give a legitimate faction that lists no `starting_provinces` the province its
 ## seat stands in. Without this the political map opens entirely unclaimed,
 ## which is only what you want if provinces are meant to be won from scratch.
