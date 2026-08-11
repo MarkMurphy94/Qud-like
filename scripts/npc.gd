@@ -80,6 +80,8 @@ var energy: int = 0
 # === IDENTITY AND PERSISTENCE ===
 @export_group("NPC identity, and behavior")
 @export var npc_id: String = "" # Unique identifier
+## Left empty, a name is drawn from the Markov TextGenerator in _ready(),
+## seeded off npc_id — see generate_name(). Fill it in to name someone by hand.
 @export var npc_name: String = ""
 @export var faction: String = "NEUTRAL" # Group this NPC belongs to
 @export var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
@@ -526,6 +528,7 @@ func _ready():
 	add_to_group("NPCs")  # Ensure group membership regardless of how the NPC was created
 	rng.randomize()
 	apply_type_profile()
+	generate_name()
 	set_sprite()
 	_build_combat_indicators()
 	# Stagger starting energy so a crowd of NPCs doesn't move in lockstep.
@@ -619,6 +622,45 @@ func apply_type_profile():
 	# 		var sp := load(spell_path) as Spell
 	# 		if sp:
 	# 			learned_spells.append(sp)
+
+## Name an NPC that arrived without one, through the Markov TextGenerator.
+## Seeded off npc_id, so an NPC keeps its name across sessions without the name
+## ever being saved — set npc_id before adding the NPC to the tree. Hand-placed
+## NPCs with no id fall back to their scene path, which is just as stable.
+## `force` re-rolls an existing name.
+func generate_name(force: bool = false) -> void:
+	if npc_name != "" and not force:
+		return
+	var profile_id := _name_profile_id()
+	if profile_id.is_empty() or not TextGenerator.has_profile(profile_id):
+		return
+	var name_key: String = npc_id if npc_id != "" else str(get_path())
+	npc_name = TextGenerator.generate(profile_id, TextGenerator.seed_from(name_key))
+
+## Which TextGenerator profile writes this NPC's name. A profile table entry may
+## override it with its own `name_profile`; "" means unnamed, which is how beasts
+## stay beasts.
+func _name_profile_id() -> String:
+	var profile := _resolve_profile()
+	if profile.has("name_profile"):
+		return str(profile["name_profile"])
+	match npc_type:
+		MainGameState.NpcType.NOBLE:
+			return "npc_full_name"
+		MainGameState.NpcType.ANIMAL, MainGameState.NpcType.MONSTER:
+			return ""
+		_:
+			return "npc_given_name"
+
+## What the player should be shown. Falls back to the variant, then the type, so
+## an unnamed creature reads as "Elven Rogue" or "Animal" rather than leaking an
+## engine-assigned node name.
+func get_display_name() -> String:
+	if npc_name != "":
+		return npc_name
+	if npc_variant != "" and npc_variant != "default":
+		return npc_variant.capitalize()
+	return str(MainGameState.NpcType.keys()[npc_type]).capitalize()
 
 func apply_auto_set_config(_config: NPCConfig):
 	# TODO: implement to auto-set all export variables from a config- good for applying templates for npc types or named npcs
@@ -1073,8 +1115,7 @@ func cast_spell_at(spell: Spell, target: Node2D) -> bool:
 	var max_range_px: float = spell.spell_range * tile_size
 	var stop_px: float = minf(to_target.length(), max_range_px)
 	projectile.setup(spell, self, to_target.normalized(), stop_px)
-	var display_name: String = npc_name if npc_name != "" else str(name)
-	TurnManager.log_message("%s casts %s!" % [display_name, spell.get_display_name()], "spell")
+	TurnManager.log_message("%s casts %s!" % [get_display_name(), spell.get_display_name()], "spell")
 	return true
 
 ## Called at the start of each turn to regenerate a little mana.
@@ -1124,26 +1165,24 @@ func attack(target: Node2D) -> void:
 	var str_val: int = stats.get("strength", 10)
 	var damage := int(str_val * 0.5) + rng.randi_range(1, 6)
 	emit_signal("npc_attacked", self, target)
-	var display_name: String = npc_name if npc_name != "" else str(name)
 	if target.has_method("take_damage"):
 		target.take_damage(damage, self)
 	else:
-		print("%s attacks %s for %d damage" % [display_name, target.name, damage])
+		print("%s attacks %s for %d damage" % [get_display_name(), target.name, damage])
 
 func take_damage(amount: int, source: Node2D = null):
 	if state == NPCState.DEAD:
 		return
 	current_health -= amount
 	record_event({"type": "damage", "amount": amount})
-	var display_name: String = npc_name if npc_name != "" else str(name)
-	TurnManager.log_message("%s takes %d damage. (%d/%d HP)" % [display_name, amount, max(0, current_health), max_health], "attack")
+	TurnManager.log_message("%s takes %d damage. (%d/%d HP)" % [get_display_name(), amount, max(0, current_health), max_health], "attack")
 	if current_health <= 0:
 		current_health = 0
 		set_state(NPCState.DEAD)
 		emit_signal("npc_died", self)
 		velocity = Vector2.ZERO
 		_set_combat_indicators_visible(false)
-		TurnManager.log_message("%s has been slain!" % display_name, "death")
+		TurnManager.log_message("%s has been slain!" % get_display_name(), "death")
 		return
 	# Reaction: set combat target or flee
 	if source and source != self:
@@ -1316,7 +1355,7 @@ func end_interaction() -> void:
 
 func _start_dialogue_interaction(_interactor: Node2D) -> void:
 	"""Handle dialogue-based interaction"""
-	print("%s: Hello there!" % npc_name if npc_name else "NPC says hello!")
+	print("%s: Hello there!" % get_display_name())
 	# TODO: Implement actual dialogue system integration
 	# For now, just print a message based on NPC type and faction
 	var greeting = _get_greeting_message()
@@ -1324,7 +1363,7 @@ func _start_dialogue_interaction(_interactor: Node2D) -> void:
 
 func _start_trade_interaction(_interactor: Node2D) -> void:
 	"""Handle trade-based interaction"""
-	print("%s: Would you like to see my wares?" % npc_name if npc_name else "Merchant opens shop")
+	print("%s: Would you like to see my wares?" % get_display_name())
 	# TODO: Implement actual trade system
 	# For now, just print available items
 	if store_inventory.size() > 0:
@@ -1371,13 +1410,13 @@ func interact_give_item(item: Item, quantity: int = 1) -> bool:
 	if accepts_item:
 		if inventory.add_item(item, quantity):
 			emit_signal("npc_item_received", self, item, state_data.get("interactor"))
-			print("%s accepts the %s" % [npc_name if npc_name else "NPC", item.get_display_name()])
+			print("%s accepts the %s" % [get_display_name(), item.get_display_name()])
 			return true
 		else:
-			print("%s's inventory is full" % [npc_name if npc_name else "NPC"])
+			print("%s's inventory is full" % [get_display_name()])
 			return false
 	else:
-		print("%s doesn't want that." % [npc_name if npc_name else "NPC"])
+		print("%s doesn't want that." % [get_display_name()])
 		return false
 
 func _should_accept_item(item: Item) -> bool:
@@ -1506,7 +1545,7 @@ func _spawn_world_item(item: Item, quantity: int) -> void:
 	# Add to the current scene
 	get_parent().add_child(world_item)
 	
-	print("%s dropped %d x %s" % [npc_name if npc_name else "NPC", quantity, item.get_display_name()])
+	print("%s dropped %d x %s" % [get_display_name(), quantity, item.get_display_name()])
 
 # Inventory signal handlers
 func _on_inventory_changed() -> void:
@@ -1517,4 +1556,4 @@ func _on_inventory_changed() -> void:
 func _on_inventory_full() -> void:
 	"""Called when trying to add to a full inventory"""
 	if show_debug:
-		print("%s's inventory is full!" % [npc_name if npc_name else "NPC"])
+		print("%s's inventory is full!" % [get_display_name()])

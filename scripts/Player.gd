@@ -701,8 +701,7 @@ func _describe(target: Node) -> String:
 ## Short name for messages and prompts.
 func _target_label(target: Node) -> String:
 	if target is NPC:
-		var npc: NPC = target
-		return npc.npc_name if npc.npc_name != "" else "the stranger"
+		return (target as NPC).get_display_name()
 	if target is ItemContainer:
 		return (target as ItemContainer).container_label.to_lower()
 	if target is WorldItem:
@@ -1049,7 +1048,7 @@ func attack(target: Node2D) -> bool:
 	var damage := _melee_damage()
 	target.take_damage(damage, self)
 
-	var label: String = target.get("npc_name") if target.get("npc_name") else String(target.name)
+	var label: String = (target as NPC).get_display_name() if target is NPC else String(target.name)
 	TurnManager.log_message("You hit %s for %d damage." % [label, damage], "attack")
 	TurnManager.take_player_action()
 	return true
@@ -1124,7 +1123,7 @@ func _on_npc_interaction_available(npc: NPC) -> void:
 	"""Called when an NPC becomes available for interaction"""
 	if npc not in available_npcs:
 		available_npcs.append(npc)
-		print("NPC available for interaction: %s" % npc.npc_name if npc.npc_name else "Unnamed NPC")
+		print("NPC available for interaction: %s" % npc.get_display_name())
 
 func _on_npc_interaction_unavailable(npc: NPC) -> void:
 	"""Called when an NPC is no longer available for interaction"""

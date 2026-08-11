@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Faction" format=3 uid="uid://dw5p6ykacpdr1"]
+
+[ext_resource type="Script" uid="uid://du68fji8l507p" path="res://resources/faction.gd" id="1_hwr6v"]
+
+[resource]
+script = ExtResource("1_hwr6v")
+display_name = "House Apton"
+faction_id = "house_apton"
+seat_tile = Vector2i(30, 37)
+color = Color(0.46, 0.004599996, 0.004599996, 1)
+metadata/_custom_type_script = "uid://du68fji8l507p"

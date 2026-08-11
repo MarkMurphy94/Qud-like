@@ -57,7 +57,7 @@ func open_for(for_target: Node, at: Vector2) -> bool:
 
 
 func _build_npc_menu(npc: NPC) -> void:
-	_add_header(npc.npc_name if npc.npc_name != "" else "Stranger")
+	_add_header(npc.get_display_name())
 	if not npc.is_alive():
 		_add("Inspect", ACTION_INSPECT)
 		return

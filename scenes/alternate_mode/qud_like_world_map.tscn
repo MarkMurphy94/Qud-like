@@ -17,7 +17,8 @@
 [ext_resource type="Resource" uid="uid://bu4c72bkn7itb" path="res://resources/factions/kindled_vigil.tres" id="15_fact3"]
 [ext_resource type="Resource" path="res://resources/factions/eastmarch_compact.tres" id="16_fact4"]
 [ext_resource type="Resource" uid="uid://duj8fpktyywlf" path="res://resources/factions/the_wickerhounds.tres" id="17_fact5"]
-[ext_resource type="Resource" path="res://resources/factions/the_ashen_banner.tres" id="18_fact6"]
+[ext_resource type="Resource" uid="uid://bcbb8hc6p4w1g" path="res://resources/factions/the_ashen_banner.tres" id="18_fact6"]
+[ext_resource type="Resource" uid="uid://dw5p6ykacpdr1" path="res://resources/factions/house_apton.tres" id="19_lbdot"]
 
 [node name="world_map" type="Node2D" unique_id=608102656]
 script = ExtResource("1_w72x0")
@@ -43,10 +44,6 @@ tile_set = ExtResource("1_mamx8")
 
 [node name="provinces" type="Node2D" parent="." unique_id=1722447836]
 script = ExtResource("2_prov0")
-overlay_alpha = null
-border_alpha = null
-overlay_visible_on_start = null
-province_defs = null
 
 [node name="cultures" type="Node2D" parent="." unique_id=1283403602]
 script = ExtResource("3_cult0")
@@ -55,4 +52,4 @@ culture_defs = Array[Resource]([ExtResource("4_cult1"), ExtResource("9_n1k08"), 
 [node name="factions" type="Node2D" parent="." unique_id=1994003117]
 script = ExtResource("12_fact0")
 overlay_visible_on_start = true
-faction_defs = Array[Resource]([ExtResource("13_fact1"), ExtResource("14_fact2"), ExtResource("15_fact3"), ExtResource("16_fact4"), ExtResource("17_fact5"), ExtResource("18_fact6")])
+faction_defs = Array[Resource]([ExtResource("13_fact1"), ExtResource("14_fact2"), ExtResource("15_fact3"), ExtResource("16_fact4"), ExtResource("17_fact5"), ExtResource("18_fact6"), ExtResource("19_lbdot")])

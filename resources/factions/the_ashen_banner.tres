@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="Faction" format=3]
+[gd_resource type="Resource" script_class="Faction" format=3 uid="uid://bcbb8hc6p4w1g"]
 
-[ext_resource type="Script" path="res://resources/faction.gd" id="1_faction"]
+[ext_resource type="Script" uid="uid://du68fji8l507p" path="res://resources/faction.gd" id="1_faction"]
 
 [resource]
 script = ExtResource("1_faction")
@@ -8,10 +8,8 @@ display_name = "The Ashen Banner"
 faction_id = "the_ashen_banner"
 faction_type = 4
 seat_tile = Vector2i(30, 53)
-influence = 90
 color = Color(0.75, 0.38, 0.16, 1)
 starting_provinces = Array[Vector2i]([Vector2i(30, 53)])
-liege = ""
 home_culture = "apton"
 description = "Took a province off its lord two winters ago and has been discovering ever since what ruling one costs. The fields are unworked, the granaries are open, and half the people it freed have walked north."
 motto = "No hand above another."

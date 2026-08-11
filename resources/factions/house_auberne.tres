@@ -7,7 +7,6 @@ script = ExtResource("1_faction")
 display_name = "House Auberne"
 faction_id = "house_auberne"
 seat_tile = Vector2i(85, 49)
-influence = 130
 color = Color(0.16, 0.28, 0.62, 1)
 starting_provinces = Array[Vector2i]([Vector2i(85, 49), Vector2i(83, 57)])
 home_culture = "sinzheim"

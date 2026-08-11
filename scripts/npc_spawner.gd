@@ -121,9 +121,9 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 			# A building's stored position is its top-left wall cell, so nudge every
 			# spawn onto solid ground rather than dropping NPCs inside geometry.
 			var world_pos := _walkable_world_pos(spawn_tile)
-			var npc := _spawn_npc(npc_type, world_pos)
+			var npc_id := "%s_%s_%d" % [settlement_data.map_name, str(npc_type), i]
+			var npc := _spawn_npc(npc_type, world_pos, "", npc_id)
 			npc.set_locations(world_pos)
-			npc.npc_id = "%s_%s_%d" % [settlement_data.map_name, str(npc_type), i]
 			spawned_npcs.append(npc)
 
 ## Looks up the settlement entry in MainGameState by map_name first,
@@ -164,10 +164,11 @@ func spawn_wilderness_npcs(count: int = -1) -> void:
 	if count < 0:
 		count = clamp(2 + (difficulty - 1) * 2, 2, 8)
 
-	for _i in count:
+	var area_key := str(area_metadata.get("coords", area_metadata.get("seed", "unknown")))
+	for i in count:
 		var npc_type := _wilderness_npc_type()
 		var pos := _walkable_world_pos(_random_tile())
-		var npc := _spawn_npc(npc_type, pos)
+		var npc := _spawn_npc(npc_type, pos, "", "wild_%s_%d" % [area_key, i])
 		npc.set_locations(pos)
 		spawned_npcs.append(npc)
 
@@ -191,14 +192,16 @@ func _wilderness_npc_type() -> MainGameState.NpcType:
 
 # ─── Shared helpers ────────────────────────────────────────────────────────────
 
-func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: String = "") -> NPC:
+func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: String = "", npc_id: String = "") -> NPC:
 	var inst: NPC = npc_scene.instantiate()
 	inst.npc_type = npc_type
 	if variant.is_empty():
 		variant = _get_random_variant_for_type(npc_type)
 	inst.npc_variant = variant
-	# Type and variant are set before add_child, so the NPC's own _ready applies
-	# the profile — no second call needed here.
+	inst.npc_id = npc_id
+	# Type, variant and id are set before add_child, so the NPC's own _ready
+	# applies the profile and generates a name seeded off that id — the same NPC
+	# comes back with the same name on every revisit.
 	add_child(inst)
 	inst.global_position = world_pos
 	inst.add_to_group("NPCs")

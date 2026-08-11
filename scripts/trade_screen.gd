@@ -80,7 +80,7 @@ func open_trade(p_player: Node, p_npc: Node) -> void:
 		_sell_mult = 0.5
 
 	# Title
-	var npc_name_str: String = p_npc.npc_name if p_npc.get("npc_name") and p_npc.npc_name != "" else "Merchant"
+	var npc_name_str: String = p_npc.get_display_name() if p_npc.has_method("get_display_name") else "Merchant"
 	_title_label.text = "Trading with %s" % npc_name_str
 
 	# Connect inventory change signals
