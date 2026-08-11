@@ -284,7 +284,7 @@ func _build_local_map_metadata(tile: Vector2i, seed_value: int, base_metadata: D
 	meta["culture_id"] = culture.culture_id if culture else ""
 	meta["name_profiles"] = {
 		"place": Culture.profile_for(culture, "place"),
-		"given": Culture.profile_for(culture, "given"),
+		"npc": Culture.profile_for(culture, "npc"),
 	}
 
 	# Keep top-level aliases for backward-compatible readers.

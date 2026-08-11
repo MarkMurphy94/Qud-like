@@ -84,7 +84,7 @@ var energy: int = 0
 ## seeded off npc_id — see generate_name(). Fill it in to name someone by hand.
 @export var npc_name: String = ""
 ## TextGenerator profile ids of the people this NPC belongs to, keyed by role
-## ("place", "given") — set by NPCSpawner from the tile metadata. Empty means
+## ("place", "npc") — set by NPCSpawner from the tile metadata. Empty means
 ## the generic name lists, which is also what an unclaimed tile resolves to.
 var culture_name_profiles: Dictionary = {}
 @export var faction: String = "NEUTRAL" # Group this NPC belongs to
@@ -641,13 +641,13 @@ func generate_name(force: bool = false) -> void:
 	var name_key: String = npc_id if npc_id != "" else str(get_path())
 	var seed_value := TextGenerator.seed_from(name_key)
 	var slots: Dictionary = {}
-	if profile_id == Culture.DEFAULT_NAME_PROFILES["given"]:
+	if profile_id == Culture.DEFAULT_NAME_PROFILES["npc"]:
 		# A bare given name: the culture's list replaces it outright.
-		profile_id = _culture_profile("given")
+		profile_id = _culture_profile("npc")
 	else:
 		# A template, like the nobles' "X of Y": the type still decides the shape
 		# of the name, so the culture fills its slots instead of replacing it.
-		slots["npc_given_name"] = TextGenerator.generate(_culture_profile("given"), seed_value)
+		slots["npc_name"] = TextGenerator.generate(_culture_profile("npc"), seed_value)
 		slots["place_name"] = TextGenerator.generate(_culture_profile("place"),
 			TextGenerator.seed_from(name_key + ":place"))
 	npc_name = TextGenerator.generate(profile_id, seed_value, slots)
@@ -672,7 +672,7 @@ func _name_profile_id() -> String:
 		MainGameState.NpcType.ANIMAL, MainGameState.NpcType.MONSTER:
 			return ""
 		_:
-			return "npc_given_name"
+			return "npc_name"
 
 ## What the player should be shown. Falls back to the variant, then the type, so
 ## an unnamed creature reads as "Elven Rogue" or "Animal" rather than leaking an

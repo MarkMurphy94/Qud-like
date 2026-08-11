@@ -94,7 +94,7 @@ class_name TileMetadata
 ## The people whose land this is (Culture.culture_id), or "" where none reached.
 @export var culture_id: String = ""
 ## TextGenerator profile ids this tile's people name things with, keyed by role
-## ("place", "given"). Resolved from the culture when the metadata is built, so
+## ("place", "npc"). Resolved from the culture when the metadata is built, so
 ## everything downstream — map generator, NPC spawner — gets the answer without
 ## needing the culture map in scope. See resources/culture.gd.
 @export var name_profiles: Dictionary = {}

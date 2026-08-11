@@ -1,11 +1,11 @@
 [gd_resource type="Resource" script_class="MarkovProfile" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/markov/markov_profile.gd" id="1_script"]
-[ext_resource type="Resource" path="res://resources/markov/corpora/given_names.tres" id="2_corpus"]
+[ext_resource type="Resource" path="res://resources/markov/corpora/npc_names.tres" id="2_corpus"]
 
 [resource]
 script = ExtResource("1_script")
-id = "npc_given_name"
+id = "npc_name"
 corpus = ExtResource("2_corpus")
 template = ""
 min_length = 3

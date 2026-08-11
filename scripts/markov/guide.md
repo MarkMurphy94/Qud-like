@@ -7,7 +7,7 @@
 | text_generator.gd | `TextGenerator` autoload — the only thing callers touch |
 | bake_markov_models.gd | Optional EditorScript baker |
 
-Plus corpora (173 place names, 122 given names) and profiles (`place_name`, `npc_given_name`, `npc_full_name`). `TextGenerator` is registered in project.godot, and province_map.gd now names provinces through it, keeping the old head/tail table as a fallback.
+Plus corpora (173 place names, 122 given names) and profiles (`place_name`, `npc_name`, `npc_full_name`). `TextGenerator` is registered in project.godot, and province_map.gd now names provinces through it, keeping the old head/tail table as a fallback.
 
 ---
 
@@ -17,7 +17,7 @@ Plus corpora (173 place names, 122 given names) and profiles (`place_name`, `npc
 
 ```gdscript
 TextGenerator.generate("place_name")                  # random each call
-TextGenerator.generate("npc_given_name")
+TextGenerator.generate("npc_name")
 TextGenerator.generate("npc_full_name")               # "Wystan of Oakenhollow"
 ```
 
@@ -25,7 +25,7 @@ TextGenerator.generate("npc_full_name")               # "Wystan of Oakenhollow"
 
 ```gdscript
 TextGenerator.generate("place_name", TextGenerator.seed_from(tile))     # Vector2i
-TextGenerator.generate("npc_given_name", TextGenerator.seed_from(npc_id))  # String
+TextGenerator.generate("npc_name", TextGenerator.seed_from(npc_id))  # String
 ```
 
 `seed_from()` accepts `int`, `Vector2i`, or anything stringable. Same key → same text, every run. That's why generated names don't need saving.
@@ -33,7 +33,7 @@ TextGenerator.generate("npc_given_name", TextGenerator.seed_from(npc_id))  # Str
 **Batches** (one seeded stream, entries differ but the whole batch repeats):
 
 ```gdscript
-var roster := TextGenerator.generate_many("npc_given_name", 12, TextGenerator.seed_from(town_key))
+var roster := TextGenerator.generate_many("npc_name", 12, TextGenerator.seed_from(town_key))
 ```
 
 **Template slots** — override any slot with live game state:

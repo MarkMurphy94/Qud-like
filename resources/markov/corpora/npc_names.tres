@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_script")
-id = "given_names"
+id = "npc_names"
 mode = 0
 order = 3
 lowercase_input = true

@@ -66,28 +66,28 @@ class_name Culture
 ## Leave one empty and this people are named from the generic profile, so a
 ## culture with no corpus of its own still gets sensible names.
 @export var place_name_profile: String = ""
-@export var given_name_profile: String = ""
+@export var npc_name_profile: String = ""
 
 ## Profiles used by cultures that name no profile of their own, and by land no
-## culture reached. Keyed by role so callers ask for "a given name" rather than
+## culture reached. Keyed by role so callers ask for "a npc name" rather than
 ## knowing which profile that means.
 const DEFAULT_NAME_PROFILES := {
 	"place": "place_name",
-	"given": "npc_given_name",
+	"npc": "npc_name",
 }
 
 var tile_count: int = 0
 
 
-## The TextGenerator profile that writes `role` ("place" or "given") names for
+## The TextGenerator profile that writes `role` ("place" or "npc") names for
 ## this people.
 func name_profile(role: String) -> String:
 	var chosen := ""
 	match role:
 		"place":
 			chosen = place_name_profile
-		"given":
-			chosen = given_name_profile
+		"npc":
+			chosen = npc_name_profile
 	if chosen != "":
 		return chosen
 	return DEFAULT_NAME_PROFILES.get(role, "")
