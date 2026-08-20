@@ -27,11 +27,6 @@ var _map: MapGenerator = null
 # Margin in tiles so NPCs don't spawn right on the map edge.
 const SPAWN_MARGIN_TILES: int = 2
 
-## Density used for overworld tiles that carry a settlement marker. The
-## generator currently renders those as a hamlet rather than a full settlement,
-## so there is no authored MapConfig density to read.
-const HAMLET_DENSITY: int = MapConfig.BuildingDensity.SMALL_VILLAGE
-
 func _ready():
 	if not map_generator_path.is_empty():
 		_map = get_node_or_null(map_generator_path) as MapGenerator
@@ -54,7 +49,7 @@ func populate_local_map(metadata) -> void:
 	set_area_metadata(metadata)
 	if _has_settlement():
 		settlement_data = _map.map_template if _map else null
-		spawn_settlement_npcs(HAMLET_DENSITY)
+		spawn_settlement_npcs()
 	else:
 		spawn_wilderness_npcs()
 
@@ -85,9 +80,8 @@ func _name_profiles() -> Dictionary:
 
 # ─── Settlement spawning ───────────────────────────────────────────────────────
 
-## Spawns a settlement's population. `density_override` supplies a
-## MapConfig.BuildingDensity when the caller knows better than the MapConfig
-## does (see HAMLET_DENSITY); pass -1 to use settlement_data.building_density.
+## Spawns a settlement's population. `density_override` is a
+## MapConfig.BuildingDensity; -1 uses settlement_data.building_density.
 func spawn_settlement_npcs(density_override: int = -1) -> void:
 	if not settlement_data:
 		push_warning("NPCSpawner: no settlement_data set")
@@ -110,11 +104,12 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 
 	# Building positions are preferred but optional — NPCs fall back to random
 	# positions within the map bounds if none are available.
-	var building_positions := _extract_building_positions(settlement_data.buildings)
-	var homes := building_positions.duplicate()
+	var homes := _building_positions()
 	if not homes.is_empty():
 		homes.shuffle()
 	var home_index := 0
+
+	var area_key := _area_key()
 
 	for npc_type: MainGameState.NpcType in counts_map.keys():
 		var target_count: int = counts_map[npc_type]
@@ -128,7 +123,7 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 			# A building's stored position is its top-left wall cell, so nudge every
 			# spawn onto solid ground rather than dropping NPCs inside geometry.
 			var world_pos := _walkable_world_pos(spawn_tile)
-			var npc_id := "%s_%s_%d" % [settlement_data.map_name, str(npc_type), i]
+			var npc_id := "%s_%s_%d" % [area_key, str(npc_type), i]
 			var npc := _spawn_npc(npc_type, world_pos, "", npc_id)
 			npc.set_locations(world_pos)
 			spawned_npcs.append(npc)
@@ -171,7 +166,7 @@ func spawn_wilderness_npcs(count: int = -1) -> void:
 	if count < 0:
 		count = clamp(2 + (difficulty - 1) * 2, 2, 8)
 
-	var area_key := str(area_metadata.get("coords", area_metadata.get("seed", "unknown")))
+	var area_key := _area_key()
 	for i in count:
 		var npc_type := _wilderness_npc_type()
 		var pos := _walkable_world_pos(_random_tile())
@@ -214,6 +209,29 @@ func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: St
 	inst.global_position = world_pos
 	inst.add_to_group("NPCs")
 	return inst
+
+## Stable identifier for the area being populated, used to seed NPC ids (and so
+## their names). Tile coords, since that is the one thing that distinguishes two
+## maps generated from the same shared MapConfig.
+func _area_key() -> String:
+	return str(area_metadata.get("coords", area_metadata.get("seed", "unknown")))
+
+
+## Tile positions of the buildings NPCs can call home.
+##
+## Read from the generator's own record, which the settlement, stored-layout and
+## hamlet routes all fill. MapConfig.buildings only ever describes settlements,
+## so asking it left hamlet NPCs standing wherever the dice put them.
+func _building_positions() -> Array:
+	if _map and not _map.map_buildings.is_empty():
+		var out: Array = []
+		for b in _map.map_buildings:
+			out.append(b["pos"])
+		return out
+	if settlement_data:
+		return _extract_building_positions(settlement_data.buildings)
+	return []
+
 
 ## Extracts tile-space positions from an Array of Structure resources or legacy Dictionaries.
 func _extract_building_positions(buildings: Array) -> Array:

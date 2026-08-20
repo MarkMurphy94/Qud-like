@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://d0lf0trrr3lqb" path="res://scripts/alternate_mode/province_map.gd" id="2_prov0"]
 [ext_resource type="Script" uid="uid://dasuwcx0lmw2l" path="res://scripts/alternate_mode/culture_map.gd" id="3_cult0"]
 [ext_resource type="Resource" uid="uid://b02nbtpgn21r3" path="res://resources/cultures/apton.tres" id="4_cult1"]
+[ext_resource type="Script" uid="uid://cx64eymxo8cxf" path="res://resources/culture.gd" id="5_m6mxl"]
 [ext_resource type="Resource" uid="uid://ctbyyfax2lbkx" path="res://resources/cultures/sinzheim.tres" id="7_ugq76"]
 [ext_resource type="Resource" uid="uid://c2jv847yyvbwh" path="res://resources/cultures/boucourte.tres" id="8_bku4g"]
 [ext_resource type="Resource" uid="uid://cgjh2fmoyas18" path="res://resources/cultures/skjurni.tres" id="9_1fbfi"]
@@ -14,11 +15,13 @@
 [ext_resource type="Script" uid="uid://bgjawkcfti68b" path="res://scripts/alternate_mode/faction_map.gd" id="12_fact0"]
 [ext_resource type="Resource" uid="uid://db0q0de37cluh" path="res://resources/factions/house_auberne.tres" id="13_fact1"]
 [ext_resource type="Resource" path="res://resources/factions/house_vellier.tres" id="14_fact2"]
+[ext_resource type="Script" uid="uid://du68fji8l507p" path="res://resources/faction.gd" id="14_fwckd"]
 [ext_resource type="Resource" uid="uid://bu4c72bkn7itb" path="res://resources/factions/kindled_vigil.tres" id="15_fact3"]
 [ext_resource type="Resource" path="res://resources/factions/eastmarch_compact.tres" id="16_fact4"]
 [ext_resource type="Resource" uid="uid://duj8fpktyywlf" path="res://resources/factions/the_wickerhounds.tres" id="17_fact5"]
 [ext_resource type="Resource" uid="uid://bcbb8hc6p4w1g" path="res://resources/factions/the_ashen_banner.tres" id="18_fact6"]
 [ext_resource type="Resource" uid="uid://dw5p6ykacpdr1" path="res://resources/factions/house_apton.tres" id="19_lbdot"]
+[ext_resource type="Texture2D" uid="uid://h23f0qovgm3m" path="res://assets/world maps/Las 2026-07-07-15-44.jpeg" id="22_3fbwu"]
 
 [node name="world_map" type="Node2D" unique_id=608102656]
 script = ExtResource("1_w72x0")
@@ -47,9 +50,15 @@ script = ExtResource("2_prov0")
 
 [node name="cultures" type="Node2D" parent="." unique_id=1283403602]
 script = ExtResource("3_cult0")
-overlay_visible_on_start = true
-culture_defs = Array[Resource]([ExtResource("4_cult1"), ExtResource("9_n1k08"), ExtResource("7_ugq76"), ExtResource("8_bku4g"), ExtResource("9_1fbfi"), ExtResource("10_f2qiv"), ExtResource("11_bku4g")])
+culture_defs = Array[ExtResource("5_m6mxl")]([ExtResource("4_cult1"), ExtResource("9_n1k08"), ExtResource("7_ugq76"), ExtResource("8_bku4g"), ExtResource("9_1fbfi"), ExtResource("10_f2qiv"), ExtResource("11_bku4g")])
 
 [node name="factions" type="Node2D" parent="." unique_id=1994003117]
 script = ExtResource("12_fact0")
-faction_defs = Array[Resource]([ExtResource("13_fact1"), ExtResource("14_fact2"), ExtResource("15_fact3"), ExtResource("16_fact4"), ExtResource("17_fact5"), ExtResource("18_fact6"), ExtResource("19_lbdot")])
+faction_defs = Array[ExtResource("14_fwckd")]([ExtResource("13_fact1"), ExtResource("14_fact2"), ExtResource("15_fact3"), ExtResource("16_fact4"), ExtResource("17_fact5"), ExtResource("18_fact6"), ExtResource("19_lbdot")])
+
+[node name="Las202607071544" type="Sprite2D" parent="." unique_id=802734988]
+visible = false
+modulate = Color(1, 1, 1, 0.7019608)
+position = Vector2(2887.0002, 1788.9999)
+scale = Vector2(1.5493716, 1.840162)
+texture = ExtResource("22_3fbwu")

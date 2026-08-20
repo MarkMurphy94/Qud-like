@@ -7,6 +7,7 @@ enum StructureType {
 	TAVERN,
 	SHOP,
 	CHURCH,
+	BLACKSMITH,
 	WALL,
 	MANOR,
 	BARRACKS,

@@ -32,6 +32,13 @@ const Layout := preload("res://resources/tileset_layout.gd")
 ## Tile categories that block movement when painted on the base layer.
 const BLOCKING_BASE_CATEGORIES: Array[String] = ["liquid"]
 
+## Category a `locations` tile must have to count as somewhere people live.
+## That layer also carries roads, which must not read as settlements.
+const SETTLEMENT_CATEGORY := "building"
+
+## Tier used for a building icon that is not listed in SETTLEMENT_TILES.
+const UNMAPPED_SETTLEMENT_DENSITY: int = MapConfig.BuildingDensity.SMALL_VILLAGE
+
 ## Painted extent of the whole map, in tiles. Set in _ready().
 var bounds: Rect2i = Rect2i()
 
@@ -165,9 +172,29 @@ func biome_at(tile: Vector2i) -> String:
 #  QUERIES
 # ═══════════════════════════════════════════════════════════════════════
 
-## True when a settlement / point-of-interest marker sits on this tile.
+## True when any marker at all sits on this tile — a settlement, but also a
+## road, since the `locations` layer carries both. Ask has_settlement() if what
+## you mean is "somebody lives here".
 func has_location(tile: Vector2i) -> bool:
 	return locations.get_cell_source_id(tile) != -1
+
+func settlement_density_at(tile: Vector2i) -> int:
+	if locations.get_cell_source_id(tile) == -1:
+		return Layout.NO_SETTLEMENT
+	if category_at(locations, tile) != SETTLEMENT_CATEGORY:
+		return Layout.NO_SETTLEMENT
+	var coord: Vector2i = locations.get_cell_atlas_coords(tile)
+	var density: int = Layout.settlement_density_for(coord)
+	if density == Layout.NO_SETTLEMENT:
+		push_warning("[WorldMap] Settlement icon %s at tile %s is not in RoguelikeTilesetLayout.SETTLEMENT_TILES — generating it as the default tier."
+			% [coord, tile])
+		return UNMAPPED_SETTLEMENT_DENSITY
+	return density
+
+
+## True when somebody lives on this tile.
+func has_settlement(tile: Vector2i) -> bool:
+	return settlement_density_at(tile) != Layout.NO_SETTLEMENT
 
 
 ## Which province holds this tile (ProvinceMap.NO_PROVINCE for sea and void).

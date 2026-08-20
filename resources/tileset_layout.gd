@@ -113,6 +113,17 @@ const CATEGORY_BANDS := [
 	{"category": "entity_sprite", "rows": [27, 43], "walkable": true, "is_map_tile": false, "local_gen": false},
 ]
 
+const SETTLEMENT_TILES := {
+	Vector2i(4, 17): MapConfig.BuildingDensity.SMALL_TOWN,
+	Vector2i(6, 18): MapConfig.BuildingDensity.CITY,
+	Vector2i(5, 18): MapConfig.BuildingDensity.SMALL_VILLAGE,	# will be castle once implemented
+}
+
+const NO_SETTLEMENT := -1
+
+static func settlement_density_for(coord: Vector2i) -> int:
+	return SETTLEMENT_TILES.get(coord, NO_SETTLEMENT)
+
 # --- prop selection weights ---
 # The generator picks props by weight, so "which props show up most" is data
 # here rather than logic in map_generator.gd. COMMON marks the small set of
@@ -150,9 +161,6 @@ const OVERRIDES := {
 	Vector2i(6, 22): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
 
 	# Bookshelf → empty pot: the common interior props.
-	# TODO: identify the remaining coords in this row and give the storage
-	# furniture a `container` role. Every prop tagged here becomes lootable with
-	# no code change — see the container-prop notes above.
 	Vector2i(4, 24): {
 		"placement": "interior", 
 		"weight": COMMON_PROP_WEIGHT,

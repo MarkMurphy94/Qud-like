@@ -245,13 +245,13 @@ func _terrain_for_tile(tile: Vector2i) -> int:
 		return local_scene.OverworldTile.MOUNTAIN
 	return local_scene.OverworldTile.GRASS
 
+func _settlement_density_for_tile(tile: Vector2i) -> int:
+	if world_map == null or not world_map.has_method("settlement_density_at"):
+		return -1
+	return int(world_map.settlement_density_at(tile))
+
 func _tile_has_settlement(tile: Vector2i) -> bool:
-	if world_map == null:
-		return false
-	if world_map.has_method("has_location"):
-		return bool(world_map.has_location(tile))
-	var locations_layer: TileMapLayer = world_map.get_node_or_null("locations")
-	return locations_layer != null and locations_layer.get_cell_source_id(tile) != -1
+	return _settlement_density_for_tile(tile) >= 0
 
 func _tile_is_forest(tile: Vector2i) -> bool:
 	if world_map == null:
@@ -271,7 +271,9 @@ func _build_local_map_metadata(tile: Vector2i, seed_value: int, base_metadata: D
 	var existing_overworld = meta.get("overworld", {})
 	if existing_overworld is Dictionary:
 		overworld_data = (existing_overworld as Dictionary).duplicate(true)
-	overworld_data["has_settlement"] = _tile_has_settlement(tile)
+	var settlement_density := _settlement_density_for_tile(tile)
+	overworld_data["settlement_density"] = settlement_density
+	overworld_data["has_settlement"] = settlement_density >= 0
 	overworld_data["is_forest"] = _tile_is_forest(tile)
 	overworld_data["terrain"] = terrain
 	overworld_data["biome"] = meta["biome"]
@@ -288,6 +290,7 @@ func _build_local_map_metadata(tile: Vector2i, seed_value: int, base_metadata: D
 	}
 
 	# Keep top-level aliases for backward-compatible readers.
+	meta["settlement_density"] = settlement_density
 	meta["has_settlement"] = overworld_data["has_settlement"]
 	meta["is_forest"] = overworld_data["is_forest"]
 	return meta

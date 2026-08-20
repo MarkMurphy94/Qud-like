@@ -64,7 +64,7 @@ var terrain_cells = {
 # whole-building glyphs are world-map icons (local_gen = false in the band
 # table) — so buildings are drawn from wall and door tiles and are sized like
 # rooms rather than city blocks.
-const ROGUELIKE_BUILDING_SPRITES := {
+const BUILDING_SPRITES := {
 	Structure.StructureType.HOUSE:  {"size": Vector2i(5, 5),   "ground": "dirt",  "spacing": 2},
 	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "stone", "spacing": 2},
 	Structure.StructureType.TAVERN: {"size": Vector2i(8, 6),   "ground": "stone", "spacing": 3},
@@ -72,7 +72,7 @@ const ROGUELIKE_BUILDING_SPRITES := {
 }
 
 func _building_def(building_type: int):
-	return ROGUELIKE_BUILDING_SPRITES.get(building_type)
+	return BUILDING_SPRITES.get(building_type)
 
 const WIDTH = 80
 const HEIGHT = 80
@@ -105,7 +105,7 @@ const BUILDING_COUNTS_BY_DENSITY = {
 	MapConfig.BuildingDensity.NONE: {},
 	MapConfig.BuildingDensity.SMALL_VILLAGE: {
 		Structure.StructureType.HOUSE: 4,
-		Structure.StructureType.TAVERN: 0,
+		Structure.StructureType.TAVERN: 1,
 		Structure.StructureType.SHOP: 1,
 		Structure.StructureType.MANOR: 0,
 	},
@@ -324,6 +324,10 @@ var container_cells: Dictionary = {}
 ## now, so the mask is kept explicitly.
 var building_clear_cells: Dictionary = {}
 
+## Buildings standing on the current map, as [{type, pos, size}, …]. Filled by
+## every route that places them, so NPCSpawner need not know which one ran.
+var map_buildings: Array = []
+
 # Normalized copy of the TileMetadata dict passed to generate_local_map()
 # (runtime wilderness path); empty for settlement/editor generation.
 var current_metadata: Dictionary = {}
@@ -376,6 +380,7 @@ func clear_all_layers() -> void:
 	decor_interior.clear()
 	container_cells.clear()
 	building_clear_cells.clear()
+	map_buildings.clear()
 
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
@@ -519,6 +524,7 @@ func setup_and_generate(
 	if seed_value == 0:
 		seed_value = int(map_template.SEED)
 	overworld_position = world_position
+	base_terrain_type = overworld_tile_type
 	var local_rng = RandomNumberGenerator.new()
 	if seed_value == 0:
 		local_rng.seed = randi()
@@ -594,25 +600,8 @@ func _store_settlement_layout(seed_used: int) -> void:
 		})
 	entry["buildings"] = stored_buildings
 
-func build_settlement_from_dataset() -> void:
-	clear_all_layers()
-
-	var area_size = Vector2i(WIDTH, HEIGHT)
-	var settlement_terrain = _get_settlement_terrain()
-	current_map_seed = int(map_template.SEED)
-	# Terrain variant picking consumes the global RNG (see generate_local_area).
-	seed(current_map_seed)
-	_configure_ground_noise(current_map_seed)
-
-	# Building footprints are known up front here, so ground wear can be
-	# computed before any terrain is painted.
-	var building_rects: Array[Rect2i] = []
-	for b: Structure in map_template.important_buildings + map_template.buildings:
-		if b == null:
-			continue
-		var b_sprite_def = _building_def(int(b.TYPE))
-		if b_sprite_def:
-			building_rects.append(Rect2i(b.POSITION, b_sprite_def["size"]))
+func _paint_settlement_ground(building_rects: Array[Rect2i]) -> void:
+	var settlement_terrain := _get_settlement_terrain()
 	var wear := _build_wear_grid(building_rects)
 
 	# Low-frequency patch noise: secondary terrain forms connected worn patches
@@ -626,8 +615,8 @@ func build_settlement_from_dataset() -> void:
 
 	for terrain in terrain_cells:
 		terrain_cells[terrain].clear()
-	for y in area_size.y:
-		for x in area_size.x:
+	for y in HEIGHT:
+		for x in WIDTH:
 			var pos := Vector2i(x, y)
 			var patch_val := (patch_noise.get_noise_2d(x, y) + 1.0) / 2.0
 			patch_val += float(wear.get(pos, 0.0)) * 0.35
@@ -636,39 +625,50 @@ func build_settlement_from_dataset() -> void:
 	for terrain in terrain_cells:
 		_paint_surface(ground, terrain_cells[terrain], terrain)
 
-	var placed_for_roads: Array = []
-	for b: Structure in map_template.important_buildings:
+
+## Ground is expected to be painted already — buildings draw their own yards.
+func _place_buildings(buildings: Array) -> void:
+	for entry in buildings:
+		place_building_settlement(entry["pos"], entry["size"], entry["type"])
+	map_buildings = buildings
+
+func _buildings_from_structures(structures: Array[Structure]) -> Array:
+	var out: Array = []
+	for b: Structure in structures:
 		if b == null:
 			continue
-		var enum_type: int = int(b.TYPE)
-		var sprite_def = _building_def(enum_type)
+		var sprite_def = _building_def(int(b.TYPE))
 		if not sprite_def:
 			continue
-		var pos: Vector2i = b.POSITION
-		var size: Vector2i = sprite_def["size"]
-		place_building_settlement(pos, size, enum_type)
-		placed_for_roads.append({"type": enum_type, "pos": pos, "size": size})
+		out.append({"type": int(b.TYPE), "pos": b.POSITION, "size": sprite_def["size"]})
+	return out
 
-	for b: Structure in map_template.buildings:
-		if b == null:
-			continue
-		var enum_type: int = int(b.TYPE)
-		var sprite_def = _building_def(enum_type)
-		if not sprite_def:
-			continue
-		var pos: Vector2i = b.POSITION
-		var size: Vector2i = sprite_def["size"]
-		place_building_settlement(pos, size, enum_type)
-		placed_for_roads.append({"type": enum_type, "pos": pos, "size": size})
 
-	generate_roads_between_buildings(placed_for_roads, RandomNumberGenerator.new())
+func build_settlement_from_dataset() -> void:
+	clear_all_layers()
+
+	current_map_seed = int(map_template.SEED)
+	# Terrain variant picking consumes the global RNG (see generate_local_area).
+	seed(current_map_seed)
+	_configure_ground_noise(current_map_seed)
+
+	var buildings := _buildings_from_structures(map_template.important_buildings)
+	buildings.append_array(_buildings_from_structures(map_template.buildings))
+
+	var building_rects: Array[Rect2i] = []
+	for entry in buildings:
+		building_rects.append(Rect2i(entry["pos"], entry["size"]))
+	_paint_settlement_ground(building_rects)
+	_place_buildings(buildings)
+
+	generate_roads_between_buildings(buildings, RandomNumberGenerator.new())
 	generate_edge_roads()
 	var feature_rng := RandomNumberGenerator.new()
 	feature_rng.seed = current_map_seed ^ 0x7EA7F00D
 	add_terrain_features(feature_rng)
 	add_foliage()
-	add_decor_exterior(placed_for_roads)
-	add_decor_interior(placed_for_roads)
+	add_decor_exterior(buildings)
+	add_decor_interior(buildings)
 
 func generate_local_map(metadata) -> void:
 	if typeof(metadata) == TYPE_OBJECT and metadata is TileMetadata:
@@ -685,8 +685,8 @@ func generate_local_map(metadata) -> void:
 	_apply_metadata_to_config()
 
 	clear_all_layers()
-	var local_rng := RandomNumberGenerator.new()
-	generate_local_area(terrain, world_pos, local_rng, map_seed)
+	# map_type, set just above, picks settlement vs wilderness generation.
+	setup_and_generate(-1, terrain, world_pos, map_seed)
 
 func _merged_overworld_metadata() -> Dictionary:
 	var merged: Dictionary = {}
@@ -710,10 +710,18 @@ func _apply_metadata_to_config() -> void:
 	map_template.SEED = int(current_metadata.get("seed", 0))
 	var overworld_data: Dictionary = _merged_overworld_metadata()
 
-	# Which biome's column of art this map draws from. Assigned unconditionally:
-	# map_template is a shared resource, so leaving a previous tile's biome in
-	# place would carry it into the next area. An unnamed biome resolves to
-	# TEMPERATE via biome_from_name().
+	var settlement_density := int(current_metadata.get(
+		"settlement_density", overworld_data.get("settlement_density", -1)))
+	if settlement_density >= 0:
+		map_template.map_type = MapConfig.MapType.SETTLEMENT
+		map_template.building_density = settlement_density as MapConfig.BuildingDensity
+	else:
+		map_template.map_type = MapConfig.MapType.NON_SETTLEMENT
+		map_template.building_density = MapConfig.BuildingDensity.NONE
+
+	map_template.overworld_tile = current_metadata.get("coords", Vector2i.ZERO)
+	map_template.buildings.clear()
+	map_template.map_name = str(current_metadata.get("name", ""))
 	map_biome = current_metadata.get("biome", "")
 
 	# Road exits & surface
@@ -762,10 +770,6 @@ func _apply_metadata_to_config() -> void:
 	var ruins_data = current_metadata.get("ruins", null)
 	if ruins_data is Dictionary and ruins_data.get("exists", false):
 		features.append(MapConfig.MiscFeatures.RUIN)
-	# Optional overworld hint: settlement markers become a small hamlet when no
-	# explicit misc features were authored for the tile.
-	if bool(overworld_data.get("has_settlement", false)) and features.is_empty():
-		features.append(MapConfig.MiscFeatures.HAMLET)
 	map_template.misc_features = features
 
 func generate_local_area(overworld_tile_type: int, world_position: Vector2i, local_rng: RandomNumberGenerator, seed_override: int = 0) -> void:
@@ -800,15 +804,16 @@ func generate_local_area(overworld_tile_type: int, world_position: Vector2i, loc
 	for terrain in terrain_cells:
 		_paint_surface(ground, terrain_cells[terrain], terrain)
 
-	var placed_buildings := _generate_misc_features(local_rng)
+	var feature_buildings := _generate_misc_features(local_rng)
+	map_buildings = feature_buildings
+	# The scatter passes below steer around roads, so footpaths between a hamlet's
+	# buildings are what keeps its props from spreading evenly over the whole yard.
+	generate_roads_between_buildings(feature_buildings, local_rng)
 	generate_edge_roads()
 	add_terrain_features(local_rng)
 	add_foliage()
-	# Decor runs on the same footprints the settlement path uses. Skipping it
-	# here was why a hamlet reached in-game had walls but no barrels, firepits
-	# or furniture.
-	add_decor_exterior(placed_buildings)
-	add_decor_interior(placed_buildings)
+	add_decor_exterior(feature_buildings)
+	add_decor_interior(feature_buildings)
 
 func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	map_template.SEED = settlement_rng.seed
@@ -824,23 +829,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 	map_template.buildings.clear()
 	# Terrain variant picking consumes the global RNG (see generate_local_area).
 	seed(int(map_template.SEED))
-	# Seed the ground noise explicitly — previously generate_settlement sampled
-	# whatever state the noise object happened to be in.
 	_configure_ground_noise(int(map_template.SEED))
-
-	for terrain in terrain_cells:
-		terrain_cells[terrain].clear()
-
-	for y in area_size.y:
-		for x in area_size.x:
-			var height = noise.get_noise_2d(x, y)
-			height = (height + 1) / 2
-			var ground_tile = get_ground_tile(x, y, height)
-			var terrain_type = GROUND_TERRAIN_MAP[ground_tile]
-			terrain_cells[terrain_type].append(Vector2i(x, y))
-	
-	for terrain in terrain_cells:
-		_paint_surface(ground, terrain_cells[terrain], terrain)
 
 	current_map_seed = map_template.SEED
 
@@ -850,7 +839,9 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 		for x in area_size.x:
 			occupied_space_grid[y].append(false)
 
-	var placed_buildings: Array = []
+	# Every position is chosen before anything is drawn, so the ground pass below
+	# can wear the earth around the whole settlement at once.
+	var chosen: Array = []
 	# Everything this settlement will put down, so the buildable core can be
 	# sized before the first building is placed rather than growing to fit.
 	var core := _settlement_core_rect(area_size, building_counts, _settlement_spread())
@@ -865,12 +856,11 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 		var size: Vector2i = sprite_def["size"]
 		var pos: Vector2i = b.POSITION
 		if pos == Vector2i.ZERO:
-			pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, enum_type, core, placed_buildings)
+			pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, enum_type, core, chosen)
 			b.POSITION = pos
 		if pos.x != -1:
-			place_building_settlement(pos, size, enum_type)
 			mark_occupied_settlement(occupied_space_grid, pos, size, sprite_def["spacing"])
-			placed_buildings.append({"type": enum_type, "pos": pos, "size": size})
+			chosen.append({"type": enum_type, "pos": pos, "size": size})
 
 	var building_order = [Structure.StructureType.MANOR, Structure.StructureType.TAVERN, Structure.StructureType.SHOP, Structure.StructureType.HOUSE]
 	for building_type in building_order:
@@ -880,11 +870,10 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 			continue
 		var size: Vector2i = sprite_def["size"]
 		for _i in count:
-			var pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, building_type, core, placed_buildings)
+			var pos = find_valid_building_position_settlement(area_size, size, occupied_space_grid, settlement_rng, building_type, core, chosen)
 			if pos.x != -1:
-				place_building_settlement(pos, size, building_type)
 				mark_occupied_settlement(occupied_space_grid, pos, size, sprite_def["spacing"])
-				placed_buildings.append({"type": building_type, "pos": pos, "size": size})
+				chosen.append({"type": building_type, "pos": pos, "size": size})
 				var s := Structure.new()
 				s.TYPE = building_type
 				s.POSITION = pos
@@ -893,13 +882,19 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 				s.INTERIOR_FEATURES = []
 				s.SCRIPTED_CONTENT = null
 				map_template.buildings.append(s)
-	
-	generate_roads_between_buildings(placed_buildings, settlement_rng)
+
+	var building_rects: Array[Rect2i] = []
+	for entry in chosen:
+		building_rects.append(Rect2i(entry["pos"], entry["size"]))
+	_paint_settlement_ground(building_rects)
+	_place_buildings(chosen)
+
+	generate_roads_between_buildings(chosen, settlement_rng)
 	generate_edge_roads()
 	add_terrain_features(settlement_rng)
 	add_foliage()
-	add_decor_exterior(placed_buildings)
-	add_decor_interior(placed_buildings)
+	add_decor_exterior(chosen)
+	add_decor_interior(chosen)
 
 	_store_settlement_layout(int(map_template.SEED))
 
@@ -1921,7 +1916,7 @@ func _wall_role(cell: Vector2i, rect: Rect2i) -> String:
 
 
 ## A non-corner cell on the wall ring to use as the entrance. Assumes a
-## footprint at least 3x3, which every ROGUELIKE_BUILDING_SPRITES entry is.
+## footprint at least 3x3, which every BUILDING_SPRITES entry is.
 func _pick_door_cell(rect: Rect2i, rng: RandomNumberGenerator) -> Vector2i:
 	match rng.randi() % 4:
 		0: return Vector2i(rng.randi_range(rect.position.x + 1, rect.end.x - 2), rect.end.y - 1)
