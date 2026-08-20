@@ -2,7 +2,7 @@ extends Node
 
 ## Default spritesheet for items that don't specify one.
 ## The transparent cut of the Backterria master sheet — the same art the map is
-## painted from (see resources/tileset_layout.gd), so an item's icon and its
+## painted from (see resources/tileset_catalog.gd), so an item's icon and its
 ## world tile are the same 16px grid and an item is addressed by the atlas
 ## coord it occupies there.
 var default_item_spritesheet: Resource = preload("res://assets/The Roguelike 1-15-1 Alpha.png")

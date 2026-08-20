@@ -273,7 +273,7 @@ func generate_loot_drop(enemy_level: int = 1, _loot_table: String = "default") -
 # ═══════════════════════════════════════════════════════════════════════
 
 ## What a container is likely to hold, keyed by the `loot_table` name its tile
-## override carries (see the container-prop notes in resources/tileset_layout.gd).
+## override carries (see the container-prop notes in resources/tileset_catalog.gd).
 ##
 ## `rolls` is the min/max number of items drawn. Each draw picks a category by
 ## weight, so a table is tuned by nudging numbers rather than writing code, and

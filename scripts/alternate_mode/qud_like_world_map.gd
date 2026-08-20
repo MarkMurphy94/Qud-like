@@ -6,11 +6,11 @@ extends Node2D
 ## sync (that was the main source of drift in the old OverworldMap).
 ##
 ## Tile semantics come from the shared row/column bands in
-## resources/tileset_layout.gd. Both atlas sheets used here
+## resources/tileset_catalog.gd. Both atlas sheets used here
 ## ("The Roguelike 1-15-1.png" and "overworld_roguelike_merged.png") are the
 ## same 109-column grid, so one band table resolves tiles from either source.
 
-const Layout := preload("res://resources/tileset_layout.gd")
+const Layout := preload("res://resources/tileset_catalog.gd")
 
 @onready var base: TileMapLayer = $base
 @onready var land_features: TileMapLayer = $land_features
@@ -129,7 +129,7 @@ func is_walkable(tile: Vector2i) -> bool:
 
 
 ## Resolve a tile's category on the given layer. Prefers the tileset's stamped
-## "category" custom data and falls back to the row bands in tileset_layout.gd,
+## "category" custom data and falls back to the row bands in tileset_catalog.gd,
 ## so walkability works whether or not the stamper has been run.
 func category_at(layer: TileMapLayer, tile: Vector2i) -> String:
 	var data: TileData = layer.get_cell_tile_data(tile)
@@ -186,7 +186,7 @@ func settlement_density_at(tile: Vector2i) -> int:
 	var coord: Vector2i = locations.get_cell_atlas_coords(tile)
 	var density: int = Layout.settlement_density_for(coord)
 	if density == Layout.NO_SETTLEMENT:
-		push_warning("[WorldMap] Settlement icon %s at tile %s is not in RoguelikeTilesetLayout.SETTLEMENT_TILES — generating it as the default tier."
+		push_warning("[WorldMap] Settlement icon %s at tile %s is not in TilesetCatalog.SETTLEMENT_TILES — generating it as the default tier."
 			% [coord, tile])
 		return UNMAPPED_SETTLEMENT_DENSITY
 	return density

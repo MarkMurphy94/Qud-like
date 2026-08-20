@@ -1,6 +1,6 @@
 @tool
 extends RefCounted
-class_name RoguelikeTilesetLayout
+class_name TilesetCatalog
 
 ## Declarative layout of the Backterria master sheet
 ## "The Roguelike 1-15-1.png"  (source in resources/the_roguelike.tres).
@@ -46,6 +46,10 @@ const THEME_BANDS := [
 	{"theme": "cyberpunk",       "cols": [98, 108]}, # don't use
 ]
 
+# The theme whose art this game paints with, and the one whose columns are
+# biomes rather than variants. Currently the same block; separate names because
+# they are separate facts.
+const DEFAULT_THEME := "medieval_fantasy"
 const BIOME_THEME := "medieval_fantasy"
 const BIOME_COLUMNS := {
 	4: "temperate",
@@ -113,6 +117,66 @@ const CATEGORY_BANDS := [
 	{"category": "entity_sprite", "rows": [27, 43], "walkable": true, "is_map_tile": false, "local_gen": false},
 ]
 
+# --- generator pools ---
+# Where MapGenerator looks for each band category: tile_catalog[category][type].
+# A band with no route here is invisible to the generator.
+const CATEGORY_ROUTING := {
+	"tree":     {"category": "foliage",          "type": "tree"},
+	"bush":     {"category": "foliage",          "type": "bush"},
+	"plant":    {"category": "foliage",          "type": "plant"},
+	"grass":    {"category": "terrain_features", "type": "grass"},
+	"rock":     {"category": "terrain_features", "type": "rock"},
+	"farm":     {"category": "terrain_features", "type": "farm"},
+	"ground":   {"category": "surface",          "type": "ground"},
+	# Row 10's coarse cut is never a base surface — it scatters over one as a
+	# feature, so it routes to the feature layer.
+	"ground_detail": {"category": "terrain_features", "type": "ground_detail"},
+	"road":     {"category": "road",             "type": "road"},
+	"liquid":   {"category": "surface",          "type": "water"},
+	"mountain": {"category": "surface",          "type": "mountain"},
+	"wall":     {"category": "structure",        "type": "wall"},
+	"door":     {"category": "structure",        "type": "door"},
+	"building": {"category": "structure",        "type": "building"},
+	"prop":     {"category": "decor_exterior",   "type": "prop"},
+}
+
+## Surface names MapGenerator paints with → the band they draw from. Aliases
+## onto CATEGORY_ROUTING rather than a second routing table, so a pool is
+## defined in one place only.
+##
+## "grass" and "dirt" both land on the `ground` band, which has no material
+## sub-columns yet, so on screen the two are currently identical.
+const SURFACE_BANDS := {
+	"grass":       "ground",
+	"dirt":        "ground",
+	"stone":       "ground_detail",
+	"water":       "liquid",
+	"wheat_field": "farm",
+	# Paths used to be painted as "dirt" — the same band the base terrain comes
+	# from — which made every road invisible.
+	"road":        "road",
+}
+
+## Pool for a name with no route, so a typo paints something rather than nothing.
+const FALLBACK_ROUTE := {"category": "surface", "type": "ground"}
+
+static func surface_route(surface: String) -> Dictionary:
+	return CATEGORY_ROUTING.get(SURFACE_BANDS.get(surface, ""), FALLBACK_ROUTE)
+
+
+## Where a band category lands in the catalog, or {} when it is not routed there.
+static func category_route(category: String) -> Dictionary:
+	return CATEGORY_ROUTING.get(category, {})
+
+
+# --- named tiles ---
+# Single coords the generator asks for by name. A band is one atlas row and the
+# columns across it are themes and biomes, so a specific material or icon cannot
+# be expressed as a band — it has to be pointed at directly.
+
+## Which building icon on the world map's `locations` layer means which size of
+## settlement. Only the `building` band (rows 17–18) belongs here — that layer
+## also carries roads.
 const SETTLEMENT_TILES := {
 	Vector2i(4, 17): MapConfig.BuildingDensity.SMALL_TOWN,
 	Vector2i(6, 18): MapConfig.BuildingDensity.CITY,
@@ -123,6 +187,28 @@ const NO_SETTLEMENT := -1
 
 static func settlement_density_for(coord: Vector2i) -> int:
 	return SETTLEMENT_TILES.get(coord, NO_SETTLEMENT)
+
+## The wall ring a generated building is drawn with, by compass role.
+const DEFAULT_WALL_TILES := {
+	"nw": Vector2i(5, 19),
+	"n":  Vector2i(6, 19),
+	"ne": Vector2i(7, 19),
+	"e":  Vector2i(9, 20),
+	"se": Vector2i(7, 20),
+	"s":  Vector2i(8, 20),
+	"sw": Vector2i(5, 20),
+	"w":  Vector2i(4, 19),
+}
+
+## Flooring laid inside a generated building, and the named materials a
+## BUILDING_SPRITES entry can ask for instead.
+const DEFAULT_FLOOR_ATLAS := Vector2i(66, 10)
+
+const FLOOR_TILES := {
+	"dark_wood": Vector2i(66, 10),
+	"stone_floor": Vector2i(5, 10),
+	"dirt": Vector2i(5, 9),
+}
 
 # --- prop selection weights ---
 # The generator picks props by weight, so "which props show up most" is data

@@ -5,7 +5,7 @@ class_name ItemContainer
 ##
 ## The container owns no art. The prop tile the map generator painted *is* the
 ## container: its sprite and its collision come from the tileset like any other
-## prop (see the container-prop notes in resources/tileset_layout.gd). This node
+## prop (see the container-prop notes in resources/tileset_catalog.gd). This node
 ## is only the contents, the lock, and the record of what has been taken out.
 ##
 ## Interaction is grid-based and costs a turn, like everything else in this

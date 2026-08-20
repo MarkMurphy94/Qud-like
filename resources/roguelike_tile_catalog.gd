@@ -2,86 +2,18 @@
 extends RefCounted
 class_name RoguelikeTileCatalog
 
-## Builds MapGenerator's tile_catalog from the declarative bands in
-## resources/tileset_layout.gd, so the Backterria roguelike master sheet can
-## drive local-map generation without every tile being hand-stamped in the
-## TileSet inspector.
+## Builds MapGenerator's tile_catalog from a TileSet, indexed as
+## tile_catalog[category][type].
 ##
-## MapGenerator indexes tiles as tile_catalog[category][type]. The band table
-## only knows one category per atlas row, so CATEGORY_ROUTING translates a band
-## category into the (category, type) pair the generator asks for. Anything not
-## routed here is invisible to the generator.
+## This is the mechanical half of the tileset layer: which atlas source each
+## coordinate should be drawn from, and how to narrow the resulting pools. What
+## a tile MEANS — its band, its route into the catalog, the coords called out by
+## name — is authored in resources/tileset_catalog.gd.
 ##
 ## Every entry carries its `theme` ("medieval_fantasy", "far_east", …) so one catalog
 ## covers the whole sheet and callers filter down at pick time.
 
-const Layout := preload("res://resources/tileset_layout.gd")
-
-## Band category → where MapGenerator looks for it.
-const CATEGORY_ROUTING := {
-	"tree":     {"category": "foliage",          "type": "tree"},
-	"bush":     {"category": "foliage",          "type": "bush"},
-	"plant":    {"category": "foliage",          "type": "plant"},
-	"grass":    {"category": "terrain_features", "type": "grass"},
-	"rock":     {"category": "terrain_features", "type": "rock"},
-	"farm":     {"category": "terrain_features", "type": "farm"},
-	"ground":   {"category": "surface",          "type": "ground"},
-	# Row 10's coarse ground cut is never a base surface — it is scattered over
-	# one by add_terrain_features, so it routes to the feature layer instead.
-	"ground_detail": {"category": "terrain_features", "type": "ground_detail"},
-	"road":     {"category": "road",          "type": "road"},
-	"liquid":   {"category": "surface",          "type": "water"},
-	"mountain": {"category": "surface",          "type": "mountain"},
-	"wall":     {"category": "structure",        "type": "wall"},
-	"door":     {"category": "structure",        "type": "door"},
-	"building": {"category": "structure",        "type": "building"},
-	"prop":     {"category": "decor_exterior",   "type": "prop"},
-}
-
-## MapGenerator's ground-surface names → the catalog (category, type) they
-## paint from.
-##
-## The old tileset autotiled these through terrain sets; the roguelike sheet has
-## no terrain sets, so surfaces are painted cell by cell from these pools. The
-## pair must match CATEGORY_ROUTING above — a surface is not always routed into
-## the "surface" category (the coarse ground cut and farm rows land in
-## "terrain_features"), and naming only the type silently yields an empty pool.
-## NOTE: "grass" and "dirt" both resolve to the `ground` band because the band
-## table has no column sub-bands yet — until tileset_layout.gd grows them (see
-## its climate/biome TODO) the two surfaces are visually identical.
-const TERRAIN_SURFACES := {
-	"grass":       {"category": "surface",          "type": "ground"},
-	"dirt":        {"category": "surface",          "type": "ground"},
-	"stone":       {"category": "terrain_features", "type": "ground_detail"},
-	"water":       {"category": "surface",          "type": "water"},
-	"wheat_field": {"category": "terrain_features", "type": "farm"},
-	# The sheet's own road cut. Paths used to be painted as "dirt", which is the
-	# same `ground` band the base terrain comes from — so a road was invisible.
-	"road":        {"category": "road",             "type": "road"},
-}
-
-## Catalog (category, type) a named ground surface paints from. Unknown names
-## fall back to plain ground so a typo paints something rather than nothing.
-static func surface_route(surface: String) -> Dictionary:
-	return TERRAIN_SURFACES.get(surface, {"category": "surface", "type": "ground"})
-
-## Themes are laid out in columns; this is the one this game paints with.
-const DEFAULT_THEME := "medieval_fantasy"
-
-## Default building shell. Generated buildings draw their wall ring from this
-## directional set of medieval_fantasy wall tiles, and pave their interior
-## with DEFAULT_FLOOR_ATLAS.
-const DEFAULT_WALL_TILES := {
-	"nw": Vector2i(5, 19),
-	"n":  Vector2i(6, 19),
-	"ne": Vector2i(7, 19),
-	"e":  Vector2i(9, 20),
-	"se": Vector2i(7, 20),
-	"s":  Vector2i(8, 20),
-	"sw": Vector2i(5, 20),
-	"w":  Vector2i(4, 19),
-}
-const DEFAULT_FLOOR_ATLAS := Vector2i(66, 10)
+const Layout := preload("res://resources/tileset_catalog.gd")
 
 
 ## Build the full catalog for every atlas source in `ts` whose texture the band
@@ -116,7 +48,7 @@ static func build(ts: TileSet) -> Dictionary:
 			# art (mountains, whole-building glyphs) must not land in a local map.
 			if not meta.get("is_map_tile", false) or not meta.get("local_gen", false):
 				continue
-			var route: Dictionary = CATEGORY_ROUTING.get(meta.category, {})
+			var route: Dictionary = Layout.category_route(meta.category)
 			if route.is_empty():
 				continue
 
@@ -146,7 +78,7 @@ static func build(ts: TileSet) -> Dictionary:
 				"weight": meta.get("weight", Layout.DEFAULT_PROP_WEIGHT),
 				# Non-empty for props that stand in for a lootable container.
 				# MapGenerator records where these land so a container can be
-				# spawned on the cell; see tileset_layout.gd for the fields.
+				# spawned on the cell; see tileset_catalog.gd for the fields.
 				"container": meta.get("container", Layout.NO_CONTAINER),
 				"loot_table": meta.get("loot_table", ""),
 				"open_atlas": meta.get("open_atlas", coords),
@@ -206,7 +138,7 @@ static func _source_has(ts: TileSet, source_id: int, coords: Vector2i) -> bool:
 
 ## Narrow a pool to one theme. Falls back to the unfiltered pool when the theme
 ## has no art for that tile type, so a missing column never leaves a map blank.
-static func of_theme(entries: Array, theme: String = DEFAULT_THEME) -> Array:
+static func of_theme(entries: Array, theme: String = Layout.DEFAULT_THEME) -> Array:
 	var matched: Array = []
 	for entry in entries:
 		if entry.get("theme", "") == theme:
@@ -228,7 +160,7 @@ static func of_biome(entries: Array, biome: String) -> Array:
 	return matched if not matched.is_empty() else entries
 
 
-## Resolve DEFAULT_WALL_TILES against a wall pool: role ("nw", "n", …) →
+## Resolve Layout.DEFAULT_WALL_TILES against a wall pool: role ("nw", "n", …) →
 ## catalog entry. A role whose atlas coord is missing from the pool falls back
 ## to the pool's first entry so a wall ring is never left with holes; returns
 ## {} only when the pool itself is empty.
@@ -236,11 +168,11 @@ static func default_wall_entries(entries: Array) -> Dictionary:
 	if entries.is_empty():
 		return {}
 	var out: Dictionary = {}
-	for role in DEFAULT_WALL_TILES:
-		var entry := entry_at(entries, DEFAULT_WALL_TILES[role])
+	for role in Layout.DEFAULT_WALL_TILES:
+		var entry := entry_at(entries, Layout.DEFAULT_WALL_TILES[role])
 		if entry.is_empty():
 			push_warning("RoguelikeTileCatalog: default wall tile %s for '%s' not in catalog"
-				% [DEFAULT_WALL_TILES[role], role])
+				% [Layout.DEFAULT_WALL_TILES[role], role])
 			entry = entries[0]
 		out[role] = entry
 	return out

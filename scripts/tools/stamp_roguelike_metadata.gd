@@ -2,7 +2,7 @@
 extends EditorScript
 
 ## Stamps custom-data-layer metadata onto the Backterria master tileset from the
-## declarative bands in resources/tileset_layout.gd -- instead of hand-clicking
+## declarative bands in resources/tileset_catalog.gd -- instead of hand-clicking
 ## thousands of tiles in the TileSet inspector.
 ##
 ## HOW TO RUN
@@ -13,14 +13,14 @@ extends EditorScript
 ## WORKFLOW
 ##   - Leave DRY_RUN = true first. Nothing is written; you get an annotated
 ##     occupancy map + per-row assignment so you can check the row bands against
-##     the sheet. Tune CATEGORY_BANDS in tileset_layout.gd and re-run until the
+##     the sheet. Tune CATEGORY_BANDS in tileset_catalog.gd and re-run until the
 ##     labels line up.
 ##   - Set DRY_RUN = false to write the four custom-data layers and save the tres.
 ##
 ## It is idempotent: re-running re-stamps from the current table, so you can
 ## iterate freely (and re-stamp after any future tileset image update).
 
-const Layout := preload("res://resources/tileset_layout.gd")
+const Layout := preload("res://resources/tileset_catalog.gd")
 const TILESET_PATH := "res://resources/the_roguelike.tres"
 
 # Flip to false to actually write + save.

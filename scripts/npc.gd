@@ -39,7 +39,7 @@ class_name NPC
 
 ## Geometry of the roguelike master sheet NPC art is cut from, so the sprite
 ## cell size has one definition shared with the tile generator.
-const Layout := preload("res://resources/tileset_layout.gd")
+const Layout := preload("res://resources/tileset_catalog.gd")
 
 ## Marks a variant whose coords on the roguelike sheet have not been picked yet.
 ## Such a variant keeps whatever region npc.tscn ships with and warns, so

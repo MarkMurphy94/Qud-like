@@ -18,9 +18,9 @@ class_name MapGenerator
 
 # ── Tileset backend ────────────────────────────────────────────────────────
 # The roguelike sheet (resources/the_roguelike.tres) drives generation through
-# resources/tileset_layout.gd + resources/roguelike_tile_catalog.gd.
+# resources/tileset_catalog.gd + resources/roguelike_tile_catalog.gd.
 const RoguelikeCatalog := preload("res://resources/roguelike_tile_catalog.gd")
-const Layout := preload("res://resources/tileset_layout.gd")
+const Layout := preload("res://resources/tileset_catalog.gd")
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
 @onready var ground: TileMapLayer = $base_terrain
@@ -65,10 +65,10 @@ var terrain_cells = {
 # table) — so buildings are drawn from wall and door tiles and are sized like
 # rooms rather than city blocks.
 const BUILDING_SPRITES := {
-	Structure.StructureType.HOUSE:  {"size": Vector2i(5, 5),   "ground": "dirt",  "spacing": 2},
-	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "stone", "spacing": 2},
-	Structure.StructureType.TAVERN: {"size": Vector2i(8, 6),   "ground": "stone", "spacing": 3},
-	Structure.StructureType.MANOR:  {"size": Vector2i(10, 8),  "ground": "stone", "spacing": 3},
+	Structure.StructureType.HOUSE:  {"size": Vector2i(5, 5),   "ground": "dark_wood",  "spacing": 2},
+	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "dark_wood", "spacing": 2},
+	Structure.StructureType.TAVERN: {"size": Vector2i(8, 6),   "ground": "dark_wood", "spacing": 3},
+	Structure.StructureType.MANOR:  {"size": Vector2i(10, 8),  "ground": "dark_wood", "spacing": 3},
 }
 
 func _building_def(building_type: int):
@@ -312,7 +312,7 @@ var _all_cells: Array[Vector2i] = []
 # Structure: tile_catalog[category][type] = Array[{source_id, atlas, size, tag_1, tag_2}]
 var tile_catalog: Dictionary = {}
 
-## Cells where a prop tagged as a container (see tileset_layout.gd) was painted.
+## Cells where a prop tagged as a container (see tileset_catalog.gd) was painted.
 ## Vector2i cell → { role, loot_table, layer, atlas, open_atlas, locked_chance }.
 ## The tile itself is ordinary scenery — this is only the note that something
 ## lootable belongs there, which ContainerSpawner reads after generation.
@@ -333,7 +333,7 @@ var map_buildings: Array = []
 var current_metadata: Dictionary = {}
 
 ## Biome the current map draws its art from, as the lowercase name the band
-## table in tileset_layout.gd uses ("temperate", "swamp", "arctic", …).
+## table in tileset_catalog.gd uses ("temperate", "swamp", "arctic", …).
 ##
 ## This is a view onto MapConfig.biome rather than a copy of it — the config is
 ## the one setting, so there is no second value to keep in sync. Empty only when
@@ -350,7 +350,7 @@ var map_biome: String:
 #  BIOME NAMES
 #
 #  Translates between MapConfig.Biome and the lowercase names the band table
-#  in tileset_layout.gd uses for its biome columns. Derived from the enum
+#  in tileset_catalog.gd uses for its biome columns. Derived from the enum
 #  member names, so adding a biome to MapConfig picks up its column
 #  automatically as long as the two spell it the same way; an unknown name
 #  falls back to TEMPERATE.
@@ -406,7 +406,7 @@ func _ensure_all_cells() -> void:
 #  TILE CATALOG
 #
 #  tile_catalog[category][type] = Array[entry] is built from the roguelike
-#  master sheet via resources/tileset_layout.gd.
+#  master sheet via resources/tileset_catalog.gd.
 # ════════════════════════════════════════════════════════════════════════
 
 func _rebuild_tile_catalog() -> void:
@@ -479,12 +479,12 @@ func _fill_cells(layer: TileMapLayer, cells: Array, surface: String) -> void:
 
 
 func _is_base_surface(surface: String) -> bool:
-	var route: Dictionary = RoguelikeCatalog.surface_route(surface)
+	var route: Dictionary = Layout.surface_route(surface)
 	return route["category"] == "surface" and route["type"] == "ground"
 
 
 func _surface_pool(surface: String) -> Array:
-	var route: Dictionary = RoguelikeCatalog.surface_route(surface)
+	var route: Dictionary = Layout.surface_route(surface)
 	return _catalog_pool(route["category"], route["type"])
 
 
@@ -1172,7 +1172,7 @@ func _prop_pool(interior: bool) -> Array:
 	return pool
 
 ## Weighted pick from a prop pool. The weight rides on each catalog entry (see
-## tileset_layout.gd), so which props dominate a map is authored data rather
+## tileset_catalog.gd), so which props dominate a map is authored data rather
 ## than a rule here; entries without one fall back to an even chance.
 func _pick_weighted(pool: Array, rng: RandomNumberGenerator) -> Dictionary:
 	if pool.is_empty():
@@ -1862,7 +1862,7 @@ func _stamp_building_tiles(pos: Vector2i, size: Vector2i, rng: RandomNumberGener
 	# _catalog_pool would theme-filter it away. Fall back to dirt if it's gone.
 	var floor_entry := RoguelikeCatalog.entry_at(
 		tile_catalog.get("terrain_features", {}).get("ground_detail", []),
-		RoguelikeCatalog.DEFAULT_FLOOR_ATLAS)
+		Layout.DEFAULT_FLOOR_ATLAS)
 
 	# Floor first so the wall ring paints over its outer edge.
 	var floor_cells: Array[Vector2i] = []
