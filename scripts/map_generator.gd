@@ -48,6 +48,9 @@ const GROUND_TERRAIN_MAP = {
 # (see _paint_surface). Must be one of the `ground` band surfaces.
 const BASE_FILL_SURFACE := "grass"
 
+# The only surface the road layer ever draws (see _paint_surface).
+const ROAD_SURFACE := GROUND_TERRAIN_MAP[GroundTile.STONE]
+
 # Terrain cells for batch processing
 var terrain_cells = {
 	"stone": [],
@@ -78,22 +81,22 @@ const HEIGHT = 80
 # Replaces the old MapType-keyed SETTLEMENT_TERRAIN.
 const SETTLEMENT_TERRAIN_BY_DENSITY = {
 	MapConfig.BuildingDensity.NONE: {
-		"primary": "grass", "secondary": "dirt", "paths": "dirt"
+		"primary": "grass", "secondary": "dirt", "paths": ROAD_SURFACE
 	},
 	MapConfig.BuildingDensity.SMALL_VILLAGE: {
-		"primary": "grass", "secondary": "grass", "paths": "dirt"
+		"primary": "grass", "secondary": "grass", "paths": ROAD_SURFACE
 	},
 	MapConfig.BuildingDensity.LARGE_VILLAGE: {
-		"primary": "grass", "secondary": "dirt", "paths": "dirt"
+		"primary": "grass", "secondary": "dirt", "paths": ROAD_SURFACE
 	},
 	MapConfig.BuildingDensity.SMALL_TOWN: {
-		"primary": "grass", "secondary": "dirt", "paths": "dirt"
+		"primary": "grass", "secondary": "dirt", "paths": ROAD_SURFACE
 	},
 	MapConfig.BuildingDensity.LARGE_TOWN: {
-		"primary": "grass", "secondary": "dirt", "paths": "stone"
+		"primary": "grass", "secondary": "dirt", "paths": ROAD_SURFACE
 	},
 	MapConfig.BuildingDensity.CITY: {
-		"primary": "grass", "secondary": "dirt", "paths": "stone"
+		"primary": "grass", "secondary": "dirt", "paths": ROAD_SURFACE
 	},
 }
 
@@ -315,6 +318,12 @@ var tile_catalog: Dictionary = {}
 ## lootable belongs there, which ContainerSpawner reads after generation.
 var container_cells: Dictionary = {}
 
+## Cells covered by a building footprint and the cleared yard around it, so the
+## scatter passes can leave them alone. Buildings used to be masked off simply
+## by having their yard painted on the road layer; the yard is ordinary ground
+## now, so the mask is kept explicitly.
+var building_clear_cells: Dictionary = {}
+
 # Normalized copy of the TileMetadata dict passed to generate_local_map()
 # (runtime wilderness path); empty for settlement/editor generation.
 var current_metadata: Dictionary = {}
@@ -366,6 +375,7 @@ func clear_all_layers() -> void:
 	decor_exterior.clear()
 	decor_interior.clear()
 	container_cells.clear()
+	building_clear_cells.clear()
 
 func _ready() -> void:
 	# Validate required TileMapLayer nodes
@@ -431,6 +441,12 @@ func _catalog_types(category: String) -> Dictionary:
 #  cell is. A non-ground surface aimed at base_terrain is therefore split: the
 #  ground fill goes down first and the surface is laid over it on
 #  terrain_features, which draws directly above base_terrain.
+#
+#  The road layer is the mirror of that rule: it draws roads and nothing else.
+#  Callers used to name a path surface ("dirt", "stone"), but "dirt" resolves to
+#  the same `ground` band base_terrain is painted from, so every village path
+#  came out as a copy of the terrain underneath it. Whatever a caller asks for,
+#  the road layer paints ROAD_SURFACE.
 # ═══════════════════════════════════════════════════════════════════════
 
 func _paint_surface(layer: TileMapLayer, cells: Array, surface: String) -> void:
@@ -438,7 +454,9 @@ func _paint_surface(layer: TileMapLayer, cells: Array, surface: String) -> void:
 		return
 
 	var target := layer
-	if layer == ground and not _is_base_surface(surface):
+	if layer == road:
+		surface = ROAD_SURFACE
+	elif layer == ground and not _is_base_surface(surface):
 		_fill_cells(ground, cells, BASE_FILL_SURFACE)
 		target = terrain_features
 	_fill_cells(target, cells, surface)
@@ -1044,6 +1062,10 @@ func add_foliage() -> void:
 		var x := pos.x
 		var y := pos.y
 		if used_cells.has(pos):
+			continue
+
+		# Building footprints and the cleared yard around them.
+		if building_clear_cells.has(pos):
 			continue
 
 		# Skip if a road tile is present at this cell or within 1 tile
@@ -1815,10 +1837,15 @@ func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionar
 				if patch_rng.randf() < chance:
 					building_cells.append(Vector2i(x, y))
 
-	_paint_surface(road, building_cells, sprite_def.get("ground", "dirt"))
+	# The yard is ground, not road, so it goes on the terrain layers. It is also
+	# the mask that keeps trees out of the village: add_foliage reads
+	# building_clear_cells for that, since these cells are no longer
+	# distinguishable by having something painted on the road layer.
+	_paint_surface(ground, building_cells, sprite_def.get("ground", "dirt"))
 
 	# Clear foliage under the building
 	for cell in building_cells:
+		building_clear_cells[cell] = true
 		if foliage.get_cell_source_id(cell) != -1:
 			foliage.set_cell(cell, -1)
 	_stamp_building_tiles(pos, size, patch_rng)
@@ -2034,7 +2061,8 @@ func _get_settlement_terrain() -> Dictionary:
 	return SETTLEMENT_TERRAIN_BY_DENSITY[MapConfig.BuildingDensity.SMALL_VILLAGE]
 
 ## Draw road segments from each active edge midpoint to the map centre.
-## Reads road_exits and road_terrain from map_template (MapConfig).
+## Reads road_exits from map_template (MapConfig); the surface is always
+## ROAD_SURFACE, since the road layer only ever draws roads.
 ## Because the exit bitmask is assigned symmetrically by the world generator,
 ## a road that leaves this tile to the east will always enter the eastern
 ## neighbour from the west.
@@ -2060,11 +2088,6 @@ func generate_edge_roads() -> void:
 	if endpoints.is_empty():
 		return
 
-	# Choose road surface — fallback to "dirt" if the key is unknown
-	var surface: String = map_template.road_terrain
-	if _surface_pool(surface).is_empty():
-		surface = "dirt"
-
 	# Seeded RNG for deterministic edge-road variation
 	var edge_rng := RandomNumberGenerator.new()
 	edge_rng.seed = int(map_template.SEED) ^ 0xDEADBEEF
@@ -2088,7 +2111,7 @@ func generate_edge_roads() -> void:
 	if road_cells.is_empty():
 		return
 
-	_paint_surface(road, road_cells, surface)
+	_paint_surface(road, road_cells, ROAD_SURFACE)
 
 ## Process MapConfig.misc_features to place hamlets, farms, camps, etc.
 ## This replaces the old random 30% hamlet-chance logic with data-driven features.

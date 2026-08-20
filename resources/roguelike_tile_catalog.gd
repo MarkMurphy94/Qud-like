@@ -55,6 +55,9 @@ const TERRAIN_SURFACES := {
 	"stone":       {"category": "terrain_features", "type": "ground_detail"},
 	"water":       {"category": "surface",          "type": "water"},
 	"wheat_field": {"category": "terrain_features", "type": "farm"},
+	# The sheet's own road cut. Paths used to be painted as "dirt", which is the
+	# same `ground` band the base terrain comes from — so a road was invisible.
+	"road":        {"category": "road",             "type": "road"},
 }
 
 ## Catalog (category, type) a named ground surface paints from. Unknown names
