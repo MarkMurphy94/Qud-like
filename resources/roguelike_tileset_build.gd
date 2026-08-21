@@ -1,6 +1,6 @@
 @tool
 extends RefCounted
-class_name RoguelikeTileCatalog
+class_name RoguelikeTilesetBuild
 
 ## Builds MapGenerator's tile_catalog from a TileSet, indexed as
 ## tile_catalog[category][type].
@@ -13,7 +13,7 @@ class_name RoguelikeTileCatalog
 ## Every entry carries its `theme` ("medieval_fantasy", "far_east", …) so one catalog
 ## covers the whole sheet and callers filter down at pick time.
 
-const Layout := preload("res://resources/tileset_catalog.gd")
+const Catalog := preload("res://resources/tileset_catalog.gd")
 
 
 ## Build the full catalog for every atlas source in `ts` whose texture the band
@@ -41,14 +41,14 @@ static func build(ts: TileSet) -> Dictionary:
 
 		for t in atlas.get_tiles_count():
 			var coords := atlas.get_tile_id(t)
-			var meta := Layout.resolve(coords)
+			var meta := Catalog.resolve(coords)
 			if meta.is_empty():
 				continue
 			# Entity/item sprites are spawned as scenes, never painted; world-only
 			# art (mountains, whole-building glyphs) must not land in a local map.
 			if not meta.get("is_map_tile", false) or not meta.get("local_gen", false):
 				continue
-			var route: Dictionary = Layout.category_route(meta.category)
+			var route: Dictionary = Catalog.category_route(meta.category)
 			if route.is_empty():
 				continue
 
@@ -75,11 +75,11 @@ static func build(ts: TileSet) -> Dictionary:
 				"walkable": meta.walkable,
 				"placement": meta.get("placement", "both"),
 				# How strongly this tile is favoured when a prop pool is sampled.
-				"weight": meta.get("weight", Layout.DEFAULT_PROP_WEIGHT),
+				"weight": meta.get("weight", Catalog.DEFAULT_PROP_WEIGHT),
 				# Non-empty for props that stand in for a lootable container.
 				# MapGenerator records where these land so a container can be
 				# spawned on the cell; see tileset_catalog.gd for the fields.
-				"container": meta.get("container", Layout.NO_CONTAINER),
+				"container": meta.get("container", Catalog.NO_CONTAINER),
 				"loot_table": meta.get("loot_table", ""),
 				"open_atlas": meta.get("open_atlas", coords),
 				"locked_chance": meta.get("locked_chance", 0.0),
@@ -121,7 +121,7 @@ static func _find_source(ts: TileSet, want_alpha: bool) -> int:
 		var texture: Texture2D = (source as TileSetAtlasSource).texture
 		if texture == null:
 			continue
-		if Layout.is_alpha_texture(texture.resource_path.get_file()) == want_alpha:
+		if Catalog.is_alpha_texture(texture.resource_path.get_file()) == want_alpha:
 			return source_id
 	return -1
 
@@ -138,7 +138,7 @@ static func _source_has(ts: TileSet, source_id: int, coords: Vector2i) -> bool:
 
 ## Narrow a pool to one theme. Falls back to the unfiltered pool when the theme
 ## has no art for that tile type, so a missing column never leaves a map blank.
-static func of_theme(entries: Array, theme: String = Layout.DEFAULT_THEME) -> Array:
+static func of_theme(entries: Array, theme: String = Catalog.DEFAULT_THEME) -> Array:
 	var matched: Array = []
 	for entry in entries:
 		if entry.get("theme", "") == theme:
@@ -160,7 +160,7 @@ static func of_biome(entries: Array, biome: String) -> Array:
 	return matched if not matched.is_empty() else entries
 
 
-## Resolve Layout.DEFAULT_WALL_TILES against a wall pool: role ("nw", "n", …) →
+## Resolve Catalog.DEFAULT_WALL_TILES against a wall pool: role ("nw", "n", …) →
 ## catalog entry. A role whose atlas coord is missing from the pool falls back
 ## to the pool's first entry so a wall ring is never left with holes; returns
 ## {} only when the pool itself is empty.
@@ -168,11 +168,11 @@ static func default_wall_entries(entries: Array) -> Dictionary:
 	if entries.is_empty():
 		return {}
 	var out: Dictionary = {}
-	for role in Layout.DEFAULT_WALL_TILES:
-		var entry := entry_at(entries, Layout.DEFAULT_WALL_TILES[role])
+	for role in Catalog.DEFAULT_WALL_TILES:
+		var entry := entry_at(entries, Catalog.DEFAULT_WALL_TILES[role])
 		if entry.is_empty():
 			push_warning("RoguelikeTileCatalog: default wall tile %s for '%s' not in catalog"
-				% [Layout.DEFAULT_WALL_TILES[role], role])
+				% [Catalog.DEFAULT_WALL_TILES[role], role])
 			entry = entries[0]
 		out[role] = entry
 	return out

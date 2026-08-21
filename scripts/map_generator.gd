@@ -18,8 +18,8 @@ class_name MapGenerator
 
 # ── Tileset backend ────────────────────────────────────────────────────────
 # The roguelike sheet (resources/the_roguelike.tres) drives generation through
-# resources/tileset_catalog.gd + resources/roguelike_tile_catalog.gd.
-const RoguelikeCatalog := preload("res://resources/roguelike_tile_catalog.gd")
+# resources/tileset_catalog.gd + resources/roguelike_tileset_build.gd.
+const RoguelikeCatalog := preload("res://resources/roguelike_tileset_build.gd")
 const Layout := preload("res://resources/tileset_catalog.gd")
 
 # ── TileMapLayer nodes ──────────────────────────────────────────────────────
