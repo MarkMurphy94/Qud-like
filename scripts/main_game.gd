@@ -289,6 +289,13 @@ func _build_local_map_metadata(tile: Vector2i, seed_value: int, base_metadata: D
 		"npc": Culture.profile_for(culture, "npc"),
 	}
 
+	# Whoever holds this ground. Lawful locals are spawned into it, so it is the
+	# ruler rather than whoever merely has influence here — a house's writ is
+	# what makes a guard its guard, not its reputation.
+	var factions = faction_map()
+	var ruler = factions.ruler_for_tile(tile) if factions else null
+	meta["ruling_faction"] = ruler.faction_id if ruler else ""
+
 	# Keep top-level aliases for backward-compatible readers.
 	meta["settlement_density"] = settlement_density
 	meta["has_settlement"] = overworld_data["has_settlement"]

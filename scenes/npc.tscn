@@ -2,9 +2,20 @@
 
 [ext_resource type="Script" uid="uid://bmvkc16om8fxj" path="res://scripts/npc.gd" id="1_425qo"]
 [ext_resource type="Texture2D" uid="uid://yl26px854460" path="res://assets/The Roguelike 1-15-1 Alpha.png" id="2_abqhh"]
+[ext_resource type="Shader" uid="uid://cd8ekkie2qqr6" path="res://shaders/faction_recolor.gdshader" id="2_rv78h"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_7n8xq"]
 radius = 32.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_7n8xq"]
+shader = ExtResource("2_rv78h")
+shader_parameter/hue_window = Vector2(0.11, 0.02)
+shader_parameter/sat_floor = 0.0
+shader_parameter/value_floor = 1.0
+shader_parameter/target_hue = 0.0
+shader_parameter/sat_scale = 1.0
+shader_parameter/value_scale = 1.0
+shader_parameter/debug_mask = false
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1vbwm"]
 size = Vector2(11, 16)
@@ -41,16 +52,19 @@ text = "debug"
 fit_content = true
 
 [node name="interact_radius" type="Area2D" parent="." unique_id=72572043]
+visible = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="interact_radius" unique_id=1778600204]
 shape = SubResource("CircleShape2D_7n8xq")
 
 [node name="npc_sprite" type="Sprite2D" parent="." unique_id=994376982]
+material = SubResource("ShaderMaterial_7n8xq")
 texture = ExtResource("2_abqhh")
 region_enabled = true
 region_rect = Rect2(992, 528, 16, 16)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=751973765]
+visible = false
 position = Vector2(-0.5, 0)
 shape = SubResource("RectangleShape2D_1vbwm")
 

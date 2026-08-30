@@ -6,6 +6,10 @@ class_name NPCSpawner
 ## Lives as a child of the MapGenerator it populates (see local_scene.tscn), so
 ## the NPCs share that map's lifetime. MainGame drives it through
 ## populate_local_map() on entry and clear() on exit.
+##
+## Everyone spawned here is born into the politics of the tile: their names come
+## from its culture, and lawful folk are sworn to whoever rules it — see
+## get_faction_for_coord() and NPC.LAWFUL_ROLES.
 
 @export var npc_scene: PackedScene = preload("res://scenes/npc.tscn")
 
@@ -127,7 +131,7 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 			var npc := _spawn_npc(npc_type, world_pos, "", npc_id)
 			npc.set_locations(world_pos)
 			spawned_npcs.append(npc)
-
+		
 ## Looks up the settlement entry in MainGameState by map_name first,
 ## then by overworld_tile key (make_settlement_key), so both hand-crafted
 ## and dynamically-generated settlements are found.
@@ -202,9 +206,15 @@ func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: St
 	inst.npc_variant = variant
 	inst.npc_id = npc_id
 	inst.culture_name_profiles = _name_profiles()
-	# Type, variant, id and culture are set before add_child, so the NPC's own
-	# _ready applies the profile and generates a name seeded off that id — the
-	# same NPC comes back with the same name on every revisit.
+	# Neutral and lawful folk belong to whoever rules the ground under them;
+	# outlaws, beasts and monsters belong to nobody and stay factionless. The
+	# role has to be read off the profile table here rather than from the NPC,
+	# which has not run its own _ready() yet.
+	if NPC.role_for(npc_type, variant) in NPC.LAWFUL_ROLES:
+		inst.faction = get_faction_for_coord(_area_coords())
+	# Type, variant, id, culture and faction are all set before add_child, so the
+	# NPC's own _ready applies the profile, paints on its livery, and generates a
+	# name seeded off that id — the same NPC comes back the same on every revisit.
 	add_child(inst)
 	inst.global_position = world_pos
 	inst.add_to_group("NPCs")
@@ -215,6 +225,36 @@ func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: St
 ## maps generated from the same shared MapConfig.
 func _area_key() -> String:
 	return str(area_metadata.get("coords", area_metadata.get("seed", "unknown")))
+
+
+## The overworld tile this local map stands on.
+func _area_coords() -> Vector2i:
+	var coords = area_metadata.get("coords", Vector2i.ZERO)
+	return coords if coords is Vector2i else Vector2i.ZERO
+
+
+## The faction that rules the overworld tile `coord`, as a `faction_id`, or ""
+## where nobody holds it — unclaimed land, or a scene with no world map.
+##
+## Asks the live faction map rather than the metadata, because provinces change
+## hands in play while the metadata was stamped on entry. The stamp is the
+## fallback for scenes with no faction map to ask, and it only speaks for this
+## area's own tile.
+func get_faction_for_coord(coord: Vector2i) -> String:
+	var factions = _faction_map()
+	if factions:
+		var ruler = factions.ruler_for_tile(coord)
+		return ruler.faction_id if ruler else ""
+	if coord == _area_coords():
+		return str(area_metadata.get("ruling_faction", ""))
+	return ""
+
+
+## The overworld's map of organisations, or null in the test scenes and anything
+## opened straight from the editor.
+func _faction_map():
+	var root := get_tree().current_scene
+	return root.faction_map() if root and root.has_method("faction_map") else null
 
 
 ## Tile positions of the buildings NPCs can call home.

@@ -686,7 +686,7 @@ func _describe(target: Node) -> String:
 			# TODO: more specific descriptions
 		var type_name: String = MainGameState.NpcType.keys()[npc.npc_type].to_lower()
 		return "%s, a %s of the %s. They look ordinary enough." \
-			% [_target_label(npc).capitalize(), type_name, npc.faction.to_lower()]
+			% [_target_label(npc).capitalize(), type_name, npc.role.to_lower()]
 	if target is ItemContainer:
 		return "A %s. There is no telling what is inside until you open it." \
 			% (target as ItemContainer).container_label.to_lower()
@@ -1235,7 +1235,7 @@ func _start_dialogic_conversation(npc: NPC) -> void:
 
 func _get_timeline_for_npc(npc: NPC) -> String:
 	"""Determine which Dialogic timeline to use for this NPC"""
-	# Priority: specific NPC name > NPC variant > NPC type > faction > default
+	# Priority: specific NPC name > NPC variant > NPC type > faction > role > default
 	
 	# Check if NPC has a custom timeline specified
 	if npc.dialogue_tree.has("timeline"):
@@ -1259,10 +1259,15 @@ func _get_timeline_for_npc(npc: NPC) -> String:
 	if _dialogic_timeline_exists(type_timeline):
 		return type_timeline
 	
-	# Check by faction
-	var faction_timeline = "faction_" + npc.faction.to_lower()
-	if _dialogic_timeline_exists(faction_timeline):
-		return faction_timeline
+	# Check by faction, then by what they do for a living
+	if npc.faction != "":
+		var faction_timeline = "faction_" + npc.faction.to_lower()
+		if _dialogic_timeline_exists(faction_timeline):
+			return faction_timeline
+
+	var role_timeline = "role_" + npc.role.to_lower()
+	if _dialogic_timeline_exists(role_timeline):
+		return role_timeline
 	
 	# Default generic timeline
 	if _dialogic_timeline_exists("npc_default"):

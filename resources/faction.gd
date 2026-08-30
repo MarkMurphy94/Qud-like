@@ -79,6 +79,8 @@ const TYPE_NAMES := {
 ## take the default for this faction type.
 @export_range(0, 400, 5) var influence: int = 0
 
+## Banner on the map and livery on the sprites — FactionPalette hue-swaps NPC
+## cloth to this. Leave it white and FactionMap generates one from the id.
 @export var color: Color = Color.WHITE
 
 ## One tile inside each province this faction starts out ruling — the province's

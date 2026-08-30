@@ -21,7 +21,8 @@ var sprite_node_pos_tween: Tween
 @export_group("NPC stats and behavior")
 @export var npc_id: String = "" # Unique identifier
 @export var npc_name: String = ""
-@export var faction: String = "NEUTRAL" # PLACEHOLDER. This will likely be an enum or reference to a Faction resource.
+@export var role: String = "CIVILIAN" # What the NPC does — see NPC.role
+@export var faction: String = "" # `faction_id` from resources/factions/, or "" for nobody
 @export var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
 @export var stats: Dictionary = {
 	"strength": 10,

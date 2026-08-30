@@ -19,6 +19,10 @@ class_name FactionMap
 ## The overlay draws both at once: ruled land solid, influence as a pale haze
 ## around it, so a faction reads as a bright core in a wide fog.
 ##
+## A faction's `color` is not only a map colour: build() hands it to
+## FactionPalette, which is what recolours NPC cloth, so a house's banner on the
+## overworld and its livery in the street are the same value.
+##
 ## USAGE
 ##   1. Make a .tres of resources/faction.gd, set `display_name`, `seat_tile`
 ##      and `faction_type`, optionally `starting_provinces` and `liege`.
@@ -111,6 +115,11 @@ func build(map) -> void:
 	var reach := PackedInt32Array()
 	for faction in factions:
 		reach.append(faction.effective_influence())
+
+	# NPC livery is the same colour as the map overlay, so hand the palette the
+	# working copies rather than letting it read the .tres files itself — these
+	# have been validated and had their generated colours filled in.
+	FactionPalette.register(factions)
 
 	var cost := Growth.build_cost_field(map, _origin, _w, _h)
 	_influence = Growth.grow(seats, reach, cost, _origin, _w, _h)

@@ -14,7 +14,7 @@ class_name NPC
 ##   overworld).
 ## - Set `npc_type` (MainGameState.NpcType) and optionally `npc_variant` in the
 ##   Inspector; `apply_type_profile()` and `set_sprite()` (called from
-##   `_ready()`) pull move speed, stats, faction, sprite region, spells, and
+##   `_ready()`) pull move speed, stats, role, sprite region, spells, and
 ##   trade behavior from the profile table returned by `get_profiles()` for
 ##   that type/variant. Add new types/variants by extending `_build_profiles()`
 ##   — no script changes are needed for basic stat/sprite tuning.
@@ -83,11 +83,22 @@ var energy: int = 0
 ## Left empty, a name is drawn from the Markov TextGenerator in _ready(),
 ## seeded off npc_id — see generate_name(). Fill it in to name someone by hand.
 @export var npc_name: String = ""
-## TextGenerator profile ids of the people this NPC belongs to, keyed by role
-## ("place", "npc") — set by NPCSpawner from the tile metadata. Empty means
-## the generic name lists, which is also what an unclaimed tile resolves to.
+## TextGenerator profile ids of the people this NPC belongs to, keyed by what is
+## being named ("place", "npc") — set by NPCSpawner from the tile metadata. Empty
+## means the generic name lists, which is also what an unclaimed tile resolves to.
 var culture_name_profiles: Dictionary = {}
-@export var faction: String = "NEUTRAL" # Group this NPC belongs to
+## What this NPC *does*, and the only thing the behaviour branches below read:
+## "GUARD", "CIVILIAN", "MERCHANT", "OUTLAW", "WILDLIFE" and so on. Comes from
+## the type/variant profile's `role` key.
+@export var role: String = "CIVILIAN"
+## The organisation this NPC belongs to, as a `faction_id` from
+## resources/factions/ ("house_vellier"). Empty for anyone who answers to
+## nobody: outlaws, beasts, and townsfolk on unclaimed land.
+##
+## Deliberately distinct from `role` — a guard is a guard whoever pays them, and
+## this is who pays them. NPCSpawner assigns it from whoever rules the overworld
+## tile; it also decides the sprite's livery, so change it through set_faction().
+@export var faction: String = ""
 @export var relationships: Dictionary = {} # NPC ID or faction -> relationship value (-100 to 100)
 @export var inventory: Inventory = null  # Proper inventory system with stacking
 @export var equipped_items: Dictionary = {}
@@ -174,7 +185,7 @@ var is_interacting: bool = false
 static var _profiles: Dictionary = {}
 
 ## The type/variant profile table. Add types and variants here — basic stat,
-## faction and sprite tuning needs no script changes.
+## role and sprite tuning needs no script changes.
 static func get_profiles() -> Dictionary:
 	if _profiles.is_empty():
 		_profiles = _build_profiles()
@@ -186,125 +197,95 @@ static func variants_for(type_value: MainGameState.NpcType) -> Array:
 	var type_data: Dictionary = get_profiles().get(type_value, {})
 	return type_data.keys()
 
+## Roles whose people answer to whoever rules the ground they stand on. Outlaws,
+## tribes, cultists and beasts do not, and neither do mages and druids, who are
+## nobody's subjects however peaceable they are.
+const LAWFUL_ROLES := ["GUARD", "CIVILIAN", "MERCHANT", "NOBLE", "CLERGY", "NEUTRAL"]
+
+## The role a type/variant carries, read straight off the profile table so a
+## spawner can tell a guard from a bandit before it instances one.
+static func role_for(type_value: MainGameState.NpcType, variant: String = "default") -> String:
+	var type_data: Dictionary = get_profiles().get(type_value, {})
+	var profile: Dictionary = type_data.get(variant, type_data.get("default", {}))
+	return str(profile.get("role", ""))
+
 static func _build_profiles() -> Dictionary:
 	var profiles: Dictionary = {}
 	profiles[MainGameState.NpcType.SOLDIER] = {
 		"default": {
 			"move_speed": 60.0,
-			"sprite_atlas_coords": Vector2i(7, 33), # was 32rogues Rect2i(64, 32, 32, 32)
-			"faction": "GUARD",
+			"sprite_atlas_coords": Vector2i(16, 33), # was 32rogues Rect2i(64, 32, 32, 32)
+			"role": "GUARD",
 			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
 		},
 		"archer": {
 			"move_speed": 55.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 32, 32, 32)
-			"faction": "GUARD",
+			"sprite_atlas_coords": Vector2i(4, 33), # was 32rogues Rect2i(96, 32, 32, 32)
+			"role": "GUARD",
 			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 12, "charisma": 8}
 		},
 		"knight": {
 			"move_speed": 50.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 32, 32, 32)
-			"faction": "GUARD",
+			"sprite_atlas_coords": Vector2i(7, 33), # was 32rogues Rect2i(0, 32, 32, 32)
+			"role": "GUARD",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 16, "charisma": 10}
-		},
-		"heavy_knight": {
-			"move_speed": 45.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 32, 32, 32)
-			"faction": "GUARD",
-			"stats": {"strength": 18, "agility": 6, "intelligence": 8, "endurance": 18, "charisma": 10}
-		},
-		"crossbowman": {
-			"move_speed": 52.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 32, 32, 32)
-			"faction": "GUARD",
-			"stats": {"strength": 10, "agility": 14, "intelligence": 10, "endurance": 12, "charisma": 8}
-		},
-		"longswordsman": {
-			"move_speed": 58.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 32, 32, 32)
-			"faction": "GUARD",
-			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
-		},
-		"fencer": {
-			"move_speed": 65.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 32, 32, 32)
-			"faction": "GUARD",
-			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 10, "charisma": 12}
-		},
-		"warrior_monk": {
-			"move_speed": 62.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(224, 32, 32, 32)
-			"faction": "GUARD",
-			"stats": {"strength": 14, "agility": 14, "intelligence": 12, "endurance": 14, "charisma": 10}
 		},
 		"battlemage": {
 			"move_speed": 55.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 64, 32, 32)
-			"faction": "GUARD",
+			"sprite_atlas_coords": Vector2i(11, 33), # was 32rogues Rect2i(0, 64, 32, 32)
+			"role": "GUARD",
 			"max_mana": 80,
 			"spells": ["res://resources/spells/spell_templates/fireball.tres"],
 			"stats": {"strength": 10, "agility": 10, "intelligence": 16, "endurance": 12, "charisma": 10}
 		},
-		"dwarf_warrior": {
-			"move_speed": 52.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 64, 32, 32)
-			"faction": "GUARD",
-			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 18, "charisma": 8}
-		},
-		"elven_archer": {
-			"move_speed": 60.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 64, 32, 32)
-			"faction": "GUARD",
-			"stats": {"strength": 8, "agility": 18, "intelligence": 12, "endurance": 10, "charisma": 12}
-		}
 	}
 	profiles[MainGameState.NpcType.PEASANT] = {
 		"default": {
 			"move_speed": 50.0,
-			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 160, 32, 32)
-			"faction": "CIVILIAN",
+			"sprite_atlas_coords": Vector2i(92, 33), # was 32rogues Rect2i(0, 160, 32, 32)
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"innkeeper": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": Vector2i(92, 33), # was 32rogues Rect2i(0, 160, 32, 32)
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"shopkeeper": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": Vector2i(92, 33), # was 32rogues Rect2i(0, 160, 32, 32)
+			"role": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 		},
 		"farmer": {
 			"move_speed": 45.0,
 			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 224, 32, 32)
-			"faction": "CIVILIAN",
+			"role": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 8, "intelligence": 8, "endurance": 12, "charisma": 6}
 		},
 		"baker": {
 			"move_speed": 42.0,
 			"sprite_atlas_coords": Vector2i(61, 33), # was 32rogues Rect2i(32, 160, 32, 32)
-			"faction": "CIVILIAN",
+			"role": "CIVILIAN",
 			"stats": {"strength": 10, "agility": 8, "intelligence": 10, "endurance": 10, "charisma": 10}
 		},
 		"blacksmith": {
 			"move_speed": 45.0,
 			"sprite_atlas_coords": Vector2i(8, 33), # was 32rogues Rect2i(64, 160, 32, 32)
-			"faction": "CIVILIAN",
+			"role": "CIVILIAN",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 10, "endurance": 14, "charisma": 8}
-		},
-		"scholar": {
-			"move_speed": 42.0,
-			"sprite_atlas_coords": Vector2i(17, 33), # was 32rogues Rect2i(128, 160, 32, 32)
-			"faction": "CIVILIAN",
-			"stats": {"strength": 6, "agility": 8, "intelligence": 16, "endurance": 8, "charisma": 12}
 		},
 		"crone": {
 			"move_speed": 36.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 160, 32, 32)
-			"faction": "CIVILIAN",
+			"sprite_atlas_coords": Vector2i(45, 33), # was 32rogues Rect2i(192, 160, 32, 32)
+			"role": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 6, "intelligence": 14, "endurance": 8, "charisma": 10}
-		},
-		"hermit": {
-			"move_speed": 40.0,
-			"sprite_atlas_coords": Vector2i(45, 33), # was 32rogues Rect2i(224, 160, 32, 32)
-			"faction": "CIVILIAN",
-			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 10, "charisma": 6}
 		},
 		"forester": {
 			"move_speed": 52.0,
 			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 192, 32, 32)
-			"faction": "CIVILIAN",
+			"role": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 12, "intelligence": 10, "endurance": 12, "charisma": 8}
 		}
 	}
@@ -315,7 +296,7 @@ static func _build_profiles() -> Dictionary:
 			"wander_radius": 3.0,
 			"sprite_atlas_coords": Vector2i(89, 33), # was 32rogues Rect2i(96, 160, 32, 32)
 			"behavior": "stay_near_shop",
-			"faction": "MERCHANT",
+			"role": "MERCHANT",
 			"dialogue": "merchant_dialogue",
 			"inventory_template": "merchant_items",
 			"can_trade": true,
@@ -330,66 +311,104 @@ static func _build_profiles() -> Dictionary:
 			"wander_radius": 4.0,
 			"sprite_atlas_coords": Vector2i(91, 33), # was 32rogues Rect2i(160, 160, 32, 32)
 			"behavior": "stay_in_manor",
-			"faction": "NOBLE",
+			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
 			"inventory_template": "noble_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 		},
+		"king": {
+			"move_speed": 36.0,
+			"move_interval": 0.7,
+			"wander_radius": 4.0,
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"behavior": "stay_in_manor",
+			"role": "NOBLE",
+			"dialogue": "noble_dialogue",
+			"inventory_template": "noble_items",
+			"can_trade": false,
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
+		},
+		"lord": {
+			"move_speed": 36.0,
+			"move_interval": 0.7,
+			"wander_radius": 4.0,
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"behavior": "stay_in_manor",
+			"role": "NOBLE",
+			"dialogue": "noble_dialogue",
+			"inventory_template": "noble_items",
+			"can_trade": false,
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
+		},
+		"baron": {
+			"move_speed": 36.0,
+			"move_interval": 0.7,
+			"wander_radius": 4.0,
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"behavior": "stay_in_manor",
+			"role": "NOBLE",
+			"dialogue": "noble_dialogue",
+			"inventory_template": "noble_items",
+			"can_trade": false,
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
+		},
+		"duke": {
+			"move_speed": 36.0,
+			"move_interval": 0.7,
+			"wander_radius": 4.0,
+			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"behavior": "stay_in_manor",
+			"role": "NOBLE",
+			"dialogue": "noble_dialogue",
+			"inventory_template": "noble_items",
+			"can_trade": false,
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
+		},
+		"scholar": {
+			"move_speed": 42.0,
+			"sprite_atlas_coords": Vector2i(17, 33), # was 32rogues Rect2i(128, 160, 32, 32)
+			"role": "CIVILIAN",
+			"stats": {"strength": 6, "agility": 8, "intelligence": 16, "endurance": 8, "charisma": 12}
+		},
+	}
+	profiles[MainGameState.NpcType.CLERGY] = {
 		"priest": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 192, 32, 32)
-			"faction": "CLERGY",
+			"sprite_atlas_coords": Vector2i(17, 33), # was 32rogues Rect2i(32, 192, 32, 32)
+			"role": "CLERGY",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
 		},
-		"cleric": {
-			"move_speed": 45.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 192, 32, 32)
-			"faction": "CLERGY",
-			"stats": {"strength": 10, "agility": 8, "intelligence": 14, "endurance": 12, "charisma": 12}
-		},
-		"monk": {
+		"priestess": {
 			"move_speed": 52.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 192, 32, 32)
-			"faction": "CLERGY",
+			"sprite_atlas_coords": Vector2i(19, 33), # was 32rogues Rect2i(96, 192, 32, 32)
+			"role": "CLERGY",
 			"stats": {"strength": 10, "agility": 12, "intelligence": 12, "endurance": 12, "charisma": 10}
 		},
+	}
+	profiles[MainGameState.NpcType.MAGE] = {
 		"druid": {
 			"move_speed": 48.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 192, 32, 32)
-			"faction": "DRUID",
+			"sprite_atlas_coords": Vector2i(10, 33), # was 32rogues Rect2i(128, 192, 32, 32)
+			"role": "DRUID",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 12}
 		},
 		"witch": {
 			"move_speed": 45.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 192, 32, 32)
-			"faction": "NEUTRAL",
+			"sprite_atlas_coords": Vector2i(6, 33), # was 32rogues Rect2i(160, 192, 32, 32)
+			"role": "NEUTRAL",
 			"max_mana": 90,
 			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 6, "agility": 10, "intelligence": 16, "endurance": 8, "charisma": 10}
 		},
 		"wizard": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 192, 32, 32)
-			"faction": "MAGE",
+			"sprite_atlas_coords": Vector2i(78, 33), # was 32rogues Rect2i(192, 192, 32, 32)
+			"role": "MAGE",
 			"max_mana": 120,
 			"spells": ["res://resources/spells/spell_templates/fireball.tres", "res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 6, "agility": 8, "intelligence": 18, "endurance": 8, "charisma": 12}
 		},
-		"warlock": {
-			"move_speed": 45.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(224, 192, 32, 32)
-			"faction": "NEUTRAL",
-			"max_mana": 100,
-			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
-			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
-		},
-		"dwarf_wizard": {
-			"move_speed": 40.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(0, 224, 32, 32)
-			"faction": "MAGE",
-			"stats": {"strength": 10, "agility": 6, "intelligence": 16, "endurance": 14, "charisma": 10}
-		}
 	}
 	profiles[MainGameState.NpcType.BANDIT] = {
 		"default": {
@@ -398,7 +417,7 @@ static func _build_profiles() -> Dictionary:
 			"wander_radius": 10.0,
 			"sprite_atlas_coords": Vector2i(71, 33), # was 32rogues Rect2i(0, 0, 32, 32)
 			"behavior": "aggressive",
-			"faction": "OUTLAW",
+			"role": "OUTLAW",
 			"dialogue": "bandit_dialogue",
 			"inventory_template": "bandit_items",
 			"can_trade": false,
@@ -407,37 +426,37 @@ static func _build_profiles() -> Dictionary:
 		"thief": {
 			"move_speed": 78.0,
 			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 0, 32, 32)
-			"faction": "OUTLAW",
+			"role": "OUTLAW",
 			"stats": {"strength": 8, "agility": 16, "intelligence": 12, "endurance": 8, "charisma": 10}
 		},
 		"elven_rogue": {
 			"move_speed": 80.0,
 			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 0, 32, 32)
-			"faction": "OUTLAW",
+			"role": "OUTLAW",
 			"stats": {"strength": 8, "agility": 18, "intelligence": 14, "endurance": 8, "charisma": 12}
 		},
 		"barbarian": {
 			"move_speed": 70.0,
 			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 0, 32, 32)
-			"faction": "TRIBAL",
+			"role": "TRIBAL",
 			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 16, "charisma": 6}
 		},
 		"heavy_barbarian": {
 			"move_speed": 65.0,
 			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 0, 32, 32)
-			"faction": "TRIBAL",
+			"role": "TRIBAL",
 			"stats": {"strength": 18, "agility": 10, "intelligence": 6, "endurance": 18, "charisma": 6}
 		},
 		"hill_tribe_warrior": {
 			"move_speed": 68.0,
 			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 0, 32, 32)
-			"faction": "TRIBAL",
+			"role": "TRIBAL",
 			"stats": {"strength": 14, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 6}
 		},
 		"dark_priest": {
 			"move_speed": 52.0,
 			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 0, 32, 32)
-			"faction": "CULTIST",
+			"role": "CULTIST",
 			"max_mana": 80,
 			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
@@ -450,7 +469,7 @@ static func _build_profiles() -> Dictionary:
 			"wander_radius": 6.0,
 			"sprite_atlas_coords": Vector2i(92, 28), # was 32rogues Rect2i(128, 96, 32, 32)
 			"behavior": "flee_on_approach",
-			"faction": "WILDLIFE",
+			"role": "WILDLIFE",
 			"dialogue": "none",
 			"inventory_template": "animal_items",
 			"can_trade": false,
@@ -465,7 +484,7 @@ static func _build_profiles() -> Dictionary:
 			"sprite_atlas_coords": Vector2i(5, 32), # was 32rogues Rect2i(0, 160, 32, 32)
 			"behavior": "hunt",
 			"max_mana": 50,
-			"faction": "MONSTER",
+			"role": "MONSTER",
 			"dialogue": "none",
 			"inventory_template": "monster_items",
 			"can_trade": false,
@@ -612,7 +631,7 @@ func apply_type_profile():
 	# "normal". A profile can still state an explicit `speed` to override this.
 	speed = int(profile.get("speed", clampi(roundi(move_speed / 55.0 * 100.0), 40, 250)))
 	wander_radius = profile.get("wander_radius", wander_radius)
-	faction = profile.get("faction", faction)
+	role = profile.get("role", role)
 	stats = profile.get("stats", stats)
 	can_trade = profile.get("can_trade", false)
 	if profile.has("trade_prices"):
@@ -652,12 +671,14 @@ func generate_name(force: bool = false) -> void:
 			TextGenerator.seed_from(name_key + ":place"))
 	npc_name = TextGenerator.generate(profile_id, seed_value, slots)
 
-## The profile this NPC's people use for `role`, falling back to the generic one.
-func _culture_profile(role: String) -> String:
-	var chosen := str(culture_name_profiles.get(role, ""))
+## The name list this NPC's people use for `kind` ("npc", "place"), falling back
+## to the generic one. Nothing to do with `role` — this keys culture name
+## profiles, not what the NPC does for a living.
+func _culture_profile(kind: String) -> String:
+	var chosen := str(culture_name_profiles.get(kind, ""))
 	if chosen != "" and TextGenerator.has_profile(chosen):
 		return chosen
-	return Culture.DEFAULT_NAME_PROFILES.get(role, "")
+	return Culture.DEFAULT_NAME_PROFILES.get(kind, "")
 
 ## Which TextGenerator profile writes this NPC's name. A profile table entry may
 ## override it with its own `name_profile`; "" means unnamed, which is how beasts
@@ -710,8 +731,8 @@ func set_sprite():
 	if profile.is_empty():
 		return
 	
-	# _apply_faction_recolor(profile)
-	
+	_apply_faction_recolor(profile)
+
 	var coords: Vector2i = profile.get("sprite_atlas_coords", SPRITE_TODO)
 	if coords == SPRITE_TODO:
 		# Fall back to the type's own default art rather than to whatever region
@@ -734,6 +755,16 @@ func set_sprite():
 		Vector2(Layout.TILE_SIZE, Layout.TILE_SIZE)
 	)
 
+## Move this NPC to another organisation and repaint its livery to match. The
+## only way faction should change after spawn — assigning the field directly
+## leaves the sprite wearing the old colours until something calls set_sprite().
+func set_faction(new_faction: String) -> void:
+	faction = new_faction
+	var profile := _resolve_profile()
+	if profile.is_empty():
+		return
+	_apply_faction_recolor(profile)
+
 
 ## Art for this NPC's type with no variant applied, used to rescue variants that
 ## have not been given their own cell on the sheet yet.
@@ -743,10 +774,11 @@ func _default_sprite_coords() -> Vector2i:
 	return default_profile.get("sprite_atlas_coords", SPRITE_TODO)
 
 ## Several variants share one cell of the master sheet, so faction is told apart
-## by hue-swapping the sprite's cloth rather than by separate art. Runs after
-## apply_type_profile(), which is what resolves `faction`. A profile may name its
-## own `recolor_hue_window` when its art keeps cloth in an unusual hue; factions
-## with no palette entry get a null material and are drawn exactly as before.
+## by hue-swapping the sprite's cloth rather than by separate art — a Vellier
+## guard and an Auberne guard are the same art in different colours. A profile
+## may name its own `recolor_hue_window` when its art keeps cloth in an unusual
+## hue; an NPC with no faction, or one whose faction has no colour, gets a null
+## material and is drawn exactly as the artist left it.
 func _apply_faction_recolor(profile: Dictionary) -> void:
 	if npc_sprite == null:
 		return
@@ -805,7 +837,7 @@ func _perception_update():
 			# Hostile logic
 			if _is_hostile_to_player():
 				current_target = player_reference
-			elif faction == "WILDLIFE" and dist < vision_range * 0.6 * tile_size:
+			elif role == "WILDLIFE" and dist < vision_range * 0.6 * tile_size:
 				# Wildlife flees sooner
 				threat_source = player_reference
 				if state != NPCState.FLEE:
@@ -825,7 +857,7 @@ func _behavior_decision():
 		return
 
 	# Low health flee (non-monster) condition
-	if current_health < max_health * 0.25 and state != NPCState.FLEE and faction in ["CIVILIAN", "OUTLAW", "WILDLIFE"]:
+	if current_health < max_health * 0.25 and state != NPCState.FLEE and role in ["CIVILIAN", "OUTLAW", "WILDLIFE"]:
 		threat_source = current_target
 		set_state(NPCState.FLEE)
 		return
@@ -946,7 +978,7 @@ func _flee_turn() -> void:
 			_grid_try_move(ortho[1])
 
 func _should_enter_combat() -> bool:
-	if faction in ["CIVILIAN", "MERCHANT", "NOBLE", "WILDLIFE"]:
+	if role in ["CIVILIAN", "MERCHANT", "NOBLE", "WILDLIFE"]:
 		return false
 	if current_target and is_instance_valid(current_target):
 		var dist = global_position.distance_to(current_target.global_position)
@@ -954,15 +986,16 @@ func _should_enter_combat() -> bool:
 	return false
 
 func _is_hostile_to_player() -> bool:
-	# Basic faction hostility matrix (expand later)
-	match faction:
+	# Openly hostile by trade. Faction standing (Faction.relations) is a separate
+	# question and does not feed this yet.
+	match role:
 		"OUTLAW", "MONSTER":
 			return true
 		_:
 			return false
 
 ## Public hostility check used by the player's bump-to-attack. Openly hostile
-## factions always qualify; so does anyone already fighting `who`.
+## roles always qualify; so does anyone already fighting `who`.
 func is_hostile_toward(who: Node) -> bool:
 	if state == NPCState.DEAD:
 		return false
@@ -1208,10 +1241,10 @@ func take_damage(amount: int, source: Node2D = null):
 		return
 	# Reaction: set combat target or flee
 	if source and source != self:
-		if _is_hostile_to_player() or faction in ["OUTLAW", "MONSTER", "GUARD"]:
+		if _is_hostile_to_player() or role in ["OUTLAW", "MONSTER", "GUARD"]:
 			current_target = source
 			set_state(NPCState.COMBAT)
-		elif faction in ["CIVILIAN", "WILDLIFE", "MERCHANT", "NOBLE"]:
+		elif role in ["CIVILIAN", "WILDLIFE", "MERCHANT", "NOBLE"]:
 			threat_source = source
 			set_state(NPCState.FLEE)
 
@@ -1394,10 +1427,10 @@ func _start_trade_interaction(_interactor: Node2D) -> void:
 		print("Shop inventory is empty")
 
 func _get_greeting_message() -> String:
-	"""Generate a greeting based on NPC type and faction"""
+	"""Generate a greeting based on NPC role"""
 	var greeting = ""
-	
-	match faction:
+
+	match role:
 		"GUARD":
 			greeting = "Halt! State your business."
 		"CIVILIAN":
@@ -1500,7 +1533,7 @@ func _populate_default_inventory() -> void:
 			inventory.add_item(bread, 2)
 
 	# Merchants and bandits also stock weapons
-	if can_trade or faction in ["OUTLAW", "GUARD"]:
+	if can_trade or role in ["OUTLAW", "GUARD"]:
 		if ResourceLoader.exists(dagger_path):
 			var dagger: Item = load(dagger_path)
 			if dagger:

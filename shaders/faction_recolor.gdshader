@@ -3,29 +3,36 @@ shader_type canvas_item;
 // Faction recolour — hue-range swap.
 //
 // Repaints one band of hues on a sprite while leaving its shading intact, so a
-// single piece of art can serve several factions. Only *hue* and *saturation*
-// are touched; brightness (value) is passed through untouched, which is what
-// preserves the artist's light-to-dark ramp.
+// single piece of art can serve several factions. Hue is replaced outright;
+// saturation and brightness are only *scaled*, which is what preserves the
+// artist's light-to-dark ramp — a shadowed fold stays a shadowed fold.
 //
 // TUNING: flip `debug_mask` on. Every pixel the filter catches turns magenta,
 // so you can see exactly what the window is grabbing before you trust it.
 
 // Band of hues to repaint, as (start, end) on the 0..1 hue circle.
-// Wraps when start > end — which is how you express red, since red straddles 0.
-uniform vec2 hue_window = vec2(0.95, 0.05);
+// Wraps when start > end, which is also how you express "everything but one
+// band" — the default excludes skin and bare wood. See FactionPalette.
+uniform vec2 hue_window = vec2(0.11, 0.02);
 
 // Ignore pixels less saturated than this. Greys (steel, stone, bone, outlines)
-// report a meaningless, unstable hue, so without this floor they speckle.
+// report a meaningless, unstable hue, so without this floor they speckle. It is
+// also what leaves undyed linen and grey homespun alone.
 uniform float sat_floor : hint_range(0.0, 1.0) = 0.25;
 
-// Ignore pixels darker than this, which protects the black outline pixels the
-// silhouette depends on at 16px.
-uniform float value_floor : hint_range(0.0, 1.0) = 0.10;
+// Ignore pixels darker than this. On this sheet the darkest shade doubles as the
+// outline, and repainting it costs the silhouette at 16px.
+uniform float value_floor : hint_range(0.0, 1.0) = 0.28;
 
-// The faction's hue, and a multiplier on the original saturation. Saturation is
-// scaled rather than overwritten so shadowed pixels stay relatively duller.
+// The faction's colour, taken apart: its hue replaces the source hue, while its
+// saturation and brightness arrive as multipliers on what the source pixel
+// already had. Scaling rather than overwriting is what keeps the ramp — a
+// shadowed pixel stays relatively duller and darker than a lit one.
+// FactionPalette derives all three from Faction.color.
 uniform float target_hue : hint_range(0.0, 1.0) = 0.60;
 uniform float sat_scale : hint_range(0.0, 2.0) = 1.0;
+uniform float value_scale : hint_range(0.0, 2.0) = 1.0;
+
 
 uniform bool debug_mask = false;
 
@@ -59,6 +66,7 @@ void fragment() {
 		&& hsv.z >= value_floor) {
 		hsv.x = target_hue;
 		hsv.y = clamp(hsv.y * sat_scale, 0.0, 1.0);
+		hsv.z = clamp(hsv.z * value_scale, 0.0, 1.0);
 		COLOR.rgb = debug_mask ? vec3(1.0, 0.0, 1.0) : hsv2rgb(hsv);
 	}
 }

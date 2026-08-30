@@ -3,7 +3,7 @@ extends Node
 const SPRITE_TODO := Vector2i(-1, -1)
 
 ## NPC types — canonical list used by NPCSpawner, NPC, and dialogue systems.
-enum NpcType {PEASANT, SOLDIER, MERCHANT, NOBLE, BANDIT, ANIMAL, MONSTER}
+enum NpcType {PEASANT, SOLDIER, MERCHANT, NOBLE, BANDIT, ANIMAL, MONSTER, MAGE, CLERGY}
 
 ## Map types and building sizes are now defined in MapConfig.
 ## • MapConfig.MapType       — what kind of local map (NON_SETTLEMENT, SETTLEMENT, CASTLE_INTERIOR, DUNGEON)
