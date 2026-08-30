@@ -15,6 +15,9 @@ shader_parameter/value_floor = 1.0
 shader_parameter/target_hue = 0.0
 shader_parameter/sat_scale = 1.0
 shader_parameter/value_scale = 1.0
+shader_parameter/skin_tones = PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/skin_tone_count = 0
+shader_parameter/skin_tolerance = 0.04
 shader_parameter/debug_mask = false
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1vbwm"]

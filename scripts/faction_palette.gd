@@ -46,6 +46,40 @@ const DEFAULT_HUE_WINDOW := Vector2(0.11, 0.02)
 ## verified the same way.
 const SOURCE_VALUE := 0.75
 
+## ── SKIN ──────────────────────────────────────────────────────────────────
+## Flesh tones on the sheet, which are never dyed however well they fit the hue
+## window. This is the exact guard that the window can only approximate: hue
+## cannot reliably separate a cheek from tan leather, but an exact colour can.
+##
+## HOW TO FILL THIS IN
+##  1. Eyedropper the face and hands of a few NPC cells. Take every step of each
+##     ramp, not just the lit tone — the shadow and highlight steps are separate
+##     colours and each needs a line here.
+##  2. Run with the shader's `debug_mask` on. Green is a pixel this list is
+##     protecting, magenta is one about to be dyed. Any magenta on a face means
+##     a tone is still missing.
+##
+## Written as hex because that is what an image editor hands you. The entries
+## below are the five commonest flesh-looking tones measured across the sheet's
+## NPC cells — a starting point to correct, not a verified list.
+static var SKIN_TONES: Array[Color] = [
+	Color("cd8668"),  # 205,134,104 — by far the commonest, the lit tone
+	Color("f1ab7a"),  # 241,171,122 — highlight
+	# Color("b07d6a"),  # 176,125,106 — shadow
+	# Color("b38a6b"),  # 179,138,107
+	# Color("ba866a"),  # 186,134,106
+]
+
+## How near a pixel must sit to a SKIN_TONES entry, as a distance in RGB space.
+## Tight on purpose: the sheet's tan leather (193,160,111) is only about 0.12
+## from the nearest flesh tone, so a loose match would spare that too. Nearest
+## filtering means pixels arrive exact, so this only has to absorb rounding.
+const SKIN_TOLERANCE := 0.04
+
+## Mirrors MAX_SKIN_TONES in faction_recolor.gdshader — a shader array is fixed
+## length, and entries past it would be dropped in silence.
+const MAX_SKIN_TONES := 8
+
 ## faction_id → colour, filled by register() or by scanning FACTION_DIR.
 static var _colors: Dictionary = {}
 static var _loaded: bool = false
@@ -58,6 +92,9 @@ static var _cache: Dictionary = {}
 ## Faction keys already complained about, so an unknown one warns once instead of
 ## once per NPC in a crowded settlement.
 static var _warned: Dictionary = {}
+
+## SKIN_TONES converted for the shader once. See _skin_tone_vectors().
+static var _skin_vectors: PackedVector3Array = PackedVector3Array()
 
 ## Take colours from the factions FactionMap actually built, which is the
 ## authoritative set: it has already validated `faction_defs`, dropped the
@@ -120,16 +157,41 @@ static func material_for(faction: String, hue_window: Vector2 = DEFAULT_HUE_WIND
 	# ordinary brightness leaves the art's lightness where the artist put it.
 	mat.set_shader_parameter("sat_scale", color.s)
 	mat.set_shader_parameter("value_scale", clampf(color.v / SOURCE_VALUE, 0.0, 2.0))
+	mat.set_shader_parameter("skin_tones", _skin_tone_vectors())
+	mat.set_shader_parameter("skin_tone_count", mini(SKIN_TONES.size(), MAX_SKIN_TONES))
+	mat.set_shader_parameter("skin_tolerance", SKIN_TOLERANCE)
 	_cache[key] = mat
 	return mat
 
 
-## Drop everything, so the next lookup re-reads from disk. Only needed when the
-## .tres files change under a running editor.
+## SKIN_TONES as the shader wants them. Built once — the list does not change at
+## runtime, and every faction's material carries the same copy.
+##
+## Always exactly MAX_SKIN_TONES long, because the shader's array is fixed
+## length. Unused slots hold a colour no pixel can be within reach of, so the
+## padding is inert even before `skin_tone_count` stops the loop reaching it.
+static func _skin_tone_vectors() -> PackedVector3Array:
+	if not _skin_vectors.is_empty():
+		return _skin_vectors
+	if SKIN_TONES.size() > MAX_SKIN_TONES:
+		push_warning("[FactionPalette] %d skin tones listed but the shader holds %d — the rest are ignored."
+			% [SKIN_TONES.size(), MAX_SKIN_TONES])
+	_skin_vectors.resize(MAX_SKIN_TONES)
+	_skin_vectors.fill(Vector3(-1.0, -1.0, -1.0))
+	for i in mini(SKIN_TONES.size(), MAX_SKIN_TONES):
+		var tone: Color = SKIN_TONES[i]
+		_skin_vectors[i] = Vector3(tone.r, tone.g, tone.b)
+	return _skin_vectors
+
+
+## Drop everything, so the next lookup re-reads from disk and rebuilds its
+## materials. Needed after the .tres files or SKIN_TONES change under a running
+## editor — cached materials hold the old values otherwise.
 static func reload() -> void:
 	_colors.clear()
 	_cache.clear()
 	_warned.clear()
+	_skin_vectors.clear()
 	_loaded = false
 
 
