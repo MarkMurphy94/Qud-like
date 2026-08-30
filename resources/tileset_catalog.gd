@@ -200,15 +200,30 @@ const DEFAULT_WALL_TILES := {
 	"w":  Vector2i(4, 19),
 }
 
-## Flooring laid inside a generated building, and the named materials a
-## BUILDING_SPRITES entry can ask for instead.
+## Flooring laid inside a generated building when its BUILDING_SPRITES entry
+## names no material of its own.
 const DEFAULT_FLOOR_ATLAS := Vector2i(66, 10)
 
+## Named floor materials a building can ask for, keyed by what they look like
+## rather than by which building uses them — which type gets which floor is
+## MapGenerator.BUILDING_SPRITES' business, not this table's.
+##
+## These are single coords, not bands, so they sidestep theme and biome
+## filtering entirely: `dark_wood` is borrowed from the tropical block because
+## that is where the boards are, and a floor should not change with the weather
+## outside. They also sit on different rows — `dirt` is base ground (row 9),
+## the other two are the detail row above it (row 10) — so anything resolving
+## one has to go through the band table rather than assume a single pool.
 const FLOOR_TILES := {
 	"dark_wood": Vector2i(66, 10),
 	"stone_floor": Vector2i(5, 10),
 	"dirt": Vector2i(5, 9),
 }
+
+## Atlas coord for a named floor material, falling back to the default floor so
+## a typo lays boards rather than nothing.
+static func floor_atlas(material: String) -> Vector2i:
+	return FLOOR_TILES.get(material, DEFAULT_FLOOR_ATLAS)
 
 # --- prop selection weights ---
 # The generator picks props by weight, so "which props show up most" is data

@@ -64,11 +64,17 @@ var terrain_cells = {
 # whole-building glyphs are world-map icons (local_gen = false in the band
 # table) — so buildings are drawn from wall and door tiles and are sized like
 # rooms rather than city blocks.
+#
+# `ground` is the yard the building stands in and must be a surface name (see
+# SURFACE_BANDS); `floor` is what is laid inside it and must be a
+# Layout.FLOOR_TILES material. An entry that names no floor gets the default.
 const BUILDING_SPRITES := {
-	Structure.StructureType.HOUSE:  {"size": Vector2i(5, 5),   "ground": "dark_wood",  "spacing": 2},
-	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "dark_wood", "spacing": 2},
-	Structure.StructureType.TAVERN: {"size": Vector2i(8, 6),   "ground": "dark_wood", "spacing": 3},
-	Structure.StructureType.MANOR:  {"size": Vector2i(10, 8),  "ground": "dark_wood", "spacing": 3},
+	Structure.StructureType.HOUSE:  {"size": Vector2i(5, 5),   "ground": "dirt", "floor": "dirt", "spacing": 2},
+	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "dirt", "floor": "stone_floor", "spacing": 2},
+	# Packed earth under rushes, which is what a village tavern actually had, and
+	# it tells a tavern apart from the house next door at a glance.
+	Structure.StructureType.TAVERN: {"size": Vector2i(8, 6),   "ground": "dirt", "floor": "dark_wood", "spacing": 3},
+	Structure.StructureType.MANOR:  {"size": Vector2i(10, 8),  "ground": "dirt", "floor": "stone_floor", "spacing": 3},
 }
 
 func _building_def(building_type: int):
@@ -113,25 +119,34 @@ const BUILDING_COUNTS_BY_DENSITY = {
 		Structure.StructureType.HOUSE: 8,
 		Structure.StructureType.TAVERN: 1,
 		Structure.StructureType.SHOP: 1,
+		Structure.StructureType.CHURCH: 1,
+		Structure.StructureType.BLACKSMITH: 1,
 		Structure.StructureType.MANOR: 0,
 	},
 	MapConfig.BuildingDensity.SMALL_TOWN: {
 		Structure.StructureType.HOUSE: 10,
 		Structure.StructureType.TAVERN: 1,
 		Structure.StructureType.SHOP: 2,
-		Structure.StructureType.MANOR: 0,
+		Structure.StructureType.MANOR: 1,
+		Structure.StructureType.CHURCH: 1,
+		Structure.StructureType.BLACKSMITH: 1,				
 	},
 	MapConfig.BuildingDensity.LARGE_TOWN: {
 		Structure.StructureType.HOUSE: 16,
 		Structure.StructureType.TAVERN: 2,
 		Structure.StructureType.SHOP: 3,
 		Structure.StructureType.MANOR: 1,
+		Structure.StructureType.CHURCH: 1,
+		Structure.StructureType.BLACKSMITH: 1,		
 	},
 	MapConfig.BuildingDensity.CITY: {
 		Structure.StructureType.HOUSE: 24,
 		Structure.StructureType.TAVERN: 3,
 		Structure.StructureType.SHOP: 4,
 		Structure.StructureType.MANOR: 2,
+		Structure.StructureType.CHURCH: 2,
+		Structure.StructureType.BARRACKS: 1,
+		Structure.StructureType.BLACKSMITH: 2,
 	},
 }
 
@@ -421,6 +436,25 @@ func _rebuild_tile_catalog() -> void:
 func _catalog_pool(category: String, tile_type: String) -> Array:
 	var pool: Array = tile_catalog.get(category, {}).get(tile_type, [])
 	return RoguelikeCatalog.of_biome(RoguelikeCatalog.of_theme(pool), map_biome)
+
+
+## The catalog entry for a named Layout.FLOOR_TILES material, or {} when the
+## sheet has no such tile and the caller should fall back.
+##
+## Routed through the band table rather than a fixed pool, because the floor
+## materials do not share one: `dirt` is base ground, the boards and flagstones
+## are the detail row above it. Reads the raw catalog on purpose — a floor is a
+## specific material the building asked for, and the theme/biome filter in
+## _catalog_pool would throw it away for being the wrong climate, which is how
+## the boards (borrowed from the tropical block) would vanish.
+func _floor_entry(floor_material: String) -> Dictionary:
+	var atlas: Vector2i = Layout.floor_atlas(floor_material)
+	var band: Dictionary = Layout.category_band_for_row(atlas.y)
+	var route: Dictionary = Layout.category_route(band.get("category", ""))
+	if route.is_empty():
+		return {}
+	return RoguelikeCatalog.entry_at(
+		tile_catalog.get(route["category"], {}).get(route["type"], []), atlas)
 
 
 func _catalog_types(category: String) -> Dictionary:
@@ -1843,14 +1877,16 @@ func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionar
 		building_clear_cells[cell] = true
 		if foliage.get_cell_source_id(cell) != -1:
 			foliage.set_cell(cell, -1)
-	_stamp_building_tiles(pos, size, patch_rng)
+	_stamp_building_tiles(pos, size, patch_rng, str(sprite_def.get("floor", "")))
 
 
 ## Draw a building as tiles: a directional wall ring with a single door and a
-## cleared interior floor. Floor is also laid beneath the walls so the ring
-## never sits on bare ground; structures_interior draws below
-## structures_exterior, so the wall art stays on top.
-func _stamp_building_tiles(pos: Vector2i, size: Vector2i, rng: RandomNumberGenerator) -> void:
+## cleared interior floor of `floor_material` (a Layout.FLOOR_TILES name; "" for
+## the default). Floor is also laid beneath the walls so the ring never sits on
+## bare ground; structures_interior draws below structures_exterior, so the wall
+## art stays on top.
+func _stamp_building_tiles(pos: Vector2i, size: Vector2i, rng: RandomNumberGenerator,
+		floor_material: String = "") -> void:
 	var wall_pool := _catalog_pool("structure", "wall")
 	var wall_map := RoguelikeCatalog.default_wall_entries(wall_pool)
 	if wall_map.is_empty():
@@ -1858,11 +1894,7 @@ func _stamp_building_tiles(pos: Vector2i, size: Vector2i, rng: RandomNumberGener
 		return
 	var rect := Rect2i(pos, size)
 
-	# The default floor is one fixed tile; look it up in the raw catalog since
-	# _catalog_pool would theme-filter it away. Fall back to dirt if it's gone.
-	var floor_entry := RoguelikeCatalog.entry_at(
-		tile_catalog.get("terrain_features", {}).get("ground_detail", []),
-		Layout.DEFAULT_FLOOR_ATLAS)
+	var floor_entry := _floor_entry(floor_material)
 
 	# Floor first so the wall ring paints over its outer edge.
 	var floor_cells: Array[Vector2i] = []
