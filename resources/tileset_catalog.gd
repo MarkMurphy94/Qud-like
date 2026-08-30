@@ -201,19 +201,23 @@ const DEFAULT_WALL_TILES := {
 }
 
 ## Flooring laid inside a generated building when its BUILDING_SPRITES entry
-## names no material of its own.
+## names no material of its own. Same base-sheet rule as FLOOR_TILES below.
 const DEFAULT_FLOOR_ATLAS := Vector2i(66, 10)
 
 ## Named floor materials a building can ask for, keyed by what they look like
 ## rather than by which building uses them — which type gets which floor is
 ## MapGenerator.BUILDING_SPRITES' business, not this table's.
 ##
-## These are single coords, not bands, so they sidestep theme and biome
-## filtering entirely: `dark_wood` is borrowed from the tropical block because
-## that is where the boards are, and a floor should not change with the weather
-## outside. They also sit on different rows — `dirt` is base ground (row 9),
-## the other two are the detail row above it (row 10) — so anything resolving
-## one has to go through the band table rather than assume a single pool.
+## ALWAYS PAINTED FROM THE BASE SHEET, never the alpha cut. A floor has to cover
+## the ground beneath it, and the rows these coords are borrowed from belong to
+## the transparent scatter version — drawn from that, floorboards show the yard
+## through them. MapGenerator._floor_entry() is what enforces this, by reading
+## the opaque source directly instead of going through the tile catalog.
+##
+## Being single coords rather than a band, they also sidestep theme and biome
+## filtering: `dark_wood` is borrowed from the tropical block because that is
+## where the sheet keeps its boards, and a floor should not change with the
+## weather outside.
 const FLOOR_TILES := {
 	"dark_wood": Vector2i(66, 10),
 	"stone_floor": Vector2i(5, 10),

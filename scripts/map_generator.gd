@@ -70,7 +70,7 @@ var terrain_cells = {
 # Layout.FLOOR_TILES material. An entry that names no floor gets the default.
 const BUILDING_SPRITES := {
 	Structure.StructureType.HOUSE:  {"size": Vector2i(5, 5),   "ground": "dirt", "floor": "dirt", "spacing": 2},
-	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "dirt", "floor": "stone_floor", "spacing": 2},
+	Structure.StructureType.SHOP:   {"size": Vector2i(6, 5),   "ground": "stone_floor", "floor": "stone_floor", "spacing": 2},
 	# Packed earth under rushes, which is what a village tavern actually had, and
 	# it tells a tavern apart from the house next door at a glance.
 	Structure.StructureType.TAVERN: {"size": Vector2i(8, 6),   "ground": "dirt", "floor": "dark_wood", "spacing": 3},
@@ -438,23 +438,31 @@ func _catalog_pool(category: String, tile_type: String) -> Array:
 	return RoguelikeCatalog.of_biome(RoguelikeCatalog.of_theme(pool), map_biome)
 
 
-## The catalog entry for a named Layout.FLOOR_TILES material, or {} when the
-## sheet has no such tile and the caller should fall back.
+## The tile a named Layout.FLOOR_TILES material paints with, or {} when the base
+## sheet cannot supply it and the caller should fall back.
 ##
-## Routed through the band table rather than a fixed pool, because the floor
-## materials do not share one: `dirt` is base ground, the boards and flagstones
-## are the detail row above it. Reads the raw catalog on purpose — a floor is a
-## specific material the building asked for, and the theme/biome filter in
-## _catalog_pool would throw it away for being the wrong climate, which is how
-## the boards (borrowed from the tropical block) would vanish.
+## Read straight off the OPAQUE source instead of out of tile_catalog, and that
+## is the whole point of this function. A floor has to cover the ground under
+## it, and the catalog hands each coord to one cut of the sheet only: the rows
+## the floor materials are borrowed from are claimed by the alpha cut, which is
+## the transparent scatter version. Laid as flooring it shows the yard through
+## the floorboards.
+##
+## Going direct also skips the theme and biome filter, which is what would
+## otherwise drop the boards for being the wrong climate — they are borrowed
+## from the tropical block, because that is where the sheet keeps its boards.
 func _floor_entry(floor_material: String) -> Dictionary:
-	var atlas: Vector2i = Layout.floor_atlas(floor_material)
-	var band: Dictionary = Layout.category_band_for_row(atlas.y)
-	var route: Dictionary = Layout.category_route(band.get("category", ""))
-	if route.is_empty():
+	var ts := ground.tile_set
+	var source_id := RoguelikeCatalog.opaque_source_id(ts)
+	if source_id == -1:
 		return {}
-	return RoguelikeCatalog.entry_at(
-		tile_catalog.get(route["category"], {}).get(route["type"], []), atlas)
+	var atlas: Vector2i = Layout.floor_atlas(floor_material)
+	var source := ts.get_source(source_id) as TileSetAtlasSource
+	if source == null or not source.has_tile(atlas):
+		push_warning("MapGenerator: floor '%s' is not at %s on the base sheet — falling back to dirt"
+			% [floor_material, atlas])
+		return {}
+	return {"source_id": source_id, "atlas": atlas}
 
 
 func _catalog_types(category: String) -> Dictionary:
