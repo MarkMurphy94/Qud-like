@@ -31,6 +31,17 @@ var _map: MapGenerator = null
 # Margin in tiles so NPCs don't spawn right on the map edge.
 const SPAWN_MARGIN_TILES: int = 2
 
+## Who keeps which functional building, as {type, variant}. A building type
+## absent here has no keeper and is just somewhere to live. These NPCs are
+## confined to the building's interior (see NPC.confine_to), so the smith is at
+## his forge and the priest at his altar whenever the player walks in.
+const BUILDING_KEEPERS := {
+	Structure.StructureType.TAVERN: {"type": MainGameState.NpcType.PEASANT, "variant": "innkeeper"},
+	Structure.StructureType.SHOP: {"type": MainGameState.NpcType.MERCHANT, "variant": "default"},
+	Structure.StructureType.BLACKSMITH: {"type": MainGameState.NpcType.PEASANT, "variant": "blacksmith"},
+	Structure.StructureType.CHURCH: {"type": MainGameState.NpcType.CLERGY, "variant": "priest"},
+}
+
 func _ready():
 	if not map_generator_path.is_empty():
 		_map = get_node_or_null(map_generator_path) as MapGenerator
@@ -106,14 +117,17 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 	var density: int = density_override if density_override >= 0 else int(settlement_data.building_density)
 	var counts_map: Dictionary = MainGameState.settlement_npc_counts.get(density, {})
 
+	var area_key := _area_key()
+	var kept := _spawn_building_keepers(area_key)
+
 	# Building positions are preferred but optional — NPCs fall back to random
-	# positions within the map bounds if none are available.
+	# positions within the map bounds if none are available. Buildings that
+	# already have a keeper are skipped: the shop is the merchant's, not a house.
 	var homes := _building_positions()
+	homes = homes.filter(func(pos): return not kept.has(pos))
 	if not homes.is_empty():
 		homes.shuffle()
 	var home_index := 0
-
-	var area_key := _area_key()
 
 	for npc_type: MainGameState.NpcType in counts_map.keys():
 		var target_count: int = counts_map[npc_type]
@@ -131,7 +145,55 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 			var npc := _spawn_npc(npc_type, world_pos, "", npc_id)
 			npc.set_locations(world_pos)
 			spawned_npcs.append(npc)
-		
+
+
+## Stands the keeper of each functional building inside it and ties them to its
+## interior. Returns the tile positions of the buildings now spoken for, so the
+## general population is not also housed in them.
+func _spawn_building_keepers(area_key: String) -> Array:
+	var kept: Array = []
+	if _map == null:
+		return kept
+	for building in _map.map_buildings:
+		var spec: Dictionary = BUILDING_KEEPERS.get(int(building.get("type", -1)), {})
+		if spec.is_empty():
+			continue
+		var interior := _interior_rect(building)
+		if interior.size.x <= 0 or interior.size.y <= 0:
+			continue
+		var pos: Vector2i = building["pos"]
+		var world_pos := _map.tile_to_world(_free_interior_tile(interior))
+		var npc_id := "%s_keeper_%d_%d" % [area_key, pos.x, pos.y]
+		var npc := _spawn_npc(spec["type"], world_pos, spec["variant"], npc_id)
+		npc.set_locations(world_pos, world_pos)
+		npc.confine_to(interior)
+		spawned_npcs.append(npc)
+		kept.append(pos)
+	return kept
+
+
+## The floor of a building — its footprint minus the wall ring.
+func _interior_rect(building: Dictionary) -> Rect2i:
+	var pos: Vector2i = building["pos"]
+	var size: Vector2i = building["size"]
+	return Rect2i(pos + Vector2i.ONE, size - Vector2i(2, 2))
+
+
+## A tile inside `interior` with no furniture on it. Reads the decor layer
+## rather than asking is_walkable(), because the tilemap's collision shapes are
+## not registered with the physics server until the next physics step and the
+## spawner runs before one has passed.
+func _free_interior_tile(interior: Rect2i) -> Vector2i:
+	var free: Array[Vector2i] = []
+	for y in interior.size.y:
+		for x in interior.size.x:
+			var cell := interior.position + Vector2i(x, y)
+			if _map.decor_interior.get_cell_source_id(cell) == -1:
+				free.append(cell)
+	if free.is_empty():
+		return interior.get_center()
+	return free[rng.randi() % free.size()]
+
 ## Looks up the settlement entry in MainGameState by map_name first,
 ## then by overworld_tile key (make_settlement_key), so both hand-crafted
 ## and dynamically-generated settlements are found.

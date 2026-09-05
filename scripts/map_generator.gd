@@ -74,11 +74,53 @@ const BUILDING_SPRITES := {
 	# Packed earth under rushes, which is what a village tavern actually had, and
 	# it tells a tavern apart from the house next door at a glance.
 	Structure.StructureType.TAVERN: {"size": Vector2i(8, 6),   "ground": "dirt", "floor": "dark_wood", "spacing": 3},
+	Structure.StructureType.BLACKSMITH: {"size": Vector2i(6, 5), "ground": "dirt", "floor": "stone_floor", "spacing": 2},
+	Structure.StructureType.CHURCH: {"size": Vector2i(7, 8),   "ground": "dirt", "floor": "stone_floor", "spacing": 3},
 	Structure.StructureType.MANOR:  {"size": Vector2i(10, 8),  "ground": "dirt", "floor": "stone_floor", "spacing": 3},
 }
 
 func _building_def(building_type: int):
 	return BUILDING_SPRITES.get(building_type)
+
+# ── Interior furnishing rules ───────────────────────────────────────────────
+# What tells one building apart from another once you are inside it.
+#
+#  fixtures : furnishings stood by rule before anything is scattered, as
+#             {tile, length, inset}. `tile` names a Layout.FIXTURE_TILES coord
+#             and `length` is the run of cells it is laid across (min, max) — a
+#             bar is several segments of counter top, an altar is one plinth.
+#             They go against the interior wall furthest from the door, so a
+#             fixture can never seal the entrance. `inset` stands the run that
+#             many cells clear of that wall and reserves the gap, which is what
+#             gives a barman somewhere to stand.
+#  roles    : prop roles (see the OVERRIDES table in tileset_catalog.gd) the
+#             scatter pass may draw from. Omit the key entirely to scatter from
+#             every interior prop, as houses and manors do; an empty list
+#             furnishes with the fixtures alone.
+#  fill     : chance each cell of the interior wall ring is furnished.
+const DEFAULT_INTERIOR_FILL := 0.22
+const NO_DOOR := Vector2i(-1, -1)
+const BUILDING_INTERIORS := {
+	Structure.StructureType.TAVERN: {
+		"fixtures": [{"tile": "counter", "length": Vector2i(2, 3), "inset": 1}],
+		"roles": ["table", "chair"],
+		"fill": 0.4,
+	},
+	Structure.StructureType.SHOP: {
+		"fixtures": [{"tile": "counter", "length": Vector2i(2, 3), "inset": 1}],
+		"roles": ["chest", "shelf"],
+		"fill": 0.4,
+	},
+	Structure.StructureType.BLACKSMITH: {
+		"fixtures": [{"tile": "forge", "length": Vector2i(1, 1)}],
+		"roles": ["table", "chair", "shelf", "chest"],
+		"fill": 0.35,
+	},
+	Structure.StructureType.CHURCH: {
+		"fixtures": [{"tile": "altar", "length": Vector2i(1, 1)}],
+		"roles": [],
+	},
+}
 
 const WIDTH = 80
 const HEIGHT = 80
@@ -671,7 +713,7 @@ func _paint_settlement_ground(building_rects: Array[Rect2i]) -> void:
 ## Ground is expected to be painted already — buildings draw their own yards.
 func _place_buildings(buildings: Array) -> void:
 	for entry in buildings:
-		place_building_settlement(entry["pos"], entry["size"], entry["type"])
+		entry["door"] = place_building_settlement(entry["pos"], entry["size"], entry["type"])
 	map_buildings = buildings
 
 func _buildings_from_structures(structures: Array[Structure]) -> Array:
@@ -904,7 +946,7 @@ func generate_settlement(settlement_rng: RandomNumberGenerator) -> void:
 			mark_occupied_settlement(occupied_space_grid, pos, size, sprite_def["spacing"])
 			chosen.append({"type": enum_type, "pos": pos, "size": size})
 
-	var building_order = [Structure.StructureType.MANOR, Structure.StructureType.TAVERN, Structure.StructureType.SHOP, Structure.StructureType.HOUSE]
+	var building_order = [Structure.StructureType.MANOR, Structure.StructureType.CHURCH, Structure.StructureType.TAVERN, Structure.StructureType.BLACKSMITH, Structure.StructureType.SHOP, Structure.StructureType.HOUSE]
 	for building_type in building_order:
 		var count: int = building_counts.get(building_type, 0)
 		var sprite_def = _building_def(building_type)
@@ -1347,8 +1389,6 @@ func add_decor_exterior(placed_buildings: Array) -> void:
 
 func add_decor_interior(placed_buildings: Array) -> void:
 	var interior_tiles: Array = _prop_pool(true)
-	if interior_tiles.is_empty():
-		return
 
 	var decor_rng := RandomNumberGenerator.new()
 	decor_rng.seed = current_map_seed ^ 0xC0FFEE11
@@ -1359,6 +1399,16 @@ func add_decor_interior(placed_buildings: Array) -> void:
 		var bsize: Vector2i = building["size"]
 		if bsize.x < 3 or bsize.y < 3:
 			continue
+
+		var plan: Dictionary = BUILDING_INTERIORS.get(int(building.get("type", -1)), {})
+		_place_interior_fixtures(building, plan, used_cells, decor_rng)
+
+		var pool: Array = interior_tiles
+		if plan.has("roles"):
+			pool = _props_with_roles(interior_tiles, plan["roles"])
+		if pool.is_empty():
+			continue
+		var fill: float = float(plan.get("fill", DEFAULT_INTERIOR_FILL))
 
 		# One-tile-inside ring (hugging interior walls).
 		var left := bpos.x + 1
@@ -1377,7 +1427,7 @@ func add_decor_interior(placed_buildings: Array) -> void:
 				edge_cells.append(Vector2i(right, y))
 
 		for cell in edge_cells:
-			if decor_rng.randf() > 0.22:
+			if decor_rng.randf() > fill:
 				continue
 			if used_cells.has(cell):
 				continue
@@ -1386,7 +1436,7 @@ func add_decor_interior(placed_buildings: Array) -> void:
 			if decor_interior.get_cell_source_id(cell) != -1:
 				continue
 
-			var entry: Dictionary = _pick_weighted(interior_tiles, decor_rng)
+			var entry: Dictionary = _pick_weighted(pool, decor_rng)
 			var esize: Vector2i = entry["size"]
 			var fits := true
 			for edy in esize.y:
@@ -1409,6 +1459,111 @@ func add_decor_interior(placed_buildings: Array) -> void:
 			for edy in esize.y:
 				for edx in esize.x:
 					used_cells[cell + Vector2i(edx, edy)] = true
+
+
+## Props from `pool` whose role is one of `roles`.
+func _props_with_roles(pool: Array, roles: Array) -> Array:
+	var out: Array = []
+	for entry in pool:
+		if roles.has(String(entry.get("role", ""))):
+			out.append(entry)
+	return out
+
+
+## Stands a building type's fixed furnishings — a tavern's bar, a church's
+## altar, a smithy's forge — before the scatter pass runs, and claims their
+## cells so nothing else lands on them.
+func _place_interior_fixtures(building: Dictionary, plan: Dictionary,
+		used_cells: Dictionary, rng: RandomNumberGenerator) -> void:
+	var fixtures: Array = plan.get("fixtures", [])
+	if fixtures.is_empty():
+		return
+	var rect := Rect2i(building["pos"], building["size"])
+	var door: Vector2i = building.get("door", NO_DOOR)
+	for fixture: Dictionary in fixtures:
+		var entry := _fixture_entry(String(fixture["tile"]))
+		if entry.is_empty():
+			continue
+		var span: Vector2i = fixture.get("length", Vector2i.ONE)
+		var inset: int = int(fixture.get("inset", 0))
+		var run := _back_wall_run(rect, door, rng.randi_range(span.x, span.y), inset)
+		for cell in run:
+			if used_cells.has(cell) or decor_interior.get_cell_source_id(cell) != -1:
+				continue
+			# Fixtures block; the cell a door opens onto has to stay clear.
+			if door != NO_DOOR and (absi(cell.x - door.x) + absi(cell.y - door.y)) <= 1:
+				continue
+			decor_interior.set_cell(cell, entry["source_id"], entry["atlas"])
+			used_cells[cell] = true
+		# Claiming the gap the inset opened up without painting it reserves the
+		# lane: the scatter pass skips used cells, so nothing gets stood behind
+		# the bar to wall the barman in.
+		for cell in _lane_behind(rect, run):
+			used_cells[cell] = true
+
+
+## The interior cells between a fixture's run and the wall it stands off from.
+## Empty when the fixture is already against the wall.
+func _lane_behind(rect: Rect2i, run: Array[Vector2i]) -> Array[Vector2i]:
+	var lane: Array[Vector2i] = []
+	if run.is_empty():
+		return lane
+	var top := rect.position.y + 1
+	var bottom := rect.end.y - 2
+	var row: int = run[0].y
+	var rows := range(top, row) if row - top <= bottom - row else range(row + 1, bottom + 1)
+	for cell in run:
+		for y in rows:
+			lane.append(Vector2i(cell.x, y))
+	return lane
+
+
+## A centred run of `length` interior cells along the wall furthest from the
+## door, which is where a counter or an altar belongs and — more to the point —
+## the one edge a blocking fixture cannot seal the building off from.
+##
+## `inset` steps the run that many cells further in, leaving a lane between it
+## and the wall for whoever works behind it. An inset run is also kept clear of
+## both side walls, so that lane can be reached from either end.
+func _back_wall_run(rect: Rect2i, door: Vector2i, length: int, inset: int = 0) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	var left := rect.position.x + 1
+	var right := rect.end.x - 2
+	var top := rect.position.y + 1
+	var bottom := rect.end.y - 2
+	if left > right or top > bottom:
+		return cells
+	var row := top if absi(top - door.y) >= absi(bottom - door.y) else bottom
+	var max_span := right - left + 1
+	if inset > 0:
+		row = clampi((row + inset) if row == top else (row - inset), top, bottom)
+		max_span = maxi(1, max_span - 2)
+	var span: int = clampi(length, 1, max_span)
+	var start := left + (right - left + 1 - span) / 2
+	for i in span:
+		cells.append(Vector2i(start + i, row))
+	return cells
+
+
+## The alpha-cut tile a named Layout.FIXTURE_TILES fixture paints with, or {}
+## when the sheet has nothing there. Read straight off the source rather than
+## out of tile_catalog: fixtures are single coords picked for what they are, so
+## the theme and biome filters that narrow a scatter pool would only throw them
+## away for being the wrong climate or culture.
+func _fixture_entry(fixture: String) -> Dictionary:
+	var atlas: Vector2i = Layout.fixture_atlas(fixture)
+	if atlas == Layout.NO_FIXTURE:
+		push_warning("MapGenerator: no fixture named '%s'" % fixture)
+		return {}
+	var ts := ground.tile_set
+	var source_id := RoguelikeCatalog.alpha_source_id(ts)
+	if source_id == -1:
+		return {}
+	var source := ts.get_source(source_id) as TileSetAtlasSource
+	if source == null or not source.has_tile(atlas):
+		push_warning("MapGenerator: fixture '%s' is not at %s on the alpha sheet" % [fixture, atlas])
+		return {}
+	return {"source_id": source_id, "atlas": atlas}
 
 func _scatter_ground_detail(local_rng: RandomNumberGenerator) -> void:
 	var pool: Array = _catalog_pool("terrain_features", "ground_detail")
@@ -1707,9 +1862,9 @@ func generate_hamlet(hamlet_type: String, local_rng: RandomNumberGenerator) -> A
 		var pos := find_valid_building_position_settlement(
 			Vector2i(WIDTH, HEIGHT), size, occupation_grid, local_rng, building_type, core, placed)
 		if pos.x != -1:
-			place_building_settlement(pos, size, building_type)
+			var door := place_building_settlement(pos, size, building_type)
 			mark_occupied_settlement(occupation_grid, pos, size, sprite_def["spacing"])
-			placed.append({"type": building_type, "pos": pos, "size": size})
+			placed.append({"type": building_type, "pos": pos, "size": size, "door": door})
 		attempts += 1
 	return placed
 
@@ -1823,18 +1978,19 @@ func mark_occupied_settlement(occupied_space_grid: Array, pos: Vector2i, size: V
 			if y >= 0 and y < occupied_space_grid.size() and x >= 0 and x < occupied_space_grid[y].size():
 				occupied_space_grid[y][x] = true
 
-# Place a settlement building using a premade sprite
-func place_building_settlement(pos: Vector2i, size: Vector2i, building_type: int) -> void:
+# Place a settlement building using a premade sprite. Returns the cell its door
+# landed on, which the interior passes need so a fixture never seals the way in.
+func place_building_settlement(pos: Vector2i, size: Vector2i, building_type: int) -> Vector2i:
 	var sprite_def = _building_def(building_type)
 	if not sprite_def:
 		push_warning("No BUILDING_SPRITES entry for building type %d" % building_type)
-		return
-	_place_building_sprite(pos, size, sprite_def, building_type)
+		return NO_DOOR
+	return _place_building_sprite(pos, size, sprite_def, building_type)
 
 # ── Shared sprite placement ────────────────────────────────────────────────
 # Paints ground terrain under the footprint, clears foliage, then stamps
 # walls/door/floor tiles for the building.
-func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary, _building_type: int) -> void:
+func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionary, _building_type: int) -> Vector2i:
 	# Seeded RNG for deterministic patch variation tied to building position
 	var patch_rng := RandomNumberGenerator.new()
 	patch_rng.seed = int(pos.x * 73856093) ^ int(pos.y * 19349663)
@@ -1885,21 +2041,21 @@ func _place_building_sprite(pos: Vector2i, size: Vector2i, sprite_def: Dictionar
 		building_clear_cells[cell] = true
 		if foliage.get_cell_source_id(cell) != -1:
 			foliage.set_cell(cell, -1)
-	_stamp_building_tiles(pos, size, patch_rng, str(sprite_def.get("floor", "")))
+	return _stamp_building_tiles(pos, size, patch_rng, str(sprite_def.get("floor", "")))
 
 
 ## Draw a building as tiles: a directional wall ring with a single door and a
 ## cleared interior floor of `floor_material` (a Layout.FLOOR_TILES name; "" for
 ## the default). Floor is also laid beneath the walls so the ring never sits on
 ## bare ground; structures_interior draws below structures_exterior, so the wall
-## art stays on top.
+## art stays on top. Returns the door cell.
 func _stamp_building_tiles(pos: Vector2i, size: Vector2i, rng: RandomNumberGenerator,
-		floor_material: String = "") -> void:
+		floor_material: String = "") -> Vector2i:
 	var wall_pool := _catalog_pool("structure", "wall")
 	var wall_map := RoguelikeCatalog.default_wall_entries(wall_pool)
 	if wall_map.is_empty():
 		push_warning("MapGenerator: no wall tiles in the catalog — building at %s not drawn" % pos)
-		return
+		return NO_DOOR
 	var rect := Rect2i(pos, size)
 
 	var floor_entry := _floor_entry(floor_material)
@@ -1935,6 +2091,7 @@ func _stamp_building_tiles(pos: Vector2i, size: Vector2i, rng: RandomNumberGener
 	else:
 		var door: Dictionary = doors[rng.randi() % doors.size()]
 		structures_exterior.set_cell(door_cell, door["source_id"], door["atlas"])
+	return door_cell
 
 
 ## The wall-map role ("nw", "n", … ) for a cell on `rect`'s perimeter, or ""

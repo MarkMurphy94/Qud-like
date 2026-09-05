@@ -229,6 +229,25 @@ const FLOOR_TILES := {
 static func floor_atlas(material: String) -> Vector2i:
 	return FLOOR_TILES.get(material, DEFAULT_FLOOR_ATLAS)
 
+## Furnishings a building type is given by rule instead of by scatter — a
+## tavern's bar, a church's altar, a smithy's forge. Which building gets which
+## is MapGenerator.BUILDING_INTERIORS' business; this table only says where the
+## art is. Painted from the alpha cut like any other prop, so they sit on top of
+## the flooring.
+##
+## `counter` is a single segment of bar top, meant to be laid in a short run.
+## `altar` is borrowed from the mediterranean building band, which is where the
+## sheet keeps its stone plinth.
+const NO_FIXTURE := Vector2i(-1, -1)
+const FIXTURE_TILES := {
+	"counter": Vector2i(90, 24),
+	"altar": Vector2i(16, 18),
+	"forge": Vector2i(13, 25),
+}
+
+static func fixture_atlas(fixture: String) -> Vector2i:
+	return FIXTURE_TILES.get(fixture, NO_FIXTURE)
+
 # --- prop selection weights ---
 # The generator picks props by weight, so "which props show up most" is data
 # here rather than logic in map_generator.gd. COMMON marks the small set of
@@ -250,6 +269,14 @@ const COMMON_PROP_WEIGHT := 8.0
 #   locked_chance : 0–1 odds the container starts locked. Defaults to 0.
 const NO_CONTAINER := ""
 
+# --- prop roles ---
+# What a prop IS ("table", "chair", "shelf", "chest", …), independent of where
+# it may stand. Building interiors are furnished by role — see
+# MapGenerator.BUILDING_INTERIORS — so a tavern can ask for tables and chairs
+# without this file knowing what a tavern is. A prop with no role is only ever
+# placed in interiors that take anything.
+const NO_ROLE := ""
+
 # --- per-tile overrides (win over the band defaults) ---
 # Key is "col,row" (atlas coords). Any subset of keys may be supplied.
 # Use `placement` for prop tiles that should only appear in a specific context:
@@ -257,6 +284,7 @@ const NO_CONTAINER := ""
 # Props default to "none" (never placed), so listing a tile here is what opts it
 # into generation.
 # Use `weight` to bias how often a prop is chosen within its pool.
+# Use `role` to make a prop eligible for building types that furnish by role.
 #   { Vector2i(x, y): {"category": "...", "theme": "...", "walkable": bool, "is_map_tile": bool, "placement": "exterior", "weight": 8.0} }
 const OVERRIDES := {
 	# TODO: get more granular with placement for props, so the local scene generator can avoid putting a tree in a house.
@@ -269,33 +297,37 @@ const OVERRIDES := {
 	Vector2i(4, 24): {
 		"placement": "interior", 
 		"weight": COMMON_PROP_WEIGHT,
+		"role": "shelf",
 		"container": "shelf", 
 		"loot_table": "household"
 		},
 	Vector2i(5, 24): {
 		"placement": "interior", 
 		"weight": COMMON_PROP_WEIGHT,
+		"role": "shelf",
 		"container": "cupboard", 
 		"loot_table": "household"
 		},	
-	Vector2i(6, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
-	Vector2i(7, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(6, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT, "role": "chair"},
+	Vector2i(7, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT, "role": "table"},
 	Vector2i(8, 24): {
 		"placement": "interior", 
 		"weight": COMMON_PROP_WEIGHT,
+		"role": "chest",
 		"container": "chest", 
 		"loot_table": "household"
 		},
-	Vector2i(9, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(9, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT, "role": "chest"},
 	Vector2i(10, 24): {
 		"placement": "interior", 
 		"weight": COMMON_PROP_WEIGHT,
+		"role": "chest",
 		"container": "chest", 
 		"loot_table": "household"
 		},
-	Vector2i(11, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
-	Vector2i(12, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
-	Vector2i(13, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT},
+	Vector2i(11, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT, "role": "chest"},
+	Vector2i(12, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT, "role": "plant"},
+	Vector2i(13, 24): {"placement": "interior", "weight": COMMON_PROP_WEIGHT, "role": "pot"},
 
 	# Signposts: common exterior props.
 	Vector2i(9, 25): {"placement": "exterior", "weight": COMMON_PROP_WEIGHT},
@@ -343,6 +375,7 @@ static func resolve(coord: Vector2i) -> Dictionary:
 		"use_alpha": band.get("use_alpha", false),
 		"placement": band.get("placement", "both"),
 		"weight": band.get("weight", DEFAULT_PROP_WEIGHT),
+		"role": band.get("role", NO_ROLE),
 		# Container fields are declared here (rather than only in OVERRIDES) so
 		# every resolved tile has the same shape and callers can read them without
 		# guarding. A role of "" means the prop is scenery.

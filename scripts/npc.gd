@@ -149,6 +149,17 @@ var work_position: Vector2 # Where this NPC works
 var wander_radius: float = 5.0 # How far from home position the NPC will wander (in tiles)
 var interaction_range: float = 32.0 # Range for interacting with other NPCs
 
+# === POST / CONFINEMENT ===
+## Tile rect this NPC keeps to — the smith's forge, the priest's church. A
+## zero-size rect (the default) means free to roam, which is everyone except the
+## keepers NPCSpawner stands inside functional buildings.
+var confinement: Rect2i = Rect2i()
+## Turns left of having been driven off that post by violence. While it runs the
+## rect is ignored; when it lapses the NPC walks back inside.
+var confinement_alarm: int = 0
+## How long violence keeps a keeper away from its post, in turns.
+const CONFINEMENT_ALARM_TURNS := 20
+
 # === SCHEDULE AND ROUTINES ===
 var schedule: Dictionary = {
 	# Format: hour -> activity
@@ -601,6 +612,7 @@ func take_turn() -> int:
 func _tick_turn_timers() -> void:
 	state_timer += 1.0
 	hear_event_cooldown = maxi(0, hear_event_cooldown - 1)
+	confinement_alarm = maxi(0, confinement_alarm - 1)
 	for sid in spell_cooldowns.keys():
 		spell_cooldowns[sid] -= 1.0
 		if spell_cooldowns[sid] <= 0.0:
@@ -862,6 +874,15 @@ func _behavior_decision():
 		set_state(NPCState.FLEE)
 		return
 
+	# A keeper that has wandered (or been driven) out of its building heads back
+	# in. Checked after combat and flight, so violence still wins.
+	if is_confined() and not confinement.has_point(current_tile()):
+		if state != NPCState.WANDER:
+			set_state(NPCState.WANDER)
+		else:
+			_choose_new_wander_target()
+		return
+
 	# Schedule-determined states already handled; pick somewhere new to amble
 	# to once the current wander target has been reached.
 	if state in [NPCState.IDLE, NPCState.WANDER] and _at_target_tile():
@@ -934,10 +955,66 @@ func _step_towards(destination: Vector2, arrive_idle: bool = false) -> bool:
 	return _grid_try_move(secondary_dir)
 
 func _choose_new_wander_target():
+	if is_confined():
+		target_position = tile_centre(Vector2i(
+			rng.randi_range(confinement.position.x, confinement.end.x - 1),
+			rng.randi_range(confinement.position.y, confinement.end.y - 1)))
+		return
 	var center = home_position if home_position != Vector2.ZERO else global_position
 	var radius_pixels = wander_radius * tile_size
 	var offset = Vector2(rng.randf_range(-radius_pixels, radius_pixels), rng.randf_range(-radius_pixels, radius_pixels))
 	target_position = center + offset
+
+
+# =============================
+# POST / CONFINEMENT
+# =============================
+
+## Tie this NPC to `rect` (in tiles) — the interior of the building it keeps.
+## It will pick every wander target inside those walls and walk back in if it
+## ever ends up outside, unless violence has driven it off (see
+## witness_violence).
+func confine_to(rect: Rect2i) -> void:
+	confinement = rect
+	confinement_alarm = 0
+	wander_radius = maxf(1.0, float(maxi(rect.size.x, rect.size.y)) * 0.5)
+
+
+## True while this NPC should be keeping to its post.
+func is_confined() -> bool:
+	return confinement.size.x > 0 and confinement.size.y > 0 and confinement_alarm <= 0
+
+
+## Something violent happened at `at`. Anyone close enough to notice abandons
+## their post for a while; how they otherwise react is unchanged.
+func witness_violence(at: Vector2) -> void:
+	if state == NPCState.DEAD:
+		return
+	if global_position.distance_to(at) > hearing_range * tile_size:
+		return
+	if confinement.size.x > 0:
+		confinement_alarm = CONFINEMENT_ALARM_TURNS
+	hear_noise(at)
+
+
+## Violence is loud. Tells every other NPC in earshot, which is what pulls a
+## keeper out of its shop when a fight breaks out in the street.
+func _broadcast_violence() -> void:
+	for other in get_tree().get_nodes_in_group("NPCs"):
+		if other == self or not is_instance_valid(other):
+			continue
+		if other.has_method("witness_violence"):
+			other.witness_violence(global_position)
+
+
+## Tile this NPC is standing on.
+func current_tile() -> Vector2i:
+	return Vector2i(global_position / tile_size)
+
+
+## Centre of `tile` in world space, which is where a step-towards target belongs.
+func tile_centre(tile: Vector2i) -> Vector2:
+	return Vector2(tile) * tile_size + Vector2(tile_size, tile_size) * 0.5
 
 ## One combat action: cast if a spell is worth it, else swing if adjacent,
 ## else close the distance. Exactly one of these happens per turn.
@@ -1220,6 +1297,7 @@ func attack(target: Node2D) -> void:
 	var str_val: int = stats.get("strength", 10)
 	var damage := int(str_val * 0.5) + rng.randi_range(1, 6)
 	emit_signal("npc_attacked", self, target)
+	_broadcast_violence()
 	if target.has_method("take_damage"):
 		target.take_damage(damage, self)
 	else:
@@ -1230,6 +1308,10 @@ func take_damage(amount: int, source: Node2D = null):
 		return
 	current_health -= amount
 	record_event({"type": "damage", "amount": amount})
+	# Being struck is drastic enough on its own, and loud enough that the
+	# neighbours leave their counters too.
+	confinement_alarm = CONFINEMENT_ALARM_TURNS
+	_broadcast_violence()
 	TurnManager.log_message("%s takes %d damage. (%d/%d HP)" % [get_display_name(), amount, max(0, current_health), max_health], "attack")
 	if current_health <= 0:
 		current_health = 0

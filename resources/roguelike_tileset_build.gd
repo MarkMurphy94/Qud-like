@@ -76,6 +76,9 @@ static func build(ts: TileSet) -> Dictionary:
 				"placement": meta.get("placement", "both"),
 				# How strongly this tile is favoured when a prop pool is sampled.
 				"weight": meta.get("weight", Catalog.DEFAULT_PROP_WEIGHT),
+				# What the prop is ("table", "chest", …), for interiors furnished
+				# by role rather than from the whole prop pool.
+				"role": meta.get("role", Catalog.NO_ROLE),
 				# Non-empty for props that stand in for a lootable container.
 				# MapGenerator records where these land so a container can be
 				# spawned on the cell; see tileset_catalog.gd for the fields.
