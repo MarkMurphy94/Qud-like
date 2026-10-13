@@ -34,15 +34,18 @@ enum Rarity {
 
 ## Visuals
 ##
-## The normal way to give an item art is `sprite_index` — the (col, row) atlas
-## coordinate on the roguelike master sheet, the same coordinate system the map
-## tiles and NPC sprites use. `sprite_region` is the escape hatch for art that
-## does not sit on that grid; when its size is non-zero it wins outright.
+## Art comes from TilesetCatalog.ITEM_TILES: register an atlas coord there under
+## the item's `id` and nothing needs setting here at all. `sprite_id` points at
+## a catalog entry under a different name (variants sharing one sprite);
+## `sprite_index` is the local override for one-off art with no catalog entry;
+## `sprite_region` is the escape hatch for art that does not sit on the 16px
+## grid, and wins over both. A direct `icon` beats everything.
 @export_group("Visuals")
 @export var icon: Texture2D  ## Direct icon texture (optional, overrides spritesheet)
 @export var spritesheet: Texture2D  ## Overrides ItemDatabase.default_item_spritesheet
-@export var sprite_region: Rect2i = Rect2i(0, 0, 0, 0)  ## Explicit pixel region; zero size = use sprite_index
-@export var sprite_index: Vector2i = Vector2i(0, 0)  ## Atlas coordinate (col, row) — the usual way to set an icon
+@export var sprite_region: Rect2i = Rect2i(0, 0, 0, 0)  ## Explicit pixel region; zero size = use the atlas coord
+@export var sprite_id: String = ""  ## TilesetCatalog.ITEM_TILES key; blank falls back to `id`
+@export var sprite_index: Vector2i = Vector2i(0, 0)  ## Atlas coordinate (col, row), used when the catalog has no entry
 @export var tile_size: Vector2i = Vector2i(0, 0)  ## Zero = ItemDatabase.default_tile_size
 
 ## Inventory properties
@@ -109,11 +112,12 @@ func _create_atlas_texture(sheet: Texture2D) -> AtlasTexture:
     if sprite_region.size.x > 0 and sprite_region.size.y > 0:
         atlas.region = Rect2(sprite_region)
     else:
-        # Otherwise calculate from sprite_index and tile_size
+        # Otherwise calculate from the atlas coord and tile_size
         var ts = _get_tile_size()
+        var coord = get_sprite_index()
         atlas.region = Rect2(
-            sprite_index.x * ts.x,
-            sprite_index.y * ts.y,
+            coord.x * ts.x,
+            coord.y * ts.y,
             ts.x,
             ts.y
         )
@@ -121,14 +125,31 @@ func _create_atlas_texture(sheet: Texture2D) -> AtlasTexture:
     return atlas
 
 
+## The atlas coord this item's art sits at. The catalog is asked first — that is
+## where item art is registered, so adding a coord there is all a new item needs
+## — and the resource's own `sprite_index` is the fallback.
+func get_sprite_index() -> Vector2i:
+    var named: String = sprite_id if not sprite_id.is_empty() else id
+    var coord: Vector2i = TilesetCatalog.item_atlas(named)
+    if coord != TilesetCatalog.NO_ITEM_TILE:
+        return coord
+    return sprite_index
+
+
+## True when this item's art comes from the catalog rather than the resource.
+func has_catalog_art() -> bool:
+    return TilesetCatalog.has_item_tile(sprite_id if not sprite_id.is_empty() else id)
+
+
 ## Returns the calculated sprite region (useful for debugging)
 func get_sprite_rect() -> Rect2:
     if sprite_region.size.x > 0 and sprite_region.size.y > 0:
         return Rect2(sprite_region)
     var ts = _get_tile_size()
+    var coord = get_sprite_index()
     return Rect2(
-        sprite_index.x * ts.x,
-        sprite_index.y * ts.y,
+        coord.x * ts.x,
+        coord.y * ts.y,
         ts.x,
         ts.y
     )

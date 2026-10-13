@@ -1,12 +1,11 @@
 extends Node
 
-## Default spritesheet for items that don't specify one.
-## The transparent cut of the Backterria master sheet — the same art the map is
-## painted from (see resources/tileset_catalog.gd), so an item's icon and its
-## world tile are the same 16px grid and an item is addressed by the atlas
-## coord it occupies there.
-var default_item_spritesheet: Resource = preload("res://assets/The Roguelike 1-15-1 Alpha.png")
-var default_tile_size: Vector2i = Vector2i(16, 16)
+## Default spritesheet for items that don't specify one, and the grid it is cut
+## on. Both come from TilesetCatalog — the same table the map is painted from —
+## so an item's icon and its world tile are the same 16px grid and an item is
+## addressed by the atlas coord it occupies there.
+var default_item_spritesheet: Resource = TilesetCatalog.ITEM_SHEET
+var default_tile_size: Vector2i = TilesetCatalog.ITEM_TILE_SIZE
 
 ## ItemDatabase - Autoload singleton for managing item templates and unique items.
 ## Provides access to both predefined unique items and templates for procedural generation.
@@ -38,6 +37,7 @@ var all_items: Dictionary = {}
 func _ready():
 	_load_templates()
 	_load_unique_items()
+	_report_missing_art()
 	print("[ItemDatabase] Loaded %d weapon templates" % weapon_templates.size())
 	print("[ItemDatabase] Loaded %d armor templates" % armor_templates.size())
 	print("[ItemDatabase] Loaded %d consumable templates" % consumable_templates.size())
@@ -223,30 +223,28 @@ func reload():
 	all_items.clear()
 	_load_templates()
 	_load_unique_items()
+	_report_missing_art()
 	print("[ItemDatabase] Reloaded all items")
 
 
 ## Helper to get icon for any item, using default spritesheet if needed
 func get_item_icon(item: Item) -> Texture2D:
-	if item.icon:
-		return item.icon
-	
-	var spritesheet = item.spritesheet if item.spritesheet else default_item_spritesheet
-	if not spritesheet:
+	if item == null:
 		return null
-	
-	var atlas = AtlasTexture.new()
-	atlas.atlas = spritesheet
-	
-	if item.sprite_region.size.x > 0:
-		atlas.region = Rect2(item.sprite_region)
-	else:
-		var tile_size = item.tile_size if item.tile_size.x > 0 else default_tile_size
-		atlas.region = Rect2(
-			item.sprite_index.x * tile_size.x,
-			item.sprite_index.y * tile_size.y,
-			tile_size.x,
-			tile_size.y
-		)
-	
-	return atlas
+	return item.get_icon()
+
+
+## Items loaded without any art registered for them — no catalog entry, no
+## sprite_index, no icon. Printed once at startup so a newly added item that
+## still needs a TilesetCatalog.ITEM_TILES coord is impossible to miss.
+func _report_missing_art() -> void:
+	var missing: Array[String] = []
+	for item_id: String in all_items:
+		var item: Item = all_items[item_id]
+		if item.icon or item.sprite_region.size.x > 0:
+			continue
+		if item.has_catalog_art() or item.sprite_index != Vector2i.ZERO:
+			continue
+		missing.append(item_id)
+	if not missing.is_empty():
+		push_warning("[ItemDatabase] No art for: %s — add a coord to TilesetCatalog.ITEM_TILES" % ", ".join(missing))

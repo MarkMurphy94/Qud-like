@@ -40,6 +40,8 @@ class_name NPC
 ## Geometry of the roguelike master sheet NPC art is cut from, so the sprite
 ## cell size has one definition shared with the tile generator.
 const Layout := preload("res://resources/tileset_catalog.gd")
+## Named sheet cells for creatures and people; see TilesetCatalog.NPC_TILES.
+const NPC_TILES := Layout.NPC_TILES
 
 ## Marks a variant whose coords on the roguelike sheet have not been picked yet.
 ## Such a variant keeps whatever region npc.tscn ships with and warns, so
@@ -225,87 +227,285 @@ static func _build_profiles() -> Dictionary:
 	profiles[MainGameState.NpcType.SOLDIER] = {
 		"default": {
 			"move_speed": 60.0,
-			"sprite_atlas_coords": Vector2i(16, 33), # was 32rogues Rect2i(64, 32, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["hoplite"],
 			"role": "GUARD",
 			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
 		},
 		"archer": {
 			"move_speed": 55.0,
-			"sprite_atlas_coords": Vector2i(4, 33), # was 32rogues Rect2i(96, 32, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["archer"],
 			"role": "GUARD",
 			"stats": {"strength": 10, "agility": 16, "intelligence": 10, "endurance": 12, "charisma": 8}
 		},
 		"knight": {
 			"move_speed": 50.0,
-			"sprite_atlas_coords": Vector2i(7, 33), # was 32rogues Rect2i(0, 32, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["knight"],
 			"role": "GUARD",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 8, "endurance": 16, "charisma": 10}
 		},
 		"battlemage": {
 			"move_speed": 55.0,
-			"sprite_atlas_coords": Vector2i(11, 33), # was 32rogues Rect2i(0, 64, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["battlemage"],
 			"role": "GUARD",
 			"max_mana": 80,
 			"spells": ["res://resources/spells/spell_templates/fireball.tres"],
 			"stats": {"strength": 10, "agility": 10, "intelligence": 16, "endurance": 12, "charisma": 10}
 		},
+		# -- medieval_fantasy --
+		"swordsman": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["swordsman"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"trident_warrior": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["trident_warrior"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"halberdier": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["halberdier"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		# -- post_apocalypse --
+		"officer": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["officer"],
+			"role": "GUARD",
+			"stats": {"strength": 12, "agility": 10, "intelligence": 12, "endurance": 12, "charisma": 12}
+		},
+		# -- world_wars --
+		"rifleman_green": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["rifleman_green"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"infantry_green": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["infantry_green"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"officer_green": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["officer_green"],
+			"role": "GUARD",
+			"stats": {"strength": 12, "agility": 10, "intelligence": 12, "endurance": 12, "charisma": 12}
+		},
+		"rifleman_blue": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["rifleman_blue"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"infantry_blue": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["infantry_blue"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"infantry_brown": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["infantry_brown"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		# -- desert_culture --
+		"desert_spearman": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["desert_spearman"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"royal_guard": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["royal_guard"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"desert_warrior": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["desert_warrior"],
+			"role": "GUARD",
+			"stats": {"strength": 14, "agility": 12, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		# -- far_east --
+		"samurai_black": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["samurai_black"],
+			"role": "GUARD",
+			"stats": {"strength": 16, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"samurai_white": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["samurai_white"],
+			"role": "GUARD",
+			"stats": {"strength": 16, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"samurai_red": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["samurai_red"],
+			"role": "GUARD",
+			"stats": {"strength": 16, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
+		"samurai_blue": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["samurai_blue"],
+			"role": "GUARD",
+			"stats": {"strength": 16, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 8}
+		},
 	}
 	profiles[MainGameState.NpcType.PEASANT] = {
 		"default": {
 			"move_speed": 50.0,
-			"sprite_atlas_coords": Vector2i(92, 33), # was 32rogues Rect2i(0, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["rice_farmer"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 		},
 		"innkeeper": {
 			"move_speed": 50.0,
-			"sprite_atlas_coords": Vector2i(92, 33), # was 32rogues Rect2i(0, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["rice_farmer"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 		},
 		"shopkeeper": {
 			"move_speed": 50.0,
-			"sprite_atlas_coords": Vector2i(92, 33), # was 32rogues Rect2i(0, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["rice_farmer"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
 		},
 		"farmer": {
 			"move_speed": 45.0,
-			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 224, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["farmer"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 8, "intelligence": 8, "endurance": 12, "charisma": 6}
 		},
 		"baker": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": Vector2i(61, 33), # was 32rogues Rect2i(32, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["nurse"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 10, "agility": 8, "intelligence": 10, "endurance": 10, "charisma": 10}
 		},
 		"blacksmith": {
 			"move_speed": 45.0,
-			"sprite_atlas_coords": Vector2i(8, 33), # was 32rogues Rect2i(64, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["blacksmith"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 16, "agility": 8, "intelligence": 10, "endurance": 14, "charisma": 8}
 		},
 		"crone": {
 			"move_speed": 36.0,
-			"sprite_atlas_coords": Vector2i(45, 33), # was 32rogues Rect2i(192, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["cave_elder"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 6, "intelligence": 14, "endurance": 8, "charisma": 10}
 		},
 		"forester": {
 			"move_speed": 52.0,
-			"sprite_atlas_coords": Vector2i(62, 33), # was 32rogues Rect2i(0, 192, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["farmer"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 12, "agility": 12, "intelligence": 10, "endurance": 12, "charisma": 8}
-		}
+		},
+		# -- alien --
+		"astronaut": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["astronaut"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"astronaut_striped": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["astronaut_striped"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"astronaut_purple": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["astronaut_purple"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		# -- post_apocalypse --
+		"survivor": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["survivor"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"survivor_woman": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["survivor_woman"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"scavenger": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["scavenger"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		# -- badlands --
+		"cavewoman": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["cavewoman"],
+			"role": "TRIBAL",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"cave_gatherer": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["cave_gatherer"],
+			"role": "TRIBAL",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		# -- world_wars --
+		"farmer_woman": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["farmer_woman"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		# -- tropical --
+		"sailor": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["sailor"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"deckhand": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["deckhand"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		"boatswain": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["boatswain"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		# -- desert_culture --
+		"desert_farmer": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["desert_farmer"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
+		# -- far_east --
+		"rice_farmer_woman": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["rice_farmer_woman"],
+			"role": "CIVILIAN",
+			"stats": {"strength": 8, "agility": 10, "intelligence": 8, "endurance": 10, "charisma": 8}
+		},
 	}
 	profiles[MainGameState.NpcType.MERCHANT] = {
 		"default": {
 			"move_speed": 42.0,
 			"move_interval": 0.6,
 			"wander_radius": 3.0,
-			"sprite_atlas_coords": Vector2i(89, 33), # was 32rogues Rect2i(96, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["geisha"],
 			"behavior": "stay_near_shop",
 			"role": "MERCHANT",
 			"dialogue": "merchant_dialogue",
@@ -313,14 +513,14 @@ static func _build_profiles() -> Dictionary:
 			"can_trade": true,
 			"trade_prices": {"buy_multiplier": 1.2, "sell_multiplier": 0.4},
 			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 8, "charisma": 14}
-		}
+		},
 	}
 	profiles[MainGameState.NpcType.NOBLE] = {
 		"default": {
 			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
-			"sprite_atlas_coords": Vector2i(91, 33), # was 32rogues Rect2i(160, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["eastern_noble"],
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
@@ -332,7 +532,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["pharaoh"],
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
@@ -344,7 +544,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["officer_blue"],
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
@@ -356,7 +556,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["dress_uniform"],
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
@@ -368,7 +568,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 36.0,
 			"move_interval": 0.7,
 			"wander_radius": 4.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["naval_officer"],
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
@@ -378,7 +578,7 @@ static func _build_profiles() -> Dictionary:
 		},
 		"scholar": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": Vector2i(17, 33), # was 32rogues Rect2i(128, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["philosopher"],
 			"role": "CIVILIAN",
 			"stats": {"strength": 6, "agility": 8, "intelligence": 16, "endurance": 8, "charisma": 12}
 		},
@@ -386,27 +586,53 @@ static func _build_profiles() -> Dictionary:
 	profiles[MainGameState.NpcType.CLERGY] = {
 		"priest": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": Vector2i(17, 33), # was 32rogues Rect2i(32, 192, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["philosopher"],
 			"role": "CLERGY",
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
 		},
 		"priestess": {
 			"move_speed": 52.0,
-			"sprite_atlas_coords": Vector2i(19, 33), # was 32rogues Rect2i(96, 192, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["priestess"],
 			"role": "CLERGY",
 			"stats": {"strength": 10, "agility": 12, "intelligence": 12, "endurance": 12, "charisma": 10}
+		},
+		# -- mediterranean_fantasy --
+		"oracle": {
+			"move_speed": 42.0,
+			"sprite_atlas_coords": NPC_TILES["oracle"],
+			"role": "CLERGY",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
+		},
+		# -- far_east --
+		"shrine_maiden": {
+			"move_speed": 42.0,
+			"sprite_atlas_coords": NPC_TILES["shrine_maiden"],
+			"role": "CLERGY",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
+		},
+		"pilgrim": {
+			"move_speed": 42.0,
+			"sprite_atlas_coords": NPC_TILES["pilgrim"],
+			"role": "CLERGY",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
+		},
+		"pilgrim_woman": {
+			"move_speed": 42.0,
+			"sprite_atlas_coords": NPC_TILES["pilgrim_woman"],
+			"role": "CLERGY",
+			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 10, "charisma": 14}
 		},
 	}
 	profiles[MainGameState.NpcType.MAGE] = {
 		"druid": {
 			"move_speed": 48.0,
-			"sprite_atlas_coords": Vector2i(10, 33), # was 32rogues Rect2i(128, 192, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["white_wizard"],
 			"role": "DRUID",
 			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 12}
 		},
 		"witch": {
 			"move_speed": 45.0,
-			"sprite_atlas_coords": Vector2i(6, 33), # was 32rogues Rect2i(160, 192, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["witch"],
 			"role": "NEUTRAL",
 			"max_mana": 90,
 			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
@@ -414,7 +640,7 @@ static func _build_profiles() -> Dictionary:
 		},
 		"wizard": {
 			"move_speed": 42.0,
-			"sprite_atlas_coords": Vector2i(78, 33), # was 32rogues Rect2i(192, 192, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["blue_wizard"],
 			"role": "MAGE",
 			"max_mana": 120,
 			"spells": ["res://resources/spells/spell_templates/fireball.tres", "res://resources/spells/spell_templates/dark_magic_ball.tres"],
@@ -426,7 +652,7 @@ static func _build_profiles() -> Dictionary:
 			"move_speed": 72.0,
 			"move_interval": 0.3,
 			"wander_radius": 10.0,
-			"sprite_atlas_coords": Vector2i(71, 33), # was 32rogues Rect2i(0, 0, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["pirate"],
 			"behavior": "aggressive",
 			"role": "OUTLAW",
 			"dialogue": "bandit_dialogue",
@@ -436,63 +662,1024 @@ static func _build_profiles() -> Dictionary:
 		},
 		"thief": {
 			"move_speed": 78.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(32, 0, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["rogue"],
 			"role": "OUTLAW",
 			"stats": {"strength": 8, "agility": 16, "intelligence": 12, "endurance": 8, "charisma": 10}
 		},
 		"elven_rogue": {
 			"move_speed": 80.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(64, 0, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["adventurer"],
 			"role": "OUTLAW",
 			"stats": {"strength": 8, "agility": 18, "intelligence": 14, "endurance": 8, "charisma": 12}
 		},
 		"barbarian": {
 			"move_speed": 70.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(96, 0, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["caveman"],
 			"role": "TRIBAL",
 			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 16, "charisma": 6}
 		},
 		"heavy_barbarian": {
 			"move_speed": 65.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(128, 0, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["cave_hunter"],
 			"role": "TRIBAL",
 			"stats": {"strength": 18, "agility": 10, "intelligence": 6, "endurance": 18, "charisma": 6}
 		},
 		"hill_tribe_warrior": {
 			"move_speed": 68.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(160, 0, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["marauder"],
 			"role": "TRIBAL",
 			"stats": {"strength": 14, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 6}
 		},
 		"dark_priest": {
 			"move_speed": 52.0,
-			"sprite_atlas_coords": SPRITE_TODO, # was 32rogues Rect2i(192, 0, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["cultist"],
 			"role": "CULTIST",
 			"max_mana": 80,
 			"spells": ["res://resources/spells/spell_templates/dark_magic_ball.tres"],
 			"stats": {"strength": 8, "agility": 8, "intelligence": 16, "endurance": 10, "charisma": 10}
-		}
+		},
+		# -- post_apocalypse --
+		"wasteland_ranger": {
+			"move_speed": 72.0,
+			"sprite_atlas_coords": NPC_TILES["wasteland_ranger"],
+			"role": "OUTLAW",
+			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
+		},
+		# -- tropical --
+		"pirate_captain": {
+			"move_speed": 72.0,
+			"sprite_atlas_coords": NPC_TILES["pirate_captain"],
+			"role": "OUTLAW",
+			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
+		},
+		"hook_pirate": {
+			"move_speed": 72.0,
+			"sprite_atlas_coords": NPC_TILES["hook_pirate"],
+			"role": "OUTLAW",
+			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
+		},
+		"buccaneer": {
+			"move_speed": 72.0,
+			"sprite_atlas_coords": NPC_TILES["buccaneer"],
+			"role": "OUTLAW",
+			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
+		},
+		"corsair": {
+			"move_speed": 72.0,
+			"sprite_atlas_coords": NPC_TILES["corsair"],
+			"role": "OUTLAW",
+			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
+		},
+		# -- far_east --
+		"ninja_black": {
+			"move_speed": 80.0,
+			"sprite_atlas_coords": NPC_TILES["ninja_black"],
+			"role": "OUTLAW",
+			"stats": {"strength": 10, "agility": 18, "intelligence": 10, "endurance": 8, "charisma": 6}
+		},
+		"ninja_white": {
+			"move_speed": 80.0,
+			"sprite_atlas_coords": NPC_TILES["ninja_white"],
+			"role": "OUTLAW",
+			"stats": {"strength": 10, "agility": 18, "intelligence": 10, "endurance": 8, "charisma": 6}
+		},
+		"ninja_red": {
+			"move_speed": 80.0,
+			"sprite_atlas_coords": NPC_TILES["ninja_red"],
+			"role": "OUTLAW",
+			"stats": {"strength": 10, "agility": 18, "intelligence": 10, "endurance": 8, "charisma": 6}
+		},
+		"ninja_blue": {
+			"move_speed": 80.0,
+			"sprite_atlas_coords": NPC_TILES["ninja_blue"],
+			"role": "OUTLAW",
+			"stats": {"strength": 10, "agility": 18, "intelligence": 10, "endurance": 8, "charisma": 6}
+		},
+		"ronin": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["ronin"],
+			"role": "OUTLAW",
+			"stats": {"strength": 16, "agility": 14, "intelligence": 8, "endurance": 14, "charisma": 6}
+		},
 	}
 	profiles[MainGameState.NpcType.ANIMAL] = {
 		"default": {
 			"move_speed": 55.0,
 			"move_interval": 0.4,
 			"wander_radius": 6.0,
-			"sprite_atlas_coords": Vector2i(92, 28), # was 32rogues Rect2i(128, 96, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["orange_cat"],
 			"behavior": "flee_on_approach",
 			"role": "WILDLIFE",
 			"dialogue": "none",
 			"inventory_template": "animal_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
-		}
+		},
+		# -- medieval_fantasy --
+		"chicken": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["chicken"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"pig": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["pig"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"rabbit": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["rabbit"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"crow": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["crow"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"bluebird": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["bluebird"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"sparrow": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["sparrow"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"rat": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["rat"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"owl": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["owl"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"frog": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["frog"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"newt": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["newt"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"stag": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["stag"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"turtle": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["turtle"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"beetle": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["beetle"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"grey_spider": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["grey_spider"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"crab": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["crab"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"worm": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["worm"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"snake": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["snake"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"red_spider": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["red_spider"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"green_spider": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["green_spider"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"scorpion": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["scorpion"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"boar": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["boar"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"unicorn": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["unicorn"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"giant_bee": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["giant_bee"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"bat": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["bat"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"octopus": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["octopus"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"bear": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["bear"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"crayfish": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["crayfish"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"lizard": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["lizard"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"moth": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["moth"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"fire_drake": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["fire_drake"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		# -- mediterranean_fantasy --
+		"wolf": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["wolf"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"fox": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["fox"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"dog": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["dog"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"white_cat": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["white_cat"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"sheep": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["sheep"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"ram": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["ram"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"ladybug": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["ladybug"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"donkey": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["donkey"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"orange_butterfly": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["orange_butterfly"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"blue_butterfly": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["blue_butterfly"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"red_butterfly": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["red_butterfly"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"python": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["python"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		# -- alien --
+		"alien_horse": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["alien_horse"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"alien_beetle": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_beetle"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"alien_slug": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_slug"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"alien_ox": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["alien_ox"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"alien_cat": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["alien_cat"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"alien_moth": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_moth"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"alien_butterfly": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_butterfly"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"alien_jellyfish": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_jellyfish"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"alien_worm": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_worm"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		# -- post_apocalypse --
+		"mutant_hound": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_hound"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"mutant_bull": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_bull"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"mutant_bison": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_bison"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"mutant_horse": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_horse"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"mutant_snake": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_snake"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"mutant_frog": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_frog"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"mutant_moth": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_moth"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"mutant_wasp": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_wasp"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"mutant_butterfly": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_butterfly"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"mutant_lizard": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_lizard"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"mutant_spider": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_spider"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"mutant_scorpion": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_scorpion"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		# -- badlands --
+		"armadillo": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["armadillo"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"dodo": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["dodo"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"mammoth": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["mammoth"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"pink_moth": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["pink_moth"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"dragonfly": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["dragonfly"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"centipede": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["centipede"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"sauropod_blue": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["sauropod_blue"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"sauropod_grey": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["sauropod_grey"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"stegosaurus": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["stegosaurus"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"stegosaurus_blue": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["stegosaurus_blue"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"triceratops": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["triceratops"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"crocodile": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["crocodile"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"sabretooth": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["sabretooth"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"raptor_grey": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["raptor_grey"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"raptor_purple": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["raptor_purple"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"raptor_blue": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["raptor_blue"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"raptor_brown": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["raptor_brown"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"raptor_teal": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["raptor_teal"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"pterodactyl_brown": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["pterodactyl_brown"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"pterodactyl_blue": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["pterodactyl_blue"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"pterodactyl_purple": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["pterodactyl_purple"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		# -- world_wars --
+		"goose": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["goose"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"rooster": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["rooster"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"mallard": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["mallard"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"shepherd_dog": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["shepherd_dog"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"saddled_horse": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["saddled_horse"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"cow": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["cow"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"bull": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["bull"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		# -- tropical --
+		"parrot_green": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["parrot_green"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"parrot_red": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["parrot_red"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"iguana": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["iguana"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"monkey": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["monkey"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"shark": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["shark"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"great_white": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["great_white"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"hammerhead": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["hammerhead"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"shark_fin": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["shark_fin"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"blue_octopus": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["blue_octopus"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
+		},
+		"grey_octopus": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["grey_octopus"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
+		},
+		"moray_eel": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["moray_eel"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"jellyfish": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["jellyfish"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"small_jellyfish": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["small_jellyfish"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		# -- desert_culture --
+		"temple_cat": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["temple_cat"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"temple_cat_2": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["temple_cat_2"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"black_cat": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["black_cat"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"asp": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["asp"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"giant_scarab": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["giant_scarab"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"gecko": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["gecko"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"camel": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["camel"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"sand_snake": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["sand_snake"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"desert_crocodile": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["desert_crocodile"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"cobra": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["cobra"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"panther": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["panther"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"cheetah": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["cheetah"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"lion": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["lion"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"hyena": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["hyena"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
+		"bee_eater": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["bee_eater"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		# -- far_east --
+		"macaque": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["macaque"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"white_pig": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["white_pig"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"black_rooster": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["black_rooster"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"goat": {
+			"move_speed": 45.0,
+			"sprite_atlas_coords": NPC_TILES["goat"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 16, "agility": 6, "intelligence": 2, "endurance": 16, "charisma": 2}
+		},
+		"serpent_spirit": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["serpent_spirit"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
+		},
+		"pale_cat": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["pale_cat"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"spotted_deer": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["spotted_deer"],
+			"wander_radius": 6.0,
+			"role": "WILDLIFE",
+			"stats": {"strength": 4, "agility": 16, "intelligence": 2, "endurance": 4, "charisma": 2}
+		},
+		"ox": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["ox"],
+			"wander_radius": 8.0,
+			"role": "MONSTER",
+			"stats": {"strength": 14, "agility": 14, "intelligence": 3, "endurance": 12, "charisma": 2}
+		},
 	}
 	profiles[MainGameState.NpcType.MONSTER] = {
 		"default": {
 			"move_speed": 65.0,
 			"move_interval": 0.3,
 			"wander_radius": 12.0,
-			"sprite_atlas_coords": Vector2i(5, 32), # was 32rogues Rect2i(0, 160, 32, 32)
+			"sprite_atlas_coords": NPC_TILES["orc"],
 			"behavior": "hunt",
 			"max_mana": 50,
 			"role": "MONSTER",
@@ -500,7 +1687,482 @@ static func _build_profiles() -> Dictionary:
 			"inventory_template": "monster_items",
 			"can_trade": false,
 			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
-		}
+		},
+		# -- medieval_fantasy --
+		"slime": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["slime"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"goblin": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["goblin"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+		},
+		"carnivorous_plant": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["carnivorous_plant"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"zombie": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["zombie"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		"mermaid": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["mermaid"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"ghost": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["ghost"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"mimic": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["mimic"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"treant": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["treant"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"reaper": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["reaper"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"hellhound": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["hellhound"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"green_dragon": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["green_dragon"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"red_dragon": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["red_dragon"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"blue_dragon": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["blue_dragon"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"skeleton": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["skeleton"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		"armored_beetle": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["armored_beetle"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"water_elemental": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["water_elemental"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"beholder": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["beholder"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"floating_eye": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["floating_eye"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"siren": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["siren"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"imp": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["imp"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"centaur": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["centaur"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"minotaur": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["minotaur"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"shadow": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["shadow"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"frost_troll": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["frost_troll"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"ice_elemental": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["ice_elemental"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"golem": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["golem"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"flaming_skull": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["flaming_skull"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		"fire_elemental": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["fire_elemental"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		# -- mediterranean_fantasy --
+		"sea_serpent": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["sea_serpent"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"wyrm": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["wyrm"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"sea_nymph": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["sea_nymph"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"harpy": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["harpy"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+		},
+		"white_centaur": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["white_centaur"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"cyclops": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["cyclops"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"satyr": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["satyr"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		# -- alien --
+		"alien_portal": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["alien_portal"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"alien_octopus": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_octopus"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+		},
+		"alien_spider": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_spider"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+		},
+		"grey_alien": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["grey_alien"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"green_alien": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["green_alien"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+		},
+		"alien_serpent": {
+			"move_speed": 65.0,
+			"sprite_atlas_coords": NPC_TILES["alien_serpent"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
+		},
+		"alien_eye": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["alien_eye"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"energy_being": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["energy_being"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"alien_brute": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["alien_brute"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		# -- post_apocalypse --
+		"mutant_drake": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_drake"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"radiation_anomaly": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["radiation_anomaly"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"zombie_rotting": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["zombie_rotting"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		"zombie_shambler": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["zombie_shambler"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		"feral_ghoul": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["feral_ghoul"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		"mutant_brute": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_brute"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"mutant_stalker": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["mutant_stalker"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		# -- tropical --
+		"mermaid_red": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["mermaid_red"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"ghost_jellyfish": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["ghost_jellyfish"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"ghost_squid": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["ghost_squid"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
+		"flame_pirate": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["flame_pirate"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"undead_captain": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["undead_captain"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		"cursed_sailor": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["cursed_sailor"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		"sea_devil": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["sea_devil"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		# -- desert_culture --
+		"jackal_god": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["jackal_god"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"crocodile_god": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["crocodile_god"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"ibis_god": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["ibis_god"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"falcon_god": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["falcon_god"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"max_mana": 80,
+			"stats": {"strength": 8, "agility": 10, "intelligence": 16, "endurance": 10, "charisma": 6}
+		},
+		"mummy": {
+			"move_speed": 50.0,
+			"sprite_atlas_coords": NPC_TILES["mummy"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 12, "agility": 8, "intelligence": 4, "endurance": 14, "charisma": 2}
+		},
+		# -- far_east --
+		"eastern_dragon": {
+			"move_speed": 55.0,
+			"sprite_atlas_coords": NPC_TILES["eastern_dragon"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 20, "agility": 8, "intelligence": 6, "endurance": 20, "charisma": 2}
+		},
+		# -- cyberpunk --
+		"spider_drone": {
+			"move_speed": 60.0,
+			"sprite_atlas_coords": NPC_TILES["spider_drone"],
+			"wander_radius": 12.0,
+			"role": "MONSTER",
+			"stats": {"strength": 8, "agility": 14, "intelligence": 4, "endurance": 8, "charisma": 2}
+		},
 	}
 	return profiles
 
