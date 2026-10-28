@@ -65,6 +65,22 @@ enum Rarity {
 ## Optional modifiers (for generated items)
 @export var modifiers: Dictionary = {}
 
+## Dotted-namespace tags ("kind.weapon", "material.iron", "use.food") that spawn
+## tables select items by. Indexed by ItemDatabase.find_by_tags().
+@export var tags: Array[String] = []
+
+## The template this item was generated from; equals `id` for hand-made items.
+## Lets a save rebuild a generated item whose own id is not in ItemDatabase.
+@export var template_id: String = ""
+
+## Seed ItemGenerator built this item from; -1 for items that are not rolled.
+## Together with template_id and rarity it regenerates the item exactly.
+@export var gen_seed: int = -1
+
+## Where a notable item came from ({origin_place, faction, spawn_id}). Only set
+## for Rare and above.
+@export var provenance: Dictionary = {}
+
 
 ## Returns the icon texture for UI display
 ## If a direct icon is set, uses that. Otherwise extracts from spritesheet.
@@ -215,4 +231,14 @@ func get_rarity_name() -> String:
 func duplicate_item() -> Item:
     var new_item = duplicate(true)
     new_item.modifiers = modifiers.duplicate(true)
+    new_item.tags = tags.duplicate()
+    new_item.provenance = provenance.duplicate(true)
     return new_item
+
+
+## True when every tag in `required` is present.
+func has_tags(required: Array[String]) -> bool:
+    for tag in required:
+        if not tag in tags:
+            return false
+    return true

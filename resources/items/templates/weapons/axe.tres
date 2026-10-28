@@ -21,6 +21,7 @@ is_unique = false
 can_drop = true
 can_sell = true
 modifiers = {}
+tags = Array[String](["kind.weapon", "kind.axe", "material.iron"])
 weapon_type = 1
 damage_type = 0
 base_damage = 12

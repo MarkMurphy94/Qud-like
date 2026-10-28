@@ -1151,7 +1151,8 @@ const COMMON_PROP_WEIGHT := 8.0
 # prop, so the container's art and collision keep coming from the tileset.
 #   container     : role name, shown to the player and used to pick a loot table
 #                   ("chest", "shelf", "barrel", …). Absent or "" = plain scenery.
-#   loot_table    : ItemGenerator loot table that fills it. Defaults to the role.
+#   loot_table    : fills it from the "container.<loot_table>" spawn table in
+#                   resources/spawn_tables/. Defaults to the role.
 #   open_atlas    : coord to repaint the cell with once it has been opened.
 #                   Omit for props that have no "open" sprite.
 #   locked_chance : 0–1 odds the container starts locked. Defaults to 0.

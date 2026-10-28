@@ -12,6 +12,7 @@ class_name NPCSpawner
 ## get_faction_for_coord() and NPC.LAWFUL_ROLES.
 
 @export var npc_scene: PackedScene = preload("res://scenes/npc.tscn")
+@export var world_item_scene: PackedScene = preload("res://scenes/world_item.tscn")
 
 ## The MapGenerator whose painted map this spawner fills. Normally the parent;
 ## the export is an escape hatch for other scene layouts.
@@ -23,10 +24,17 @@ var settlement_data: MapConfig = null
 ## the same shapes MapGenerator.generate_local_map() does, since both are fed
 ## from the same dict MainGame builds.
 var area_metadata: Dictionary = {}
+## The Place the current map describes. NPC ids are scoped to its place_id.
+var place: Place = null
 
 var spawned_npcs: Array = []
 var rng := RandomNumberGenerator.new()
 var _map: MapGenerator = null
+
+## How many ambient items a map scatters: settlements are swept clean, the wild
+## holds a little more the further out (higher tier) it is.
+const AMBIENT_BUDGET_SETTLEMENT := 1
+const AMBIENT_BUDGET_WILDERNESS := 3
 
 # Margin in tiles so NPCs don't spawn right on the map edge.
 const SPAWN_MARGIN_TILES: int = 2
@@ -54,19 +62,26 @@ func clear():
 			n.remove_from_group("NPCs")
 			n.queue_free()
 	spawned_npcs.clear()
+	# Ambient scatter and whatever dead NPCs dropped are all children here, and
+	# belong to the map being torn down.
+	for child in get_children():
+		if child is WorldItem:
+			child.queue_free()
 
 # ─── Entry point ───────────────────────────────────────────────────────────────
 
 ## Populate the local map that was just generated from `metadata` — the same
 ## value MapGenerator.generate_local_map() consumed. Picks settlement or
 ## wilderness spawning from the overworld hints so callers don't have to.
-func populate_local_map(metadata) -> void:
+func populate_local_map(metadata, area_place: Place) -> void:
 	set_area_metadata(metadata)
+	place = area_place
 	if _has_settlement():
 		settlement_data = _map.map_template if _map else null
 		spawn_settlement_npcs()
 	else:
 		spawn_wilderness_npcs()
+	spawn_ambient_items()
 
 ## Accepts a TileMetadata resource or a plain Dictionary, mirroring
 ## MapGenerator.generate_local_map().
@@ -141,7 +156,7 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 			# A building's stored position is its top-left wall cell, so nudge every
 			# spawn onto solid ground rather than dropping NPCs inside geometry.
 			var world_pos := _walkable_world_pos(spawn_tile)
-			var npc_id := "%s_%s_%d" % [area_key, str(npc_type), i]
+			var npc_id := "%s/npc.%s.%d" % [area_key, str(npc_type), i]
 			var npc := _spawn_npc(npc_type, world_pos, "", npc_id)
 			npc.set_locations(world_pos)
 			spawned_npcs.append(npc)
@@ -152,18 +167,19 @@ func spawn_settlement_npcs(density_override: int = -1) -> void:
 ## general population is not also housed in them.
 func _spawn_building_keepers(area_key: String) -> Array:
 	var kept: Array = []
-	if _map == null:
+	if _map == null or place == null:
 		return kept
-	for building in _map.map_buildings:
-		var spec: Dictionary = BUILDING_KEEPERS.get(int(building.get("type", -1)), {})
+	for building in place.slots_of_kind("building"):
+		var spec: Dictionary = BUILDING_KEEPERS.get(int(building.data.get("type", -1)), {})
 		if spec.is_empty():
 			continue
-		var interior := _interior_rect(building)
+		var rect: Rect2i = building.data["rect"]
+		var interior := _interior_rect(rect)
 		if interior.size.x <= 0 or interior.size.y <= 0:
 			continue
-		var pos: Vector2i = building["pos"]
+		var pos: Vector2i = rect.position
 		var world_pos := _map.tile_to_world(_free_interior_tile(interior))
-		var npc_id := "%s_keeper_%d_%d" % [area_key, pos.x, pos.y]
+		var npc_id := "%s/%s.keeper" % [area_key, building.slot_id]
 		var npc := _spawn_npc(spec["type"], world_pos, spec["variant"], npc_id)
 		npc.set_locations(world_pos, world_pos)
 		npc.confine_to(interior)
@@ -173,10 +189,8 @@ func _spawn_building_keepers(area_key: String) -> Array:
 
 
 ## The floor of a building — its footprint minus the wall ring.
-func _interior_rect(building: Dictionary) -> Rect2i:
-	var pos: Vector2i = building["pos"]
-	var size: Vector2i = building["size"]
-	return Rect2i(pos + Vector2i.ONE, size - Vector2i(2, 2))
+func _interior_rect(footprint: Rect2i) -> Rect2i:
+	return footprint.grow(-1)
 
 
 ## A tile inside `interior` with no furniture on it. Reads the decor layer
@@ -236,7 +250,7 @@ func spawn_wilderness_npcs(count: int = -1) -> void:
 	for i in count:
 		var npc_type := _wilderness_npc_type()
 		var pos := _walkable_world_pos(_random_tile())
-		var npc := _spawn_npc(npc_type, pos, "", "wild_%s_%d" % [area_key, i])
+		var npc := _spawn_npc(npc_type, pos, "", "%s/wild.%d" % [area_key, i])
 		npc.set_locations(pos)
 		spawned_npcs.append(npc)
 
@@ -280,12 +294,51 @@ func _spawn_npc(npc_type: MainGameState.NpcType, world_pos: Vector2, variant: St
 	add_child(inst)
 	inst.global_position = world_pos
 	inst.add_to_group("NPCs")
+	inst.owner_place = place
+	_stock_owned_items(inst)
 	return inst
 
+
+## Roll what an NPC owns from its table, once per NPC slot. The slot is the
+## NPC id under the place ("npc.2.0", "b3.keeper", "wild.1"), so the same NPC
+## carries the same things on every visit.
+func _stock_owned_items(npc: NPC) -> void:
+	if place == null:
+		return
+	var table_id := npc.owned_table_id()
+	if table_id.is_empty():
+		return
+	var slot_id := npc.npc_id.trim_prefix(place.place_id + "/")
+	var ctx := SpawnContext.for_slot(place, slot_id, npc.spawn_tags())
+	npc.stock_inventory(ItemSpawnResolver.resolve_slot_once(table_id, ctx))
+
+
+# ─── Ambient items ─────────────────────────────────────────────────────────────
+
+## Scatter the place's ambient items — forage, debris, salvage — rolled once
+## per place. Each item's tile comes from an RNG seeded by its spawn id, so it
+## lies in the same spot every visit without the position being stored.
+func spawn_ambient_items() -> void:
+	if place == null or world_item_scene == null:
+		return
+	var budget := AMBIENT_BUDGET_SETTLEMENT
+	if not place.has_tag("place.settlement"):
+		budget = AMBIENT_BUDGET_WILDERNESS + SpawnTier.for_place(place)
+	for result in ItemSpawnResolver.resolve_place_once(place, budget):
+		var placement := RandomNumberGenerator.new()
+		placement.seed = hash([place.tile_seed, result.spawn_id])
+		var world_item: WorldItem = world_item_scene.instantiate()
+		world_item.item_resource = result.item
+		world_item.quantity = result.quantity
+		world_item.spawn_id = result.spawn_id
+		add_child(world_item)
+		world_item.global_position = _walkable_world_pos(_random_tile(placement))
+
 ## Stable identifier for the area being populated, used to seed NPC ids (and so
-## their names). Tile coords, since that is the one thing that distinguishes two
-## maps generated from the same shared MapConfig.
+## their names).
 func _area_key() -> String:
+	if place:
+		return place.place_id
 	return str(area_metadata.get("coords", area_metadata.get("seed", "unknown")))
 
 
@@ -347,10 +400,11 @@ func _extract_building_positions(buildings: Array) -> Array:
 	return out
 
 ## A random tile inside the map, kept clear of the edge.
-func _random_tile() -> Vector2i:
+func _random_tile(source: RandomNumberGenerator = null) -> Vector2i:
+	var r := source if source else rng
 	return Vector2i(
-		rng.randi_range(SPAWN_MARGIN_TILES, MapGenerator.WIDTH - 1 - SPAWN_MARGIN_TILES),
-		rng.randi_range(SPAWN_MARGIN_TILES, MapGenerator.HEIGHT - 1 - SPAWN_MARGIN_TILES)
+		r.randi_range(SPAWN_MARGIN_TILES, MapGenerator.WIDTH - 1 - SPAWN_MARGIN_TILES),
+		r.randi_range(SPAWN_MARGIN_TILES, MapGenerator.HEIGHT - 1 - SPAWN_MARGIN_TILES)
 	)
 
 ## World position of the nearest walkable tile to `tile`, so an NPC is never

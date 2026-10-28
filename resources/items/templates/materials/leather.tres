@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Item" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/items/item.gd" id="1_leather"]
+
+[resource]
+script = ExtResource("1_leather")
+id = "leather"
+display_name = "Leather"
+description = "A stiff, roughly tanned hide."
+item_type = 4
+rarity = 0
+stackable = true
+max_stack = 20
+weight = 1.0
+base_value = 6
+modifiers = {}
+tags = Array[String](["kind.material", "material.leather"])

@@ -21,13 +21,16 @@ var world_tile_data: Dictionary = {}
 ## map scene. Rolled once per land tile when the world is created, then owned
 ## by the save file so local maps regenerate identically for a whole save.
 var overworld_tile_seeds: Dictionary = {}
-## Key = area identifier (scene path or "x,y").  Value = Array of item-key strings.
-## Populated at runtime and persisted through save/load to prevent re-spawning.
+## Key = place_id.  Value = Array of WorldItem spawn_ids already picked up.
+## Persisted through save/load to prevent re-spawning. Pre-v3 saves keyed this
+## by tile ("x,y") with position-based item keys; those are still honoured.
 var area_picked_up_items: Dictionary = {}
-## Key = area identifier.  Value = { "cell_x,cell_y" -> container dict }.
+## Key = place_id.  Value = { container_id -> container dict }.
 ## Only containers the player has actually looted are recorded — everything
 ## else re-rolls from the map seed, so an untouched chest costs nothing.
 var area_container_state: Dictionary = {}
+## The Place describing the local map the player is in; null on the overworld.
+var current_place: Place = null
 var _play_timer: float = 0.0        ## Accumulated play-time for the current session
 var _current_slot: int = -1          ## Slot we last loaded / saved into (-1 = none)
 ## Province the player was last known to be standing in, so entering a new one
@@ -206,6 +209,7 @@ func create_or_load_save():
 	_save.player_current_scene_path = get_tree().current_scene.scene_file_path
 	area_picked_up_items.clear()  # fresh world — nothing picked up yet
 	area_container_state.clear()  # …and nothing looted
+	MainGameState.spawn_records.clear()  # …and nothing rolled
 	generate_world_metadata()
 	generate_overworld_tile_seeds()
 
@@ -323,7 +327,8 @@ func enter_local_map() -> void:
 
 	var meta := _build_local_map_metadata(tile, map_seed)
 	local_scene.generate_local_map(meta)
-	_apply_area_pickup_records(_area_key_from_tile(tile), local_scene)
+	current_place = local_scene.build_place()
+	print("[MainGame] Place:\n%s" % current_place.describe())
 
 	world_map.visible = false
 	local_scene.visible = true
@@ -341,9 +346,10 @@ func enter_local_map() -> void:
 	player.update_camera_limits()
 	player.rebuild_nav_grid()
 	if npc_spawner:
-		npc_spawner.populate_local_map(meta)
+		npc_spawner.populate_local_map(meta, current_place)
 	if container_spawner:
-		container_spawner.populate_local_map(1, _container_state_for_tile(tile))
+		container_spawner.populate_local_map(current_place, _container_state_for_place(current_place))
+	_apply_area_pickup_records(current_place, local_scene)
 	print("[MainGame] Entered local map for tile %s (seed %d)" % [tile, map_seed])
 
 ## Return to the overworld tile the player descended from.
@@ -356,9 +362,10 @@ func exit_local_map() -> void:
 		npc_spawner.clear()
 	# Harvest looted containers before the spawner drops them, or the record of
 	# what the player emptied dies with the map.
-	_store_container_state(player.overworld_tile)
+	_store_container_state()
 	if container_spawner:
 		container_spawner.clear()
+	current_place = null
 	if local_scene:
 		# Wiping the layers also drops their collision, which would otherwise
 		# keep blocking overworld tiles while the local map sits hidden.
@@ -459,8 +466,9 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 	# ── Container records ───────────────────────────────────────
 	# The live map's containers are only in memory until now.
 	if player.in_local_area:
-		_store_container_state(player.overworld_tile)
+		_store_container_state()
 	_save.area_container_state = area_container_state.duplicate(true)
+	_save.spawn_records = MainGameState.spawn_records.duplicate(true)
 
 	# ── Local-area bookmark (so we can re-enter on load) ───────
 	if player.in_local_area and local_scene:
@@ -511,8 +519,11 @@ func load_game_from_slot(slot: int) -> bool:
 	_last_province = -1
 
 	# ── Item pickup records ─────────────────────────────────────
+	if _save.version < SaveGameResource.SAVE_VERSION:
+		push_warning("[SaveSystem] Slot %d is a v%d save; tile-keyed pickup and container records will be migrated as areas are revisited" % [slot, _save.version])
 	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
 	area_container_state = _save.area_container_state.duplicate(true)
+	MainGameState.spawn_records = _save.spawn_records.duplicate(true)
 	# ── Overworld tile seeds ─────────────────────────────────
 	overworld_tile_seeds.clear()
 	for key_str in _save.overworld_tile_seeds:
@@ -586,7 +597,7 @@ func load_game_from_slot(slot: int) -> bool:
 				meta_dict)
 
 		local_scene.generate_local_map(meta_dict)
-		_apply_area_pickup_records(_area_key_from_tile(player.overworld_tile), local_scene)
+		current_place = local_scene.build_place()
 		world_map.visible = false
 		local_scene.visible = true
 		await get_tree().physics_frame
@@ -598,9 +609,10 @@ func load_game_from_slot(slot: int) -> bool:
 		player.rebuild_nav_grid()
 		player.update_camera_limits()
 		if npc_spawner:
-			npc_spawner.populate_local_map(meta_dict)
+			npc_spawner.populate_local_map(meta_dict, current_place)
 		if container_spawner:
-			container_spawner.populate_local_map(1, _container_state_for_tile(player.overworld_tile))
+			container_spawner.populate_local_map(current_place, _container_state_for_place(current_place))
+		_apply_area_pickup_records(current_place, local_scene)
 	else:
 		# Overworld. A save taken inside a local area lands the player back on
 		# the overworld tile they descended from.
@@ -609,6 +621,7 @@ func load_game_from_slot(slot: int) -> bool:
 				npc_spawner.clear()
 			if container_spawner:
 				container_spawner.clear()
+			current_place = null
 			if local_scene:
 				local_scene.clear_all_layers()
 				local_scene.visible = false
@@ -790,56 +803,67 @@ func _assign_road_exits() -> void:
 func _area_key_from_tile(tile: Vector2i) -> String:
 	return "%d,%d" % [tile.x, tile.y]
 
-## Saved state for the containers of one overworld tile, or {} if the player
-## has never looted anything there.
-func _container_state_for_tile(tile: Vector2i) -> Dictionary:
-	return area_container_state.get(_area_key_from_tile(tile), {})
+## Saved state for the containers of a Place, or {} if the player has never
+## looted anything there. Folds in a pre-v3 record keyed by tile, whose entries
+## are keyed by cell; ContainerSpawner matches those by cell once.
+func _container_state_for_place(place: Place) -> Dictionary:
+	var state: Dictionary = area_container_state.get(place.place_id, {}).duplicate()
+	state.merge(area_container_state.get(_area_key_from_tile(place.coords), {}))
+	return state
 
 ## Fold the live map's looted containers back into the persistent record.
 ## Called before the containers are freed, since their state only exists on
-## the nodes themselves.
-func _store_container_state(tile: Vector2i) -> void:
-	if container_spawner == null:
+## the nodes themselves. A restored pre-v3 record is looted by definition, so
+## it comes back here re-keyed and the tile-keyed copy can go.
+func _store_container_state() -> void:
+	if container_spawner == null or current_place == null:
 		return
 	var dirty: Dictionary = container_spawner.get_dirty_state()
 	if dirty.is_empty():
 		return
-	var area_key := _area_key_from_tile(tile)
-	var existing: Dictionary = area_container_state.get(area_key, {})
+	var existing: Dictionary = area_container_state.get(current_place.place_id, {})
 	existing.merge(dirty, true)
-	area_container_state[area_key] = existing
+	area_container_state[current_place.place_id] = existing
+	area_container_state.erase(_area_key_from_tile(current_place.coords))
 
-## Connects WorldItem pickup signals and removes already-collected items for
-## a generated local area.
-func _apply_area_pickup_records(area_key: String, area_root: Node) -> void:
-	if area_key == "" or not is_instance_valid(area_root):
+## Removes already-collected WorldItems from a freshly populated local area
+## and records future pickups by spawn_id. Run after every spawner, so items
+## they placed are covered too.
+func _apply_area_pickup_records(place: Place, area_root: Node) -> void:
+	if place == null or not is_instance_valid(area_root):
 		return
 
-	var recorded: Array = area_picked_up_items.get(area_key, [])
+	var place_id := place.place_id
+	var recorded: Array = area_picked_up_items.get(place_id, [])
+	var legacy: Array = area_picked_up_items.get(_area_key_from_tile(place.coords), [])
 
 	for wi: WorldItem in area_root.find_children("*", "WorldItem", true, false):
 		if not is_instance_valid(wi) or not wi.item_resource:
 			continue
-
-		var key := _make_item_key(wi.item_resource, wi.global_position)
-		if key in recorded:
+		if wi.spawn_id.is_empty():
+			push_warning("[MainGame] WorldItem %s has no spawn_id; its pickup will not persist" % wi.get_path())
+			continue
+		if wi.spawn_id in recorded:
 			wi.queue_free()
-		else:
-			wi.picked_up.connect(
-				func(_item: Item, _qty: int, pos: Vector2) -> void:
-					_record_item_pickup(_item, pos, area_key)
-			)
+			continue
+		if not legacy.is_empty() and _make_item_key(wi.item_resource, wi.global_position) in legacy:
+			push_warning("[MainGame] Matched %s against a pre-v3 position-keyed pickup record" % wi.spawn_id)
+			_record_item_pickup(wi.spawn_id, place_id)
+			wi.queue_free()
+			continue
+		wi.picked_up.connect(
+			func(_item: Item, _qty: int, spawn_id: String) -> void:
+				_record_item_pickup(spawn_id, place_id)
+		)
 
-## Appends an item key to the pickup record for the given area.
-func _record_item_pickup(item: Item, pos: Vector2, area_key: String) -> void:
-	var key := _make_item_key(item, pos)
-	if not area_picked_up_items.has(area_key):
-		area_picked_up_items[area_key] = []
-	if key not in area_picked_up_items[area_key]:
-		area_picked_up_items[area_key].append(key)
+func _record_item_pickup(spawn_id: String, place_id: String) -> void:
+	if not area_picked_up_items.has(place_id):
+		area_picked_up_items[place_id] = []
+	if spawn_id not in area_picked_up_items[place_id]:
+		area_picked_up_items[place_id].append(spawn_id)
 
-## Builds a stable string key for a WorldItem from its item id and tile position.
-## Format: "item_id@tile_x,tile_y"  (tile coords = world pixels / 16)
+## The pre-v3 pickup key, "item_id@tile_x,tile_y" at the old 16px grid. Only
+## used to honour records in saves made before spawn ids existed.
 func _make_item_key(item: Item, pos: Vector2) -> String:
 	var item_id: String
 	if item.id != "":

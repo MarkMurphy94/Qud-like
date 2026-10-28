@@ -21,6 +21,7 @@ is_unique = false
 can_drop = true
 can_sell = true
 modifiers = {}
+tags = Array[String](["kind.consumable", "use.food"])
 effect_type = 8
 effect_value = 0
 duration = 0.0

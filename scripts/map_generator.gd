@@ -772,6 +772,89 @@ func generate_local_map(metadata) -> void:
 	# map_type, set just above, picks settlement vs wilderness generation.
 	setup_and_generate(-1, terrain, world_pos, map_seed)
 
+## Describe the map just generated as a Place. Must run after generation, since
+## it reads map_buildings and container_cells. Slot ids are ordinal — buildings
+## in placement order, containers sorted by cell within their building — so they
+## depend on the seed and the generator, never on pixel positions.
+func build_place() -> Place:
+	var place := Place.new()
+	place.coords = current_metadata.get("coords", Vector2i.ZERO)
+	place.tile_seed = int(current_metadata.get("seed", current_map_seed))
+	var map_type: int = int(map_template.map_type) if map_template else MapConfig.MapType.NON_SETTLEMENT
+	place.place_id = MainGameState.make_settlement_key(map_type, place.coords)
+	place.tags = _place_tags(map_type)
+
+	var building_slots: Array[PlaceSlot] = []
+	for i in map_buildings.size():
+		var b: Dictionary = map_buildings[i]
+		var slot := PlaceSlot.new()
+		slot.slot_id = "b%d" % i
+		slot.kind = "building"
+		var type_index := int(b.get("type", -1))
+		var type_names: Array = Structure.StructureType.keys()
+		if type_index >= 0 and type_index < type_names.size():
+			slot.tags.append("building.%s" % String(type_names[type_index]).to_lower())
+		slot.data = {"type": type_index, "rect": Rect2i(b["pos"], b["size"]), "door": b.get("door", NO_DOOR)}
+		building_slots.append(slot)
+		place.slots.append(slot)
+
+	# Group container cells by the building whose footprint holds them.
+	var groups: Dictionary = {}  # parent slot id ("" = outdoors) -> Array[Vector2i]
+	for cell: Vector2i in container_cells:
+		var parent := ""
+		for slot in building_slots:
+			if (slot.data["rect"] as Rect2i).has_point(cell):
+				parent = slot.slot_id
+				break
+		if not groups.has(parent):
+			groups[parent] = []
+		groups[parent].append(cell)
+
+	for parent: String in groups:
+		var cells: Array = groups[parent]
+		cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.y < b.y or (a.y == b.y and a.x < b.x))
+		var prefix: String = parent if not parent.is_empty() else "yard"
+		var parent_slot := place.get_slot(parent)
+		for k in cells.size():
+			var cell: Vector2i = cells[k]
+			var record: Dictionary = container_cells[cell]
+			var slot := PlaceSlot.new()
+			slot.slot_id = "%s.container.%d" % [prefix, k]
+			slot.kind = "container"
+			slot.parent_slot_id = parent
+			slot.cells = [cell]
+			slot.tags.append("container.%s" % String(record.get("role", "chest")))
+			if parent_slot:
+				slot.tags.append_array(parent_slot.tags)
+			slot.data = record
+			place.slots.append(slot)
+
+	var ambient := PlaceSlot.new()
+	ambient.slot_id = "ambient"
+	ambient.kind = "ambient"
+	place.slots.append(ambient)
+	return place
+
+func _place_tags(map_type: int) -> Array[String]:
+	var tags: Array[String] = []
+	var overworld := _merged_overworld_metadata()
+	var biome := str(current_metadata.get("biome", overworld.get("biome", ""))).to_lower()
+	if not biome.is_empty():
+		tags.append("biome.%s" % biome)
+	var culture := str(current_metadata.get("culture_id", ""))
+	if not culture.is_empty():
+		tags.append("culture.%s" % culture)
+	var faction := str(current_metadata.get("ruling_faction", ""))
+	if not faction.is_empty():
+		tags.append("faction.%s" % faction)
+	tags.append("place.settlement" if map_type == MapConfig.MapType.SETTLEMENT else "place.wilderness")
+	if bool(overworld.get("is_forest", false)):
+		tags.append("place.forest")
+	var ruins = current_metadata.get("ruins", {})
+	if ruins is Dictionary and bool(ruins.get("exists", false)):
+		tags.append("place.ruin")
+	return tags
+
 func _merged_overworld_metadata() -> Dictionary:
 	var merged: Dictionary = {}
 	var from_nested = current_metadata.get("overworld", {})

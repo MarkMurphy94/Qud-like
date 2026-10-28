@@ -21,6 +21,7 @@ is_unique = true
 can_drop = true
 can_sell = false
 modifiers = {"fire_damage": 10, "special": "smite_undead"}
+tags = Array[String](["kind.weapon", "kind.blade", "kind.unique"])
 weapon_type = 0
 damage_type = 1
 base_damage = 15

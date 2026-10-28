@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="ItemSpawnTable" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/item_spawn_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://resources/spawning/item_spawn_entry.gd" id="2_entry"]
+
+[sub_resource type="Resource" id="Entry_0"]
+script = ExtResource("2_entry")
+item_tags = Array[String](["kind.consumable"])
+weight = 8.0
+count = Vector2i(1, 1)
+
+[sub_resource type="Resource" id="Entry_1"]
+script = ExtResource("2_entry")
+item_tags = Array[String](["kind.armor"])
+weight = 1.0
+count = Vector2i(1, 1)
+
+[sub_resource type="Resource" id="Entry_2"]
+script = ExtResource("2_entry")
+item_tags = Array[String](["kind.weapon"])
+weight = 1.0
+count = Vector2i(1, 1)
+
+[sub_resource type="Resource" id="Entry_3"]
+script = ExtResource("2_entry")
+item_tags = Array[String](["kind.material", "material.cloth"])
+weight = 1.0
+count = Vector2i(1, 1)
+
+[resource]
+script = ExtResource("1_table")
+id = "container.household"
+tier = "owned"
+rolls = Vector2i(0, 3)
+allow_repeats = true
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_0"), SubResource("Entry_1"), SubResource("Entry_2"), SubResource("Entry_3")])

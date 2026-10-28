@@ -24,13 +24,17 @@ class_name WorldItem
 ## If true, item can be picked up automatically on collision
 @export var auto_pickup: bool = true
 
+## Stable identity for the save system: "<place_id>/<slot_id>/<index>". Items
+## spawned into a Place get one; a hand-placed item must be given one in the
+## editor or its pickup will not persist. Empty for dropped items.
+@export var spawn_id: String = ""
+
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var collision: CollisionShape2D = $CollisionShape2D
 
-## Emitted when the item is picked up.
-## spawn_position is the WorldItem's global position at the moment of pickup
-## and is used by the save system to prevent the item from respawning.
-signal picked_up(item: Item, qty: int, spawn_position: Vector2)
+## Emitted when the item is picked up. The save system records `spawn_id` so the
+## item does not respawn.
+signal picked_up(item: Item, qty: int, spawn_id: String)
 
 ## Group every dropped/placed item joins, so a tile lookup never has to walk
 ## the whole tree. Mirrors ItemContainer.GROUP.
@@ -113,8 +117,7 @@ func try_pickup(picker: Node2D) -> bool:
 
 
 func _on_picked_up():
-	var spawn_pos := global_position  # capture before freeing
-	picked_up.emit(item_resource, quantity, spawn_pos)
+	picked_up.emit(item_resource, quantity, spawn_id)
 	queue_free()
 
 

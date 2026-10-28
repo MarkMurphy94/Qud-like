@@ -20,6 +20,11 @@ var player_turn = false
 ## human-readable name for hand-crafted settlements.
 var settlements = {}
 
+## What each Place's slots rolled on first visit, so they are never re-rolled:
+## place_id -> { slot_id -> Array of ItemGenerator.item_to_record() dicts, each
+## with its "spawn_id" }. Written by ItemSpawnResolver, saved by MainGame.
+var spawn_records: Dictionary = {}
+
 # ─── NPC counts per density tier ────────────────────────────────────────────────────────
 
 ## Keyed by MapConfig.BuildingDensity. NPCSpawner reads settlement_data.building_density

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Item" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/items/item.gd" id="1_cloth"]
+
+[resource]
+script = ExtResource("1_cloth")
+id = "cloth"
+display_name = "Cloth"
+description = "A bolt of coarse woven cloth."
+item_type = 4
+rarity = 0
+stackable = true
+max_stack = 20
+weight = 0.5
+base_value = 4
+modifiers = {}
+tags = Array[String](["kind.material", "material.cloth"])

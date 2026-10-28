@@ -106,84 +106,71 @@ const RARITY_WEIGHTS = {
 	Item.Rarity.LEGENDARY: 1,
 }
 
-## Unique ID counter for generated items
-var _item_counter: int = 0
-
-
 func _ready():
 	rng.randomize()
 
 
-## Generate a weapon from a template
-## template_id: The ID of the weapon template to use
-## forced_rarity: Force a specific rarity (-1 for random)
-## seed_value: Seed for deterministic generation (-1 for random)
-func generate_weapon(template_id: String, forced_rarity: int = -1, seed_value: int = -1) -> ItemWeapon:
-	if seed_value >= 0:
-		rng.seed = seed_value
-	
+## Generate a weapon from a template.
+##
+## Every roll comes from an RNG local to this call, seeded by `seed_value` (or a
+## seed drawn from the shared rng when none is given), so the shared rng is
+## never reseeded and the item can be rebuilt from {template_id, rarity,
+## gen_seed}. Rarity is always rolled, even when forced, so a forced rebuild
+## consumes the RNG exactly as the original roll did.
+## `spawn_id` names where the item was spawned and becomes part of its id.
+func generate_weapon(template_id: String, forced_rarity: int = -1, seed_value: int = -1, spawn_id: String = "") -> ItemWeapon:
 	var template = ItemDatabase.get_weapon_template(template_id)
 	if not template:
 		push_warning("[ItemGenerator] Unknown weapon template: %s" % template_id)
 		return null
-	
-	# Duplicate template to create new instance
+
 	var item: ItemWeapon = template.duplicate(true)
-	_item_counter += 1
-	item.id = "%s_%d_%d" % [template_id, Time.get_unix_time_from_system(), _item_counter]
-	
-	# Determine rarity
-	var rarity = forced_rarity if forced_rarity >= 0 else _roll_rarity()
+	var gen_rng := _begin_generation(item, template_id, seed_value, spawn_id)
+
+	var rolled := _roll_rarity(gen_rng)
+	var rarity = forced_rarity if forced_rarity >= 0 else rolled
 	item.rarity = rarity
-	
-	# Apply modifiers based on rarity
-	_apply_weapon_modifiers(item, rarity)
-	
-	# Scale base stats by rarity
+
+	_apply_weapon_modifiers(item, rarity, gen_rng)
+
 	var rarity_multiplier = 1.0 + (rarity * 0.2)
 	item.base_damage = int(item.base_damage * rarity_multiplier)
 	item.base_value = int(item.base_value * rarity_multiplier * rarity_multiplier)
-	
+
 	return item
 
 
-## Generate armor from a template
-func generate_armor(template_id: String, forced_rarity: int = -1, seed_value: int = -1) -> ItemArmor:
-	if seed_value >= 0:
-		rng.seed = seed_value
-	
+## Generate armor from a template. Same seeding contract as generate_weapon.
+func generate_armor(template_id: String, forced_rarity: int = -1, seed_value: int = -1, spawn_id: String = "") -> ItemArmor:
 	var template = ItemDatabase.get_armor_template(template_id)
 	if not template:
 		push_warning("[ItemGenerator] Unknown armor template: %s" % template_id)
 		return null
-	
+
 	var item: ItemArmor = template.duplicate(true)
-	_item_counter += 1
-	item.id = "%s_%d_%d" % [template_id, Time.get_unix_time_from_system(), _item_counter]
-	
-	var rarity = forced_rarity if forced_rarity >= 0 else _roll_rarity()
+	var gen_rng := _begin_generation(item, template_id, seed_value, spawn_id)
+
+	var rolled := _roll_rarity(gen_rng)
+	var rarity = forced_rarity if forced_rarity >= 0 else rolled
 	item.rarity = rarity
-	
-	_apply_armor_modifiers(item, rarity)
-	
+
+	_apply_armor_modifiers(item, rarity, gen_rng)
+
 	var rarity_multiplier = 1.0 + (rarity * 0.2)
 	item.base_defense = int(item.base_defense * rarity_multiplier)
 	item.base_value = int(item.base_value * rarity_multiplier * rarity_multiplier)
-	
+
 	return item
 
 
-## Generate a consumable from a template (consumables don't get modifiers by default)
+## Generate a consumable from a template (consumables don't get modifiers, so
+## they are plain copies and need no seed to rebuild).
 func generate_consumable(template_id: String) -> ItemConsumable:
 	var template = ItemDatabase.get_consumable_template(template_id)
 	if not template:
 		push_warning("[ItemGenerator] Unknown consumable template: %s" % template_id)
 		return null
-	
-	var item: ItemConsumable = template.duplicate(true)
-	_item_counter += 1
-	item.id = "%s_%d_%d" % [template_id, Time.get_unix_time_from_system(), _item_counter]
-	return item
+	return _plain_copy(template, template_id)
 
 
 ## Generate a material from a template
@@ -192,188 +179,124 @@ func generate_material(template_id: String) -> Item:
 	if not template:
 		push_warning("[ItemGenerator] Unknown material template: %s" % template_id)
 		return null
-	
+	return _plain_copy(template, template_id)
+
+
+## Build any template by id, dispatching on the template folder it was loaded
+## from. Books, materials and consumables ignore rarity and seed.
+func generate_from_template(template_id: String, rarity: int = -1, seed_value: int = -1, spawn_id: String = "") -> Item:
+	if ItemDatabase.weapon_templates.has(template_id):
+		return generate_weapon(template_id, rarity, seed_value, spawn_id)
+	if ItemDatabase.armor_templates.has(template_id):
+		return generate_armor(template_id, rarity, seed_value, spawn_id)
+	if ItemDatabase.consumable_templates.has(template_id):
+		return generate_consumable(template_id)
+	if ItemDatabase.material_templates.has(template_id):
+		return generate_material(template_id)
+	if ItemDatabase.has_item(template_id):
+		return ItemDatabase.get_item(template_id)
+	push_warning("[ItemGenerator] Unknown template: %s" % template_id)
+	return null
+
+
+func _begin_generation(item: Item, template_id: String, seed_value: int, spawn_id: String) -> RandomNumberGenerator:
+	if seed_value < 0:
+		seed_value = rng.randi() & 0x7FFFFFFF
+	item.template_id = template_id
+	item.gen_seed = seed_value
+	item.id = _generated_id(item, template_id, spawn_id)
+	var gen_rng := RandomNumberGenerator.new()
+	gen_rng.seed = seed_value
+	return gen_rng
+
+
+func _plain_copy(template: Item, template_id: String) -> Item:
 	var item: Item = template.duplicate(true)
-	_item_counter += 1
-	item.id = "%s_%d_%d" % [template_id, Time.get_unix_time_from_system(), _item_counter]
+	item.template_id = template_id
+	item.id = template_id
+	item.gen_seed = -1
 	return item
 
 
-## Generate a random weapon
-func generate_random_weapon(forced_rarity: int = -1) -> ItemWeapon:
-	var templates = ItemDatabase.get_weapon_template_ids()
-	if templates.is_empty():
-		push_warning("[ItemGenerator] No weapon templates available")
-		return null
-	
-	var template_id = templates[rng.randi() % templates.size()]
-	return generate_weapon(template_id, forced_rarity)
-
-
-## Generate a random armor piece
-func generate_random_armor(forced_rarity: int = -1) -> ItemArmor:
-	var templates = ItemDatabase.get_armor_template_ids()
-	if templates.is_empty():
-		push_warning("[ItemGenerator] No armor templates available")
-		return null
-	
-	var template_id = templates[rng.randi() % templates.size()]
-	return generate_armor(template_id, forced_rarity)
-
-
-## Generate loot drops for an enemy
-## enemy_level: Used to adjust drop quality
-## loot_table: Name of the loot table to use (for future expansion)
-func generate_loot_drop(enemy_level: int = 1, _loot_table: String = "default") -> Array[Item]:
-	var drops: Array[Item] = []
-	
-	# Number of drops scales slightly with level
-	var max_drops = 1 + (enemy_level / 5)
-	var num_drops = rng.randi_range(0, max_drops)
-	
-	for i in num_drops:
-		var roll = rng.randf()
-		
-		if roll < 0.4:
-			# 40% chance for consumable
-			var consumable_templates = ItemDatabase.get_consumable_template_ids()
-			if not consumable_templates.is_empty():
-				var template_id = consumable_templates[rng.randi() % consumable_templates.size()]
-				var item = generate_consumable(template_id)
-				if item:
-					drops.append(item)
-		elif roll < 0.6:
-			# 20% chance for material
-			var material_templates = ["iron_scrap", "leather", "cloth"]  # Add more as needed
-			var has_templates = false
-			for t in material_templates:
-				if ItemDatabase.has_weapon_template(t):  # Check if any exist
-					has_templates = true
-					break
-			if has_templates:
-				var item = generate_material(material_templates[rng.randi() % material_templates.size()])
-				if item:
-					drops.append(item)
-		elif roll < 0.85:
-			# 25% chance for weapon
-			var item = generate_random_weapon()
-			if item:
-				drops.append(item)
-		else:
-			# 15% chance for armor
-			var item = generate_random_armor()
-			if item:
-				drops.append(item)
-	
-	return drops
+## Stackable items keep the template id so they still stack with each other.
+## Anything else is unique per spawn — or per seed when spawned outside a place.
+func _generated_id(item: Item, template_id: String, spawn_id: String) -> String:
+	if item.stackable:
+		return template_id
+	if not spawn_id.is_empty():
+		return "%s#%s" % [spawn_id, template_id]
+	return "%s#%d" % [template_id, item.gen_seed]
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  CONTAINER LOOT
+#  SAVE RECORDS
 # ═══════════════════════════════════════════════════════════════════════
 
-## What a container is likely to hold, keyed by the `loot_table` name its tile
-## override carries (see the container-prop notes in resources/tileset_catalog.gd).
-##
-## `rolls` is the min/max number of items drawn. Each draw picks a category by
-## weight, so a table is tuned by nudging numbers rather than writing code, and
-## a new kind of container only needs an entry here. Weight 0 categories are
-## simply left out. Categories map to the generate_* functions above.
-const LOOT_TABLES: Dictionary = {
-	# A peasant's shelf or cupboard: mostly food, occasionally something useful.
-	"household": {
-		"rolls": Vector2i(0, 3),
-		"weights": {"consumable": 8.0, "armor": 1.0, "weapon": 1.0},
-	},
-	# A locked chest is the one worth crossing a room for.
-	"chest": {
-		"rolls": Vector2i(1, 3),
-		"weights": {"weapon": 4.0, "armor": 4.0, "consumable": 3.0},
-	},
-	# Barracks and guard posts.
-	"military": {
-		"rolls": Vector2i(1, 3),
-		"weights": {"weapon": 5.0, "armor": 5.0, "consumable": 2.0},
-	},
-	# Shop stock — plentiful but plain.
-	"merchant": {
-		"rolls": Vector2i(2, 4),
-		"weights": {"consumable": 5.0, "weapon": 3.0, "armor": 3.0},
-	},
-	# Storage: bulk goods, little of value.
-	"storage": {
-		"rolls": Vector2i(0, 2),
-		"weights": {"consumable": 9.0, "armor": 1.0},
-	},
-}
-
-## Table used when a prop names one that does not exist, so a newly tagged prop
-## is lootable the moment it is placed.
-const DEFAULT_LOOT_TABLE := "household"
-
-## Roll the contents of a container.
-##
-## `level` scales rarity the same way enemy loot does. `seed_value` makes a
-## given container reproduce its contents on every visit, so a chest the player
-## walked past but never opened is still the same chest when they come back —
-## only touched containers need saving.
-func fill_container(loot_table: String, level: int = 1, seed_value: int = -1) -> Array[Item]:
-	if seed_value >= 0:
-		rng.seed = seed_value
-
-	var table: Dictionary = LOOT_TABLES.get(loot_table, LOOT_TABLES[DEFAULT_LOOT_TABLE])
-	var rolls: Vector2i = table.get("rolls", Vector2i(0, 2))
-	var weights: Dictionary = table.get("weights", {})
-
-	var contents: Array[Item] = []
-	for _i in rng.randi_range(rolls.x, rolls.y):
-		var item := _generate_for_category(_pick_loot_category(weights), level)
-		if item:
-			contents.append(item)
-	return contents
+## Everything needed to rebuild `item` later. Generated items are rebuilt from
+## their seed rather than serialised field by field.
+func item_to_record(item: Item, quantity: int = 1) -> Dictionary:
+	var record := {
+		"template_id": item.template_id if not item.template_id.is_empty() else item.id,
+		"id": item.id,
+		"rarity": int(item.rarity),
+		"gen_seed": item.gen_seed,
+		"quantity": quantity,
+	}
+	if not item.provenance.is_empty():
+		record["provenance"] = item.provenance.duplicate(true)
+	return record
 
 
-## Weighted pick over a loot table's category weights. Returns "" when the
-## table has no usable weights, which the caller treats as an empty draw.
-func _pick_loot_category(weights: Dictionary) -> String:
-	var total: float = 0.0
-	for weight in weights.values():
-		total += float(weight)
-	if total <= 0.0:
-		return ""
+## Rebuild an item from item_to_record() output. Also accepts the pre-v3
+## inventory shape {item_id, quantity, modifiers}.
+func item_from_record(record: Dictionary) -> Item:
+	if not record.has("template_id"):
+		return _item_from_legacy_record(record)
 
-	var roll := rng.randf() * total
-	var cumulative: float = 0.0
-	for category in weights:
-		cumulative += float(weights[category])
-		if roll < cumulative:
-			return String(category)
-	return ""
+	var template_id: String = record["template_id"]
+	var gen_seed := int(record.get("gen_seed", -1))
+	var item: Item
+	if gen_seed >= 0:
+		item = generate_from_template(template_id, int(record.get("rarity", -1)), gen_seed)
+	else:
+		item = ItemDatabase.get_item(template_id)
+	if item == null:
+		return null
+	item.id = String(record.get("id", item.id))
+	if record.has("provenance"):
+		item.provenance = (record["provenance"] as Dictionary).duplicate(true)
+	return item
 
 
-func _generate_for_category(category: String, level: int) -> Item:
-	var rarity: int = _roll_rarity_with_level(level)
-	match category:
-		"weapon":
-			return generate_random_weapon(rarity)
-		"armor":
-			return generate_random_armor(rarity)
-		"consumable":
-			var templates := ItemDatabase.get_consumable_template_ids()
-			if templates.is_empty():
-				return null
-			return generate_consumable(templates[rng.randi() % templates.size()])
-		_:
-			return null
+## Pre-v3 saves stored generated items under their "<template>_<unix>_<n>" id,
+## which ItemDatabase cannot resolve. Recover the template from the id and keep
+## the saved modifiers; the rarity was never saved, so it stays Common.
+func _item_from_legacy_record(record: Dictionary) -> Item:
+	var item_id := String(record.get("item_id", ""))
+	var item: Item = null
+	if ItemDatabase.has_item(item_id):
+		item = ItemDatabase.get_item(item_id)
+	else:
+		var found := RegEx.create_from_string("^(.+)_\\d+_\\d+$").search(item_id)
+		if found and ItemDatabase.has_item(found.get_string(1)):
+			item = ItemDatabase.get_item(found.get_string(1))
+			item.id = item_id
+			push_warning("[ItemGenerator] Recovered legacy generated item %s from its template" % item_id)
+	if item == null:
+		push_warning("[ItemGenerator] Could not restore legacy item %s" % item_id)
+		return null
+	if record.has("modifiers"):
+		item.modifiers = (record["modifiers"] as Dictionary).duplicate(true)
+	return item
 
 
 ## Roll a random rarity based on weights
-func _roll_rarity() -> Item.Rarity:
+func _roll_rarity(r: RandomNumberGenerator) -> Item.Rarity:
 	var total_weight = 0
 	for weight in RARITY_WEIGHTS.values():
 		total_weight += weight
 	
-	var roll = rng.randi_range(0, total_weight - 1)
+	var roll = r.randi_range(0, total_weight - 1)
 	var cumulative = 0
 	
 	for rarity in RARITY_WEIGHTS:
@@ -384,21 +307,20 @@ func _roll_rarity() -> Item.Rarity:
 	return Item.Rarity.COMMON
 
 
-## Roll rarity with level bonus
-func _roll_rarity_with_level(level: int) -> Item.Rarity:
-	# Higher levels slightly increase chance of better items
-	var bonus_roll = level * 0.5  # Each level adds 0.5 to the roll
-	var base_rarity = _roll_rarity()
-	
-	# Small chance to upgrade rarity based on level
-	if rng.randf() * 100 < bonus_roll and base_rarity < Item.Rarity.LEGENDARY:
-		return base_rarity + 1
-	
-	return base_rarity
+## Rarity for a spawn roll. Each tier above the first and each point of
+## `rarity_bias` add to the chance of stepping one rarity up. The upgrade roll
+## is always drawn, so the RNG advances the same way whatever the outcome.
+func roll_rarity(r: RandomNumberGenerator, tier: int = SpawnTier.DEFAULT_TIER, rarity_bias: float = 0.0) -> Item.Rarity:
+	var rarity: int = _roll_rarity(r)
+	var upgrade_chance := clampf(0.05 * maxi(tier - 1, 0) + 0.25 * rarity_bias, 0.0, 0.9)
+	var upgrade_roll := r.randf()
+	if rarity < Item.Rarity.LEGENDARY and upgrade_roll < upgrade_chance:
+		rarity += 1
+	return rarity as Item.Rarity
 
 
 ## Apply modifiers to a weapon based on rarity
-func _apply_weapon_modifiers(item: ItemWeapon, rarity: Item.Rarity) -> void:
+func _apply_weapon_modifiers(item: ItemWeapon, rarity: Item.Rarity, r: RandomNumberGenerator) -> void:
 	if rarity == Item.Rarity.COMMON:
 		return
 	
@@ -408,19 +330,19 @@ func _apply_weapon_modifiers(item: ItemWeapon, rarity: Item.Rarity) -> void:
 	
 	# Chance for prefix (increases with rarity)
 	var prefix_chance = 0.5 + (rarity * 0.1)
-	if WEAPON_PREFIXES[rarity].size() > 0 and rng.randf() < prefix_chance:
-		var prefix = WEAPON_PREFIXES[rarity][rng.randi() % WEAPON_PREFIXES[rarity].size()]
+	if WEAPON_PREFIXES[rarity].size() > 0 and r.randf() < prefix_chance:
+		var prefix = WEAPON_PREFIXES[rarity][r.randi() % WEAPON_PREFIXES[rarity].size()]
 		_apply_modifier_dict(item, prefix)
 	
 	# Chance for suffix (lower than prefix)
 	var suffix_chance = 0.3 + (rarity * 0.1)
-	if WEAPON_SUFFIXES[rarity].size() > 0 and rng.randf() < suffix_chance:
-		var suffix = WEAPON_SUFFIXES[rarity][rng.randi() % WEAPON_SUFFIXES[rarity].size()]
+	if WEAPON_SUFFIXES[rarity].size() > 0 and r.randf() < suffix_chance:
+		var suffix = WEAPON_SUFFIXES[rarity][r.randi() % WEAPON_SUFFIXES[rarity].size()]
 		_apply_modifier_dict(item, suffix, true)
 
 
 ## Apply modifiers to armor based on rarity
-func _apply_armor_modifiers(item: ItemArmor, rarity: Item.Rarity) -> void:
+func _apply_armor_modifiers(item: ItemArmor, rarity: Item.Rarity, r: RandomNumberGenerator) -> void:
 	if rarity == Item.Rarity.COMMON:
 		return
 	
@@ -428,13 +350,13 @@ func _apply_armor_modifiers(item: ItemArmor, rarity: Item.Rarity) -> void:
 		return
 	
 	var prefix_chance = 0.5 + (rarity * 0.1)
-	if ARMOR_PREFIXES[rarity].size() > 0 and rng.randf() < prefix_chance:
-		var prefix = ARMOR_PREFIXES[rarity][rng.randi() % ARMOR_PREFIXES[rarity].size()]
+	if ARMOR_PREFIXES[rarity].size() > 0 and r.randf() < prefix_chance:
+		var prefix = ARMOR_PREFIXES[rarity][r.randi() % ARMOR_PREFIXES[rarity].size()]
 		_apply_modifier_dict(item, prefix)
 	
 	var suffix_chance = 0.3 + (rarity * 0.1)
-	if ARMOR_SUFFIXES[rarity].size() > 0 and rng.randf() < suffix_chance:
-		var suffix = ARMOR_SUFFIXES[rarity][rng.randi() % ARMOR_SUFFIXES[rarity].size()]
+	if ARMOR_SUFFIXES[rarity].size() > 0 and r.randf() < suffix_chance:
+		var suffix = ARMOR_SUFFIXES[rarity][r.randi() % ARMOR_SUFFIXES[rarity].size()]
 		_apply_modifier_dict(item, suffix, true)
 
 

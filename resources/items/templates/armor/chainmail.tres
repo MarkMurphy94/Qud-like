@@ -21,6 +21,7 @@ is_unique = false
 can_drop = true
 can_sell = true
 modifiers = {}
+tags = Array[String](["kind.armor", "slot.chest", "material.iron"])
 armor_type = 1
 armor_weight = 2
 base_defense = 10

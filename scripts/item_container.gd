@@ -33,9 +33,10 @@ const ROLE_LABELS: Dictionary = {
 ## What kind of container this is ("chest", "shelf", …). Picks the label and,
 ## by default, the loot table.
 @export var role: String = "chest"
-## ItemGenerator loot table used to fill it. Empty falls back to `role`.
+## Fills it from the "container.<loot_table>" spawn table. Empty falls back to `role`.
 @export var loot_table: String = ""
-## Stable key for save/load. Derived from role + tile when left blank.
+## Stable key for save/load: "<place_id>/<slot_id>", set by configure(). A
+## container placed by hand in the editor needs one authored here.
 @export var container_id: String = ""
 
 # ── Contents ──────────────────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ func _ready() -> void:
 	add_to_group(GROUP)
 	if container_id.is_empty():
 		container_id = "%s@%d,%d" % [role, tile.x, tile.y]
+		push_warning("[ItemContainer] %s has no container_id; its contents will not persist reliably" % container_id)
 
 	_setup_inventory()
 	_populate_initial_items()
@@ -98,9 +100,11 @@ func _populate_initial_items() -> void:
 		if item:
 			inventory.add_item(item, 1)
 
-## Configure a freshly built container from one of MapGenerator.container_cells.
+## Configure a freshly built container from one of its Place's container slots.
 ## Call before adding the node to the tree.
-func configure(source_map: Node, cell: Vector2i, record: Dictionary) -> void:
+func configure(source_map: Node, slot: PlaceSlot, place_id: String) -> void:
+	var record: Dictionary = slot.data
+	var cell: Vector2i = slot.cells[0]
 	map = source_map
 	tile = cell
 	role = String(record.get("role", "chest"))
@@ -109,7 +113,7 @@ func configure(source_map: Node, cell: Vector2i, record: Dictionary) -> void:
 	source_id = int(record.get("source_id", -1))
 	closed_atlas = record.get("atlas", Vector2i(-1, -1))
 	open_atlas = record.get("open_atlas", closed_atlas)
-	container_id = "%s@%d,%d" % [role, tile.x, tile.y]
+	container_id = "%s/%s" % [place_id, slot.slot_id]
 
 # ── Lookup ────────────────────────────────────────────────────────────────────
 
@@ -245,7 +249,6 @@ func to_dict() -> Dictionary:
 
 func from_dict(data: Dictionary) -> void:
 	_setup_inventory()
-	if data.has("container_id"): container_id = data.container_id
 	if data.has("tile"):
 		var saved_tile: Array = data.tile
 		tile = Vector2i(int(saved_tile[0]), int(saved_tile[1]))

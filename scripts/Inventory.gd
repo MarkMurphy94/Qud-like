@@ -105,10 +105,12 @@ func remove_item(item_id: String, quantity: int = 1) -> int:
 	
 	var remaining_to_remove = quantity
 	var removed = 0
+	var removed_item: Item = null
 	
 	# Remove from stacks (iterate backwards to safely remove items)
 	for i in range(items.size() - 1, -1, -1):
 		if items[i].item.id == item_id:
+			removed_item = items[i].item
 			var to_remove = min(items[i].quantity, remaining_to_remove)
 			items[i].quantity -= to_remove
 			removed += to_remove
@@ -123,13 +125,7 @@ func remove_item(item_id: String, quantity: int = 1) -> int:
 	
 	if removed > 0:
 		inventory_changed.emit()
-		# Get the item for the signal (if any left)
-		var item_ref = get_item_by_id(item_id)
-		if not item_ref:
-			# If none left, we need to get it from somewhere - use first removed
-			item_ref = ItemDatabase.get_item(item_id) if ItemDatabase else null
-		if item_ref:
-			item_removed.emit(item_ref, removed)
+		item_removed.emit(removed_item, removed)
 	
 	return removed
 
@@ -285,12 +281,7 @@ func transfer_slot_to(other_inventory: Inventory, slot_index: int, quantity: int
 func to_dict() -> Dictionary:
 	var item_data = []
 	for slot in items:
-		item_data.append({
-			"item_id": slot.item.id,
-			"quantity": slot.quantity,
-			# Store any modified properties if needed
-			"modifiers": slot.item.modifiers
-		})
+		item_data.append(ItemGenerator.item_to_record(slot.item, slot.quantity))
 	
 	return {
 		"max_slots": max_slots,
@@ -310,12 +301,9 @@ func from_dict(data: Dictionary):
 	
 	if data.has("items"):
 		for item_data in data.items:
-			var item = ItemDatabase.get_item(item_data.item_id)
+			var item := ItemGenerator.item_from_record(item_data)
 			if item:
-				# Restore modifiers
-				if item_data.has("modifiers"):
-					item.modifiers = item_data.modifiers
-				add_item(item, item_data.quantity)
+				add_item(item, int(item_data.get("quantity", 1)))
 	
 	inventory_changed.emit()
 

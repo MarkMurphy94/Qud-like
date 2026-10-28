@@ -27,3 +27,4 @@ is_unique = false
 can_drop = true
 can_sell = true
 modifiers = {}
+tags = Array[String](["kind.book", "use.spell"])

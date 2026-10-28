@@ -185,6 +185,9 @@ var dialogue_tree: Dictionary = {} # For conversation options
 var dialogue_state: String = "ROOT"
 var can_trade: bool = false
 var store_inventory: Array = []
+## The Place this NPC was spawned into, set by NPCSpawner. Death drops resolve
+## against it; null for hand-placed NPCs.
+var owner_place: Place = null
 var trade_prices: Dictionary = {"buy_multiplier": 1.0, "sell_multiplier": 0.5}
 var player_in_interact_range: bool = false
 var is_interacting: bool = false
@@ -214,6 +217,26 @@ static func variants_for(type_value: MainGameState.NpcType) -> Array:
 ## tribes, cultists and beasts do not, and neither do mages and druids, who are
 ## nobody's subjects however peaceable they are.
 const LAWFUL_ROLES := ["GUARD", "CIVILIAN", "MERCHANT", "NOBLE", "CLERGY", "NEUTRAL"]
+
+## The one translation from profile roles to spawn tags. Owned-item tables are
+## named after these ("owned.role.guard"); roles with no table of their own
+## fall back to owned.role.villager, and creatures without one carry nothing.
+const ROLE_TAGS := {
+	"GUARD": "role.guard",
+	"OUTLAW": "role.bandit",
+	"MERCHANT": "role.merchant",
+	"CIVILIAN": "role.villager",
+	"NEUTRAL": "role.villager",
+	"NOBLE": "role.noble",
+	"CLERGY": "role.clergy",
+	"TRIBAL": "role.tribal",
+	"DRUID": "role.druid",
+	"MAGE": "role.mage",
+	"CULTIST": "role.cultist",
+	"WILDLIFE": "creature.beast",
+	"MONSTER": "creature.monster",
+}
+const FALLBACK_OWNED_TABLE := "owned.role.villager"
 
 ## The role a type/variant carries, read straight off the profile table so a
 ## spawner can tell a guard from a bandit before it instances one.
@@ -509,7 +532,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "stay_near_shop",
 			"role": "MERCHANT",
 			"dialogue": "merchant_dialogue",
-			"inventory_template": "merchant_items",
 			"can_trade": true,
 			"trade_prices": {"buy_multiplier": 1.2, "sell_multiplier": 0.4},
 			"stats": {"strength": 8, "agility": 8, "intelligence": 12, "endurance": 8, "charisma": 14}
@@ -524,7 +546,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
-			"inventory_template": "noble_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 		},
@@ -536,7 +557,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
-			"inventory_template": "noble_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 		},
@@ -548,7 +568,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
-			"inventory_template": "noble_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 		},
@@ -560,7 +579,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
-			"inventory_template": "noble_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 		},
@@ -572,7 +590,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "stay_in_manor",
 			"role": "NOBLE",
 			"dialogue": "noble_dialogue",
-			"inventory_template": "noble_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 8, "intelligence": 14, "endurance": 8, "charisma": 14}
 		},
@@ -656,7 +673,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "aggressive",
 			"role": "OUTLAW",
 			"dialogue": "bandit_dialogue",
-			"inventory_template": "bandit_items",
 			"can_trade": false,
 			"stats": {"strength": 12, "agility": 14, "intelligence": 8, "endurance": 10, "charisma": 6}
 		},
@@ -771,7 +787,6 @@ static func _build_profiles() -> Dictionary:
 			"behavior": "flee_on_approach",
 			"role": "WILDLIFE",
 			"dialogue": "none",
-			"inventory_template": "animal_items",
 			"can_trade": false,
 			"stats": {"strength": 8, "agility": 14, "intelligence": 2, "endurance": 8, "charisma": 2}
 		},
@@ -1684,7 +1699,6 @@ static func _build_profiles() -> Dictionary:
 			"max_mana": 50,
 			"role": "MONSTER",
 			"dialogue": "none",
-			"inventory_template": "monster_items",
 			"can_trade": false,
 			"stats": {"strength": 16, "agility": 12, "intelligence": 6, "endurance": 14, "charisma": 2}
 		},
@@ -2978,6 +2992,7 @@ func take_damage(amount: int, source: Node2D = null):
 	if current_health <= 0:
 		current_health = 0
 		set_state(NPCState.DEAD)
+		_drop_belongings()
 		emit_signal("npc_died", self)
 		velocity = Vector2.ZERO
 		_set_combat_indicators_visible(false)
@@ -3254,40 +3269,41 @@ func _initialize_inventory() -> void:
 		# Connect to inventory signals
 		inventory.inventory_changed.connect(_on_inventory_changed)
 		inventory.inventory_full.connect(_on_inventory_full)
-		
-		# Populate a default test inventory so NPCs have something to trade
-		_populate_default_inventory()
 
-func _populate_default_inventory() -> void:
-	"""Add a handful of starter items to every NPC inventory for testing."""
-	# Always give a few consumables
-	var potion_path := "res://resources/items/templates/consumables/health_potion.tres"
-	var bread_path  := "res://resources/items/templates/consumables/bread.tres"
-	var dagger_path := "res://resources/items/templates/weapons/dagger.tres"
-	var sword_path  := "res://resources/items/templates/weapons/basic_sword.tres"
+## Tags this NPC contributes to a SpawnContext: its role, its type and, for
+## sworn folk, its faction.
+func spawn_tags() -> Array[String]:
+	var tags: Array[String] = []
+	var role_tag: String = ROLE_TAGS.get(role, "")
+	if not role_tag.is_empty():
+		tags.append(role_tag)
+	tags.append("npc.%s" % String(MainGameState.NpcType.keys()[npc_type]).to_lower())
+	if not faction.is_empty():
+		tags.append("faction.%s" % faction)
+	return tags
 
-	if ResourceLoader.exists(potion_path):
-		var potion: Item = load(potion_path)
-		if potion:
-			inventory.add_item(potion, 3)
+## The spawn table this NPC's belongings are rolled from. A profile can name one
+## with `inventory_table`; otherwise it is "owned.<role tag>". Empty means the
+## NPC carries nothing.
+func owned_table_id() -> String:
+	var profile := _resolve_profile()
+	if profile.has("inventory_table"):
+		return String(profile["inventory_table"])
+	var role_tag: String = ROLE_TAGS.get(role, "")
+	if role_tag.is_empty():
+		return ""
+	var table_id := "owned.%s" % role_tag
+	if ItemDatabase.has_spawn_table(table_id):
+		return table_id
+	return FALLBACK_OWNED_TABLE if role_tag.begins_with("role.") else ""
 
-	if ResourceLoader.exists(bread_path):
-		var bread: Item = load(bread_path)
-		if bread:
-			inventory.add_item(bread, 2)
-
-	# Merchants and bandits also stock weapons
-	if can_trade or role in ["OUTLAW", "GUARD"]:
-		if ResourceLoader.exists(dagger_path):
-			var dagger: Item = load(dagger_path)
-			if dagger:
-				inventory.add_item(dagger, 1)
-
-	if can_trade:
-		if ResourceLoader.exists(sword_path):
-			var sword: Item = load(sword_path)
-			if sword:
-				inventory.add_item(sword, 1)
+## Put rolled belongings into the inventory. NPCSpawner calls this after the
+## NPC is in the tree, since _ready creates the inventory.
+func stock_inventory(results: Array[SpawnResult]) -> void:
+	if not inventory:
+		_initialize_inventory()
+	for result in results:
+		inventory.add_item(result.item, result.quantity)
 
 func add_item_to_inventory(item: Item, quantity: int = 1) -> bool:
 	"""Add an item to the NPC's inventory. Returns true if successful."""
@@ -3325,21 +3341,37 @@ func drop_item(item_id: String, quantity: int = 1) -> bool:
 	
 	var removed = inventory.remove_item(item_id, quantity)
 	if removed > 0:
-		_spawn_world_item(item, removed)
+		_spawn_world_item(item, removed, "", Vector2(0, tile_size))
 		return true
 	
 	return false
 
-func _spawn_world_item(item: Item, quantity: int) -> void:
+## Everything the NPC carried falls where it died, plus anything its profile's
+## optional `drop_table_id` adds. Rolled once per NPC slot, like its belongings.
+func _drop_belongings() -> void:
+	var index := 0
+	if inventory:
+		for slot in inventory.get_all_items():
+			_spawn_world_item(slot.item, slot.quantity, "%s/drop/%d" % [npc_id, index], Vector2.ZERO)
+			index += 1
+		inventory.clear()
+	var drop_table := String(_resolve_profile().get("drop_table_id", ""))
+	if drop_table.is_empty() or owner_place == null:
+		return
+	var slot_id := "%s.drop" % npc_id.trim_prefix(owner_place.place_id + "/")
+	for result in ItemSpawnResolver.resolve_slot_once(drop_table, SpawnContext.for_slot(owner_place, slot_id, spawn_tags())):
+		_spawn_world_item(result.item, result.quantity, result.spawn_id, Vector2.ZERO)
+
+func _spawn_world_item(item: Item, quantity: int, spawn_id: String, offset: Vector2) -> void:
 	"""Spawn an item in the world at the NPC's position"""
 	var world_item_scene = preload("res://scenes/world_item.tscn")
 	var world_item = world_item_scene.instantiate()
 	world_item.item_resource = item
 	world_item.quantity = quantity
-	
+	world_item.spawn_id = spawn_id
+
 	# Spawn slightly in front of the NPC
-	var spawn_offset = Vector2(0, tile_size)
-	world_item.global_position = global_position + spawn_offset
+	world_item.global_position = global_position + offset
 	
 	# Add to the current scene
 	get_parent().add_child(world_item)

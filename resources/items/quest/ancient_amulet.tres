@@ -18,3 +18,4 @@ is_unique = true
 can_drop = false
 can_sell = false
 modifiers = {}
+tags = Array[String](["kind.quest", "kind.unique"])

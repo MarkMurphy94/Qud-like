@@ -8,7 +8,7 @@ The inventory system provides stackable item management for both Players and NPC
 - **Weight Management**: Optional weight limits prevent carrying too much
 - **Slot Limits**: Optional slot limits restrict inventory size
 - **Signals**: Emits signals for inventory changes, items added/removed, and full inventory
-- **Serialization**: Easy save/load with `to_dict()` and `from_dict()` methods
+- **Serialization**: Easy save/load with `to_dict()` and `from_dict()` methods. Each slot is saved as an `ItemGenerator.item_to_record()` dict (`template_id`, `id`, `rarity`, `gen_seed`, `quantity`), so generated items are rebuilt from their seed exactly; the older `{item_id, quantity, modifiers}` shape still loads
 - **Sorting**: Built-in sorting by name, type, value, weight, or rarity
 - **Transfer**: Methods to transfer items between inventories
 

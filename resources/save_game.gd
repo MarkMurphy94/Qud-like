@@ -9,6 +9,11 @@ const SAVE_DIR := "user://saves/"
 const MAX_SLOTS := 10
 
 # ─── Save-file version (bump when the schema changes) ──────────────────
+## Current schema. v3 keys pickups and containers by place/spawn id.
+const SAVE_VERSION := 3
+## Must keep defaulting to 2: Godot omits properties equal to their default,
+## so saves written before v3 never stored the field and load as this value.
+## write_to_slot() stamps SAVE_VERSION explicitly.
 @export var version: int = 2
 
 # ─── Metadata ───────────────────────────────────────────────────────────
@@ -65,16 +70,20 @@ const MAX_SLOTS := 10
 
 # ─── Item pickup records — prevents already-collected WorldItems from  ─
 # ─── respawning when the player re-enters an area or loads a save.     ─
-## Key = area identifier (scene path for settlements, "x,y" for procedural tiles).
-## Value = Array of item-key strings produced by main_game._make_item_key().
+## Key = place_id (pre-v3: "x,y" tile).
+## Value = Array of WorldItem spawn_ids (pre-v3: main_game._make_item_key() strings).
 @export var area_picked_up_items: Dictionary = {}
 
 # ─── Container records — only containers the player has actually taken  ─
 # ─── something out of. Everything else re-rolls from the map seed, so   ─
 # ─── an untouched chest costs the save file nothing.                    ─
-## Key = area identifier (same as area_picked_up_items).
-## Value = { "cell_x,cell_y" -> ItemContainer.to_dict() }.
+## Key = place_id (pre-v3: "x,y" tile).
+## Value = { container_id -> ItemContainer.to_dict() } (pre-v3: keyed by "cell_x,cell_y").
 @export var area_container_state: Dictionary = {}
+
+# ─── First-visit spawn rolls (MainGameState.spawn_records snapshot) ─────
+## Key = place_id.  Value = { slot_id -> Array of item records }.
+@export var spawn_records: Dictionary = {}
 
 # ═══════════════════════════════════════════════════════════════════════
 #  SLOT HELPERS
@@ -108,7 +117,7 @@ func write_to_slot(slot: int = -1) -> void:
 	if slot >= 0:
 		slot_index = slot
 	save_date = Time.get_datetime_string_from_system(false, true)
-	version = 2
+	version = SAVE_VERSION
 	_ensure_save_dir()
 	ResourceSaver.save(self, get_slot_path(slot_index))
 
