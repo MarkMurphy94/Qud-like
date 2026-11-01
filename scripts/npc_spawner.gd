@@ -269,6 +269,8 @@ func spawn_wilderness_npcs(count: int = -1) -> void:
 		Vector2i(MapGenerator.WIDTH, MapGenerator.HEIGHT), EncounterDatabase.anchor_entries())
 	_encounter_tile_key = ctx.tile_key
 
+	_log_encounters(requests)
+
 	var area_key := _area_key()
 	var cooled := {}
 	for request in requests:
@@ -290,6 +292,27 @@ func spawn_wilderness_npcs(count: int = -1) -> void:
 		if not request["restored"] and not cooled.has(entry.id):
 			cooled[entry.id] = true
 			EncounterState.start_cooldown(ctx.tile_key, entry, ctx.now_hour)
+
+
+## One console line naming each spawned group, e.g. "Encounter: wolf_pack x3, boar x1".
+func _log_encounters(requests: Array) -> void:
+	if requests.is_empty():
+		print("Encounter: none")
+		return
+	var groups: Array = []
+	var sizes := {}
+	var restored := false
+	for request in requests:
+		var key := "%s#%d" % [request["entry"].id, request["group"]]
+		if not sizes.has(key):
+			groups.append(key)
+			sizes[key] = 0
+		sizes[key] += 1
+		restored = restored or request["restored"]
+	var parts: PackedStringArray = []
+	for key: String in groups:
+		parts.append("%s x%d" % [key.get_slice("#", 0), sizes[key]])
+	print("Encounter: %s%s" % [", ".join(parts), " (survivors)" if restored else ""])
 
 
 ## Record who is still alive on this encounter map and where, so a revisit
