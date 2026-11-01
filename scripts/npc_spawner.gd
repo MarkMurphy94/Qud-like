@@ -39,6 +39,23 @@ const AMBIENT_BUDGET_WILDERNESS := 3
 # Margin in tiles so NPCs don't spawn right on the map edge.
 const SPAWN_MARGIN_TILES: int = 2
 
+## The old count-from-difficulty wilderness roll, kept for one release while
+## the encounter tables settle.
+const USE_LEGACY_WILDERNESS := false
+
+## The one translation from EncounterEntry.npc_type strings to NPC types.
+const ENCOUNTER_NPC_TYPES := {
+	"animal": MainGameState.NpcType.ANIMAL,
+	"monster": MainGameState.NpcType.MONSTER,
+	"bandit": MainGameState.NpcType.BANDIT,
+	"soldier": MainGameState.NpcType.SOLDIER,
+	"peasant": MainGameState.NpcType.PEASANT,
+	"merchant": MainGameState.NpcType.MERCHANT,
+	"noble": MainGameState.NpcType.NOBLE,
+	"clergy": MainGameState.NpcType.CLERGY,
+	"mage": MainGameState.NpcType.MAGE,
+}
+
 ## Who keeps which functional building, as {type, variant}. A building type
 ## absent here has no keeper and is just somewhere to live. These NPCs are
 ## confined to the building's interior (see NPC.confine_to), so the smith is at
@@ -228,10 +245,39 @@ func _find_settlement_entry() -> Dictionary:
 
 # ─── Wilderness spawning ───────────────────────────────────────────────────────
 
-## Spawns wildlife/monsters for a procedural area.
-## Count is auto-derived from encounter_difficulty in area_metadata if not
-## specified explicitly (pass a non-negative value to override).
+## Spawns whoever the encounter tables put on this tile right now — see
+## EncounterResolver. `count` only applies to the legacy roll.
 func spawn_wilderness_npcs(count: int = -1) -> void:
+	if USE_LEGACY_WILDERNESS:
+		_spawn_wilderness_legacy(count)
+		return
+	clear()
+	if not npc_scene:
+		return
+
+	var ctx := EncounterContext.build(area_metadata, place)
+	# The spawner's own rng only rolls variants the entry left open; seeding it
+	# from the context keeps those in step with the encounter roll.
+	rng.seed = ctx.rng.seed
+	var walkable := Callable(_map, "is_walkable") if _map else Callable()
+	var requests := EncounterResolver.resolve(ctx, EncounterDatabase.ambient_entries(), walkable)
+
+	var area_key := _area_key()
+	for request in requests:
+		var entry: EncounterEntry = request["entry"]
+		var pos := _walkable_world_pos(request["tile"])
+		var npc_id := "%s/enc.%s.%d.%d" % [area_key, entry.id, request["group"], request["index"]]
+		var npc := _spawn_npc(ENCOUNTER_NPC_TYPES[entry.npc_type], pos, request["variant"], npc_id)
+		npc.set_locations(pos)
+		npc.set_meta("spawn", {
+			"entry_id": entry.id,
+			"pool_id": entry.pool_id,
+			"region_id": ctx.region_id,
+			"tile_key": ctx.tile_key,
+		})
+		spawned_npcs.append(npc)
+
+func _spawn_wilderness_legacy(count: int = -1) -> void:
 	clear()
 	if not npc_scene:
 		return
