@@ -21,6 +21,8 @@ const SAVE_VERSION := 3
 @export var slot_name: String = ""        ## Player-chosen label, e.g. "My Town Run"
 @export var save_date: String = ""        ## ISO-8601 timestamp of the save
 @export var play_time_seconds: float = 0.0 ## Total seconds of gameplay
+## TurnManager.world_time, in ticks. The calendar (WorldClock) derives from it.
+@export var world_time: int = 0
 
 # ─── Player position & scene ────────────────────────────────────────────
 @export var player_overworld_position: Vector2 = Vector2(184, 344)

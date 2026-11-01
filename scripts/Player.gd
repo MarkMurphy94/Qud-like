@@ -306,7 +306,10 @@ func try_step(dir: Vector2i) -> bool:
 
 	_face(dir)
 	_move_to_tile(target_tile)
-	TurnManager.take_player_action()
+	if in_local_area:
+		TurnManager.take_player_action()
+	else:
+		TurnManager.take_player_action(TurnManager.TICKS_PER_ACTION * TurnManager.OVERWORLD_STEP_TURNS)
 	return true
 
 

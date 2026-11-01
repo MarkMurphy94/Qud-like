@@ -210,6 +210,8 @@ func create_or_load_save():
 	area_picked_up_items.clear()  # fresh world — nothing picked up yet
 	area_container_state.clear()  # …and nothing looted
 	MainGameState.spawn_records.clear()  # …and nothing rolled
+	TurnManager.world_time = 0
+	WorldClock.sync()
 	generate_world_metadata()
 	generate_overworld_tile_seeds()
 
@@ -300,11 +302,147 @@ func _build_local_map_metadata(tile: Vector2i, seed_value: int, base_metadata: D
 	var ruler = factions.ruler_for_tile(tile) if factions else null
 	meta["ruling_faction"] = ruler.faction_id if ruler else ""
 
+	_add_encounter_metadata(meta, tile, settlement_density >= 0)
+
 	# Keep top-level aliases for backward-compatible readers.
 	meta["settlement_density"] = settlement_density
 	meta["has_settlement"] = overworld_data["has_settlement"]
 	meta["is_forest"] = overworld_data["is_forest"]
 	return meta
+
+# ═══════════════════════════════════════════════════════════════════════
+#  ENCOUNTER METADATA AND REGIONS
+# ═══════════════════════════════════════════════════════════════════════
+
+const CAMP_CHANCE := 0.04
+const DUNGEON_CHANCE := 0.03
+## Who pitches camp in which biome; biomes not listed use "default".
+const CAMP_OWNERS := {
+	"default": ["bandit", "wolf_den"],
+	"boreal": ["wolf_den", "wolf_den", "bandit"],
+	"arctic": ["wolf_den"],
+	"desert": ["bandit"],
+	"savannah": ["bandit"],
+}
+const CAMP_SIZES: Array[String] = ["small", "small", "medium", "large"]
+## Overworld tiles per side of a region cell, for land no province holds.
+const REGION_CELL := 8
+
+## region_id -> Array[Vector2i] of land tiles; built on first use.
+var _region_tiles: Dictionary = {}
+## region_id -> Array[String] of regions sharing a tile edge with it.
+var _region_neighbours: Dictionary = {}
+
+
+## Stamp what the encounter spawner reads but the stripped-back world has no
+## stored data for: region, roads, camp, dungeon and difficulty. Keys already in
+## `meta` win, so a saved tile record is never overridden. Every roll is drawn
+## whether used or not, so one key being present never shifts the others.
+func _add_encounter_metadata(meta: Dictionary, tile: Vector2i, has_settlement: bool) -> void:
+	if not meta.has("region_id") or str(meta["region_id"]).is_empty():
+		meta["region_id"] = region_for_tile(tile)
+	meta["near_road"] = _is_road(tile) or _any_neighbour(tile, _is_road)
+	meta["near_settlement"] = _any_neighbour(tile, _tile_has_settlement)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([int(meta.get("seed", 0)), "encounter_meta"])
+	var camp_roll := rng.randf()
+	var owner_roll := rng.randi()
+	var size_roll := rng.randi()
+	var dungeon_roll := rng.randf()
+	var depth_roll := rng.randi()
+	var difficulty_roll := rng.randi()
+	if has_settlement:
+		return
+
+	if not meta.has("road_exits"):
+		meta["road_exits"] = _road_exits_for_tile(tile)
+	if not meta.has("camp"):
+		var owners: Array = CAMP_OWNERS.get(str(meta.get("biome", "")), CAMP_OWNERS["default"])
+		meta["camp"] = {
+			"exists": camp_roll < CAMP_CHANCE,
+			"owner": owners[owner_roll % owners.size()],
+			"size": CAMP_SIZES[size_roll % CAMP_SIZES.size()],
+			"permanence": 0.25,
+		}
+	if not meta.has("dungeon_entrance"):
+		meta["dungeon_entrance"] = {"exists": dungeon_roll < DUNGEON_CHANCE, "depth_hint": 1 + depth_roll % 3, "theme": "ruins"}
+	if not meta.has("encounter_difficulty"):
+		meta["encounter_difficulty"] = 1 + difficulty_roll % 3
+
+
+## A road marker: anything on the locations layer that is not a settlement.
+func _is_road(tile: Vector2i) -> bool:
+	return world_map != null and world_map.has_location(tile) and not _tile_has_settlement(tile)
+
+
+func _any_neighbour(tile: Vector2i, test: Callable) -> bool:
+	for dir: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		if test.call(tile + dir):
+			return true
+	return false
+
+
+## Exits toward every road or settlement next to a road tile. Off-road tiles
+## get none, even beside a road, so a road only runs where it is painted.
+func _road_exits_for_tile(tile: Vector2i) -> int:
+	if not _is_road(tile):
+		return 0
+	var exits := 0
+	var dirs := {
+		MapConfig.RoadExit.NORTH: Vector2i.UP,
+		MapConfig.RoadExit.EAST: Vector2i.RIGHT,
+		MapConfig.RoadExit.SOUTH: Vector2i.DOWN,
+		MapConfig.RoadExit.WEST: Vector2i.LEFT,
+	}
+	for bit: int in dirs:
+		var n: Vector2i = tile + dirs[bit]
+		if _is_road(n) or _tile_has_settlement(n):
+			exits |= bit
+	return exits
+
+
+## The population region a tile belongs to: its province, or for land no
+## province holds, a coarse REGION_CELL grid cell.
+func region_for_tile(tile: Vector2i) -> String:
+	var provinces = province_map()
+	var id := int(provinces.province_at(tile)) if provinces else -1
+	if id >= 0:
+		return "prov_%d" % id
+	return "wild_%d_%d" % [floori(tile.x / float(REGION_CELL)), floori(tile.y / float(REGION_CELL))]
+
+
+func region_tiles(region_id: String) -> Array:
+	_ensure_region_index()
+	return _region_tiles.get(region_id, [])
+
+
+func region_neighbours(region_id: String) -> Array:
+	_ensure_region_index()
+	return _region_neighbours.get(region_id, [])
+
+
+func _ensure_region_index() -> void:
+	if not _region_tiles.is_empty() or world_map == null:
+		return
+	var bounds: Rect2i = world_map.bounds
+	for y in range(bounds.position.y, bounds.end.y):
+		for x in range(bounds.position.x, bounds.end.x):
+			var tile := Vector2i(x, y)
+			if not world_map.is_land(tile):
+				continue
+			var region := region_for_tile(tile)
+			if not _region_tiles.has(region):
+				_region_tiles[region] = []
+				_region_neighbours[region] = []
+			_region_tiles[region].append(tile)
+			for n: Vector2i in [tile + Vector2i.LEFT, tile + Vector2i.UP]:
+				if not world_map.is_land(n):
+					continue
+				var other := region_for_tile(n)
+				if other != region and _region_neighbours.has(other) and not other in _region_neighbours[region]:
+					_region_neighbours[region].append(other)
+					_region_neighbours[other].append(region)
 
 # ═════════════════════════════════════════════════════════════════════
 #  LOCAL MAP ENTER / EXIT
@@ -469,6 +607,7 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 		_store_container_state()
 	_save.area_container_state = area_container_state.duplicate(true)
 	_save.spawn_records = MainGameState.spawn_records.duplicate(true)
+	_save.world_time = TurnManager.world_time
 
 	# ── Local-area bookmark (so we can re-enter on load) ───────
 	if player.in_local_area and local_scene:
@@ -524,6 +663,8 @@ func load_game_from_slot(slot: int) -> bool:
 	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
 	area_container_state = _save.area_container_state.duplicate(true)
 	MainGameState.spawn_records = _save.spawn_records.duplicate(true)
+	TurnManager.world_time = _save.world_time
+	WorldClock.sync()
 	# ── Overworld tile seeds ─────────────────────────────────
 	overworld_tile_seeds.clear()
 	for key_str in _save.overworld_tile_seeds:
