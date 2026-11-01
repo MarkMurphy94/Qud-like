@@ -23,6 +23,8 @@ func _ready() -> void:
 	_check_snapshots()
 	_check_cooldowns()
 	_check_state_round_trip()
+	_check_modifiers()
+	_check_modifier_lifecycle()
 	EncounterState.reset()
 	print("[EncounterTest] Done — %d failure(s)" % _failures)
 
@@ -208,6 +210,74 @@ func _check_state_round_trip() -> void:
 	_expect((before["snapshots"] as Dictionary).has("1,2"), "a fresh snapshot is saved")
 	EncounterState.from_dict({})
 	_expect(EncounterState.pools.is_empty(), "an empty spawn_state starts fresh")
+
+
+func _check_modifiers() -> void:
+	EncounterState.reset()
+	EncounterState.register_region("test_war", "temperate")
+	EncounterState.register_region("test_peace", "temperate")
+	var mod: SpawnModifier = EncounterState.add_modifier("war_aftermath", "test_war")
+	_expect(mod != null, "war_aftermath template loads")
+	if mod == null:
+		return
+
+	var tags := ["biome.temperate", "time.day", "near.road", "control.none"]
+	var seen_deserters := false
+	for seed_value in SEEDS:
+		var war := _region_ctx(tags, seed_value, "test_war", 1.0)
+		var peace := _region_ctx(tags, seed_value, "test_peace", 1.0)
+		if seed_value == 0:
+			_expect(war.has_tag("state.war"), "the war region carries state.war")
+			_expect(not peace.has_tag("state.war"), "the neighbouring region does not")
+		seen_deserters = seen_deserters or _count_entry(EncounterResolver.resolve(war, EncounterDatabase.ambient_entries()), "deserter_band") > 0
+		_expect(_count_entry(EncounterResolver.resolve(peace, EncounterDatabase.ambient_entries()), "deserter_band") == 0,
+			"no deserters outside the war region (seed %d)" % seed_value)
+	_expect(seen_deserters, "deserter_band appears in the war region")
+
+	_expect(is_equal_approx(mod.weight_multiplier(["outlaw"], 0.0), 1.5), "outlaws weigh x1.5 at the start of the war")
+	_expect(is_equal_approx(mod.weight_multiplier(["outlaw"], 30.0), 1.25), "halfway through, x1.25")
+	_expect(absf(mod.weight_multiplier(["outlaw"], 59.9) - 1.0) < 0.01, "by day 60 the effect is gone")
+	_expect(is_equal_approx(mod.weight_multiplier(["scavenger", "outlaw"], 0.0), 2.5 * 1.5), "every matching tag applies")
+	_expect(is_equal_approx(mod.weight_multiplier(["prey"], 0.0), 1.0), "untargeted entries are untouched")
+	_expect(EncounterState.live_modifiers_for("", "test_war", 59.0).size() == 1, "still live on day 59")
+	_expect(EncounterState.live_modifiers_for("", "test_war", 60.0).is_empty(), "no longer live on day 60")
+	EncounterState._expire_modifiers(60.0)
+	_expect(EncounterState.modifiers.is_empty(), "war_aftermath expires at day 60")
+
+
+func _check_modifier_lifecycle() -> void:
+	EncounterState.reset()
+	EncounterState.register_region("test_border", "temperate")
+	EncounterState.catch_up_region("test_border", 0)
+	_expect(EncounterState.pool_count("test_border", "smugglers") == 0.0, "no smugglers before the ban")
+	EncounterState.add_modifier("trade_ban_smuggling", "test_border", "evt_test")
+	EncounterState.add_modifier("trade_ban_smuggling", "test_border", "evt_test")
+	_expect(EncounterState.modifiers.size() == 1, "the same template on the same target refreshes, not stacks")
+	_expect(EncounterState.pool_count("test_border", "smugglers") == 6.0, "pool_deltas apply once (got %.1f)" % EncounterState.pool_count("test_border", "smugglers"))
+
+	var seen := false
+	for seed_value in SEEDS:
+		var ctx := _region_ctx(["biome.temperate", "time.day"], seed_value, "test_border", 1.0)
+		seen = seen or _count_entry(EncounterResolver.resolve(ctx, EncounterDatabase.ambient_entries()), "smuggler_band") > 0
+	_expect(seen, "smuggler_band appears once smugglers live on the border")
+
+	var before := EncounterState.to_dict()
+	EncounterState.from_dict(before)
+	_expect(EncounterState.modifiers.size() == 1 and EncounterState.modifiers[0].id == "trade_ban_smuggling"
+		and EncounterState.modifiers[0].target == "test_border" and EncounterState.modifiers[0].source_event_id == "evt_test",
+		"modifiers survive a save round-trip")
+	_expect(var_to_str(before) == var_to_str(EncounterState.to_dict()), "spawn_state with modifiers round-trips exactly")
+
+	EncounterState.remove_modifiers_from_event("evt_test")
+	_expect(EncounterState.modifiers.is_empty(), "removing an event's modifiers clears them")
+
+
+func _region_ctx(tags: Array, seed_value: int, region_id: String, now_day: float) -> EncounterContext:
+	var ctx := _ctx(tags, seed_value, 3)
+	ctx.region_id = region_id
+	ctx.now_day = now_day
+	ctx.load_state()
+	return ctx
 
 
 func _camp_ctx(camp: Dictionary) -> EncounterContext:

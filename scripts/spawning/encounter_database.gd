@@ -1,16 +1,21 @@
 extends Node
 
-## Loads every EncounterEntry under ENCOUNTER_PATH (recursively) and every
-## PopulationPoolDef under POOL_PATH at startup, and drops entries that cannot
-## spawn, so the resolver only sees well-formed data.
+## Loads every EncounterEntry under ENCOUNTER_PATH (recursively), every
+## PopulationPoolDef under POOL_PATH and every SpawnModifier template under
+## MODIFIER_PATH at startup, and drops entries that cannot spawn, so the
+## resolver only sees well-formed data.
 
 const ENCOUNTER_PATH := "res://resources/spawning/encounters/"
 const POOL_PATH := "res://resources/spawning/pools/"
+const MODIFIER_PATH := "res://resources/spawning/modifiers/"
 
 ## id -> EncounterEntry
 var entries: Dictionary = {}
 ## id -> PopulationPoolDef
 var pools: Dictionary = {}
+## id -> SpawnModifier template. Never handed out directly; EncounterState
+## duplicates it per emission.
+var modifier_templates: Dictionary = {}
 
 
 func _ready() -> void:
@@ -20,17 +25,24 @@ func _ready() -> void:
 func reload() -> void:
 	entries.clear()
 	pools.clear()
+	modifier_templates.clear()
 	_load_pools()
+	_load_modifiers()
 	var paths: Dictionary = {}  # entry id -> file path, for error messages
 	_load_folder(ENCOUNTER_PATH, paths)
 	for entry_id: String in entries.keys():
 		if not _is_valid(entries[entry_id], paths[entry_id]):
 			entries.erase(entry_id)
-	print("[EncounterDatabase] Loaded %d encounter entries, %d population pools" % [entries.size(), pools.size()])
+	print("[EncounterDatabase] Loaded %d encounter entries, %d population pools, %d spawn modifiers"
+		% [entries.size(), pools.size(), modifier_templates.size()])
 
 
 func get_pool(pool_id: String) -> PopulationPoolDef:
 	return pools.get(pool_id)
+
+
+func get_modifier_template(template_id: String) -> SpawnModifier:
+	return modifier_templates.get(template_id)
 
 
 func get_entry(entry_id: String) -> EncounterEntry:
@@ -108,6 +120,31 @@ func _load_pools() -> void:
 		for prey_id: String in def.prey:
 			if not pools.has(prey_id):
 				push_warning("[EncounterDatabase] pool %s preys on unknown pool %s" % [def.id, prey_id])
+
+
+func _load_modifiers() -> void:
+	var dir := DirAccess.open(MODIFIER_PATH)
+	if dir == null:
+		push_warning("[EncounterDatabase] No modifier folder at %s" % MODIFIER_PATH)
+		return
+	for file_name in dir.get_files():
+		file_name = file_name.trim_suffix(".remap")
+		if not file_name.ends_with(".tres"):
+			continue
+		var full_path := MODIFIER_PATH + file_name
+		var mod := load(full_path) as SpawnModifier
+		if mod == null:
+			push_error("[EncounterDatabase] %s is not a SpawnModifier" % full_path)
+			continue
+		if mod.id.is_empty():
+			mod.id = file_name.get_basename()
+		if modifier_templates.has(mod.id):
+			push_error("[EncounterDatabase] %s: modifier id '%s' is already used" % [full_path, mod.id])
+			continue
+		for pool_id: String in mod.pool_deltas:
+			if not pools.has(pool_id):
+				push_warning("[EncounterDatabase] %s: pool_deltas names unknown pool %s" % [full_path, pool_id])
+		modifier_templates[mod.id] = mod
 
 
 func _is_valid(entry: EncounterEntry, path: String) -> bool:

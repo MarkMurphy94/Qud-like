@@ -16,4 +16,4 @@ variants = Array[String](["rabbit", "crow", "rat", "fox"])
 group_min = 1
 group_max = 2
 placement = "scatter"
-weight_tags = Array[String](["prey"])
+weight_tags = Array[String](["prey", "scavenger"])

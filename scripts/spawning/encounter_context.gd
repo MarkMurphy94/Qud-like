@@ -26,6 +26,8 @@ var pools: Dictionary = {}
 var cooldowns: Dictionary = {}
 ## The tile's survivor snapshot if it is recent enough to restore, else {}.
 var snapshot: Dictionary = {}
+## Live spawn modifiers covering this tile; their context_tags are already in.
+var modifiers: Array[SpawnModifier] = []
 var _tags: Dictionary = {}
 
 
@@ -51,12 +53,16 @@ static func build(metadata: Dictionary, area_place: Place = null) -> EncounterCo
 	return ctx
 
 
-## Catch the region up to now and read its pools, plus the tile's cooldowns and
-## snapshot. A context with no region_id is left unlimited.
+## Catch the region up to now and read its pools, plus the tile's cooldowns,
+## snapshot and spawn modifiers. A context with no region_id is left unlimited.
 func load_state() -> void:
 	if not tile_key.is_empty():
 		cooldowns = EncounterState.cooldowns_for(tile_key, now_hour)
 		snapshot = EncounterState.snapshot_for(tile_key, now_hour)
+	modifiers = EncounterState.live_modifiers_for(tile_key, region_id, now_day)
+	for mod in modifiers:
+		for tag in mod.context_tags:
+			add_tag(tag)
 	if region_id.is_empty():
 		return
 	EncounterState.catch_up_region(region_id, int(now_day))
@@ -79,6 +85,14 @@ func pool_factor(pool_id: String) -> float:
 	if cap <= 0.0:
 		return 0.1
 	return clampf(pool_count(pool_id) / cap, 0.1, 1.0)
+
+
+## Product of every live modifier's effect on the entry's weight.
+func modifier_weight(entry: EncounterEntry) -> float:
+	var mult := 1.0
+	for mod in modifiers:
+		mult *= mod.weight_multiplier(entry.weight_tags, now_day)
+	return mult
 
 
 static func budget_for(difficulty: int) -> int:

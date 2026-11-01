@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SpawnModifier" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/spawn_modifier.gd" id="1_mod"]
+
+[resource]
+script = ExtResource("1_mod")
+id = "miracle_pilgrimage"
+scope = "region"
+context_tags = Array[String](["state.pilgrimage"])
+weight_mults = {"pilgrim": 4.0}
+pool_deltas = {"pilgrims": 10}
+duration_days = 120.0
+decay = "exponential"

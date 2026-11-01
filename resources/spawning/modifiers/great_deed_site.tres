@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SpawnModifier" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/spawn_modifier.gd" id="1_mod"]
+
+[resource]
+script = ExtResource("1_mod")
+id = "great_deed_site"
+scope = "region"
+context_tags = Array[String](["state.notable_site"])
+weight_mults = {"historian": 5.0}
+duration_days = 30.0
+decay = "linear"

@@ -138,7 +138,7 @@ static func _ambient_candidates(ctx: EncounterContext, entries: Array) -> Array[
 
 
 static func entry_weight(entry: EncounterEntry, ctx: EncounterContext) -> float:
-	return entry.base_weight * ctx.pool_factor(entry.pool_id)
+	return entry.base_weight * ctx.pool_factor(entry.pool_id) * ctx.modifier_weight(entry)
 
 
 static func _pick_weighted(candidates: Array[EncounterEntry], ctx: EncounterContext) -> EncounterEntry:

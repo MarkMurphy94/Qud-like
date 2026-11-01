@@ -5,7 +5,8 @@ extends Node
 ## A pool counts who *lives* in a region; spawning an encounter shows part of
 ## that population and takes nothing from it. Only deaths and the daily
 ## simulation change the counts. Also holds per-tile cooldowns and the
-## survivor snapshots that make a quick revisit find the same creatures.
+## survivor snapshots that make a quick revisit find the same creatures, and
+## the live spawn modifiers through which history changes what walks about.
 ##
 ## Regions are set up lazily the first time anything touches them. Their
 ## dominant biome and neighbours come from `world` (MainGame: region_biome(),
@@ -20,7 +21,11 @@ const PREDATION_PRESSURE := 0.5
 const DAILY_STEPS := 365
 const WEEK_STEP := 7
 
-## Answers region_biome(region_id) and region_neighbours(region_id).
+signal modifier_added(mod: SpawnModifier)
+signal modifier_expired(mod: SpawnModifier)
+
+## Answers region_biome(region_id), region_neighbours(region_id) and
+## region_for_tile(tile).
 var world: Object = null
 var world_seed: int = 0
 ## region_id -> { pool_id -> float count }. Spawning uses floor().
@@ -31,6 +36,8 @@ var region_days: Dictionary = {}
 var cooldowns: Dictionary = {}
 ## tile_key -> { "hour": float, "survivors": Array of {entry_id, variant, group, index, tile} }
 var snapshots: Dictionary = {}
+## Live SpawnModifier instances, each with target / start_day / source set.
+var modifiers: Array[SpawnModifier] = []
 ## region_id -> { "biome": String, "neighbours": Array }. Rebuilt, never saved.
 var _region_info: Dictionary = {}
 
@@ -48,6 +55,7 @@ func reset() -> void:
 	region_days.clear()
 	cooldowns.clear()
 	snapshots.clear()
+	modifiers.clear()
 
 
 ## Fix a region's biome and neighbours instead of asking `world`.
@@ -116,6 +124,7 @@ func catch_up_region(region_id: String, to_day: int) -> void:
 
 
 func _on_day_changed(day: int) -> void:
+	_expire_modifiers(WorldClock.total_days())
 	for region_id: String in pools.keys():
 		catch_up_region(region_id, day)
 
@@ -296,6 +305,86 @@ func snapshot_for(tile_key: String, now_hour: float) -> Dictionary:
 	return snapshot
 
 
+# ─── Spawn modifiers ───────────────────────────────────────────────────────────
+
+## Emit a modifier from its template onto `target` (a region_id, a "x,y" tile
+## key, or anything for world scope). The same template on the same target
+## refreshes its start instead of stacking, and does not reapply pool_deltas.
+## Called directly by quests and the debug console until WorldChronicle exists.
+func add_modifier(template_id: String, target: String, source_event_id: String = "") -> SpawnModifier:
+	var template: SpawnModifier = EncounterDatabase.get_modifier_template(template_id)
+	if template == null:
+		push_warning("[EncounterState] Unknown spawn modifier template '%s'" % template_id)
+		return null
+	if template.scope == "world":
+		target = ""
+	var now := WorldClock.total_days()
+	for mod in modifiers:
+		if mod.id == template_id and mod.target == target:
+			mod.start_day = now
+			if not source_event_id.is_empty():
+				mod.source_event_id = source_event_id
+			return mod
+	var mod := _instance_modifier(template, target, now, source_event_id)
+	modifiers.append(mod)
+	_apply_pool_deltas(mod)
+	modifier_added.emit(mod)
+	return mod
+
+
+func remove_modifiers_from_event(source_event_id: String) -> void:
+	for mod in modifiers.duplicate():
+		if mod.source_event_id == source_event_id:
+			modifiers.erase(mod)
+			modifier_expired.emit(mod)
+
+
+func live_modifiers_for(tile_key: String, region_id: String, now_day: float) -> Array[SpawnModifier]:
+	var out: Array[SpawnModifier] = []
+	for mod in modifiers:
+		if mod.strength(now_day) > 0.0 and mod.covers(tile_key, region_id):
+			out.append(mod)
+	return out
+
+
+func _expire_modifiers(now_day: float) -> void:
+	for mod in modifiers.duplicate():
+		if mod.strength(now_day) <= 0.0:
+			modifiers.erase(mod)
+			modifier_expired.emit(mod)
+
+
+func _instance_modifier(template: SpawnModifier, target: String, start_day: float, source_event_id: String) -> SpawnModifier:
+	var mod: SpawnModifier = template.duplicate()
+	mod.id = template.id
+	mod.target = target
+	mod.start_day = start_day
+	mod.source_event_id = source_event_id
+	return mod
+
+
+func _apply_pool_deltas(mod: SpawnModifier) -> void:
+	if mod.pool_deltas.is_empty():
+		return
+	var regions: Array = []
+	match mod.scope:
+		"world":
+			regions = pools.keys()
+		"tile":
+			var parts := mod.target.split(",")
+			if parts.size() == 2 and is_instance_valid(world):
+				regions = [str(world.region_for_tile(Vector2i(int(parts[0]), int(parts[1]))))]
+		_:
+			regions = [mod.target]
+	for region_id: String in regions:
+		if region_id.is_empty():
+			continue
+		_ensure_region(region_id)
+		for pool_id: String in mod.pool_deltas:
+			if pools[region_id].has(pool_id):
+				pools[region_id][pool_id] = maxf(0.0, float(pools[region_id][pool_id]) + float(mod.pool_deltas[pool_id]))
+
+
 # ─── Save / load ───────────────────────────────────────────────────────────────
 
 func to_dict() -> Dictionary:
@@ -309,8 +398,13 @@ func to_dict() -> Dictionary:
 		var running := cooldowns_for(tile_key, now)
 		if not running.is_empty():
 			live_cooldowns[tile_key] = running
+	var live_modifiers: Array = []
+	for mod in modifiers:
+		if mod.strength(WorldClock.total_days()) > 0.0:
+			live_modifiers.append({"id": mod.id, "target": mod.target, "start_day": mod.start_day, "source_event_id": mod.source_event_id})
 	return {
 		"version": VERSION,
+		"modifiers": live_modifiers,
 		"world_seed": world_seed,
 		"pools": pools.duplicate(true),
 		"region_days": region_days.duplicate(),
@@ -332,3 +426,22 @@ func from_dict(data: Dictionary) -> void:
 	region_days = (data.get("region_days", {}) as Dictionary).duplicate()
 	cooldowns = (data.get("cooldowns", {}) as Dictionary).duplicate(true)
 	snapshots = (data.get("snapshots", {}) as Dictionary).duplicate(true)
+	# Modifiers are saved by template id and rebuilt from the template, so a
+	# retuned template takes effect on old saves.
+	for record: Dictionary in data.get("modifiers", []):
+		var template: SpawnModifier = EncounterDatabase.get_modifier_template(str(record.get("id", "")))
+		if template == null:
+			push_warning("[EncounterState] Saved spawn modifier '%s' has no template; dropped" % record.get("id"))
+			continue
+		modifiers.append(_instance_modifier(template, str(record.get("target", "")),
+			float(record.get("start_day", 0.0)), str(record.get("source_event_id", ""))))
+	_backfill_pools()
+
+
+## Regions set up before a pool was authored gain it at its starting size.
+func _backfill_pools() -> void:
+	for region_id: String in pools:
+		var biome := region_biome(region_id)
+		for def: PopulationPoolDef in EncounterDatabase.pools.values():
+			if def.lives_in(biome) and not pools[region_id].has(def.id):
+				pools[region_id][def.id] = def.initial_fill * _capacity(def, biome, pools[region_id])
