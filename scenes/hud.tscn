@@ -106,6 +106,22 @@ layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 
+[node name="ClockContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopContainer" unique_id=1403917260]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="TimeLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/ClockContainer" unique_id=1403917261]
+layout_mode = 2
+text = "Day 1  00:00"
+horizontal_alignment = 2
+
+[node name="PhaseLabel" type="Label" parent="MarginContainer/VBoxContainer/TopContainer/ClockContainer" unique_id=1403917262]
+layout_mode = 2
+text = "Night · Spring"
+horizontal_alignment = 2
+
 [node name="PauseButton" type="Button" parent="MarginContainer/VBoxContainer/TopContainer" unique_id=1191430995]
 layout_mode = 2
 size_flags_vertical = 0

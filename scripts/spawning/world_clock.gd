@@ -41,6 +41,10 @@ func hour() -> int:
 	return int(total_hours()) % 24
 
 
+func minute() -> int:
+	return int(fmod(total_hours(), 1.0) * 60.0)
+
+
 func time_of_day() -> String:
 	var h := hour()
 	if h >= 5 and h < 7:

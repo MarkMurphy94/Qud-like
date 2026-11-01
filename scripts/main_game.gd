@@ -706,6 +706,7 @@ func load_game_from_slot(slot: int) -> bool:
 	player.hud.update_hp(player.current_health, player.max_health)
 	player.hud.update_mp(player.current_mana, player.max_mana)
 	player.hud.update_sp(player.current_stamina, player.max_stamina)
+	player.hud.refresh_clock()
 
 	# ── Inventory ──────────────────────────────────────────────
 	if not _save.inventory_data.is_empty() and player.inventory:
