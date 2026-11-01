@@ -42,6 +42,8 @@ const ACTIVE_RADIUS_TILES := 40
 const MAX_ACTIONS_PER_RESOLVE := 4
 ## Standard turns per in-game hour, used by NPC schedules.
 const TURNS_PER_GAME_HOUR := 60
+## Standard turns one overworld step takes — crossing a whole tile on foot.
+const OVERWORLD_STEP_TURNS := TURNS_PER_GAME_HOUR
 
 # ── Signals ──────────────────────────────────────────────────────────────────
 ## Fired once per player action, after every actor has finished resolving.

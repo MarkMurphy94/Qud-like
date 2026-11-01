@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SpawnModifier" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/spawn_modifier.gd" id="1_mod"]
+
+[resource]
+script = ExtResource("1_mod")
+id = "war_aftermath"
+scope = "region"
+context_tags = Array[String](["state.war"])
+weight_mults = {"scavenger": 2.5, "outlaw": 1.5}
+duration_days = 60.0
+decay = "linear"

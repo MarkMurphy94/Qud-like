@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SpawnModifier" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/spawn_modifier.gd" id="1_mod"]
+
+[resource]
+script = ExtResource("1_mod")
+id = "trade_ban_smuggling"
+scope = "region"
+context_tags = Array[String](["state.contraband"])
+weight_mults = {"smuggler": 3.0}
+pool_deltas = {"smugglers": 6}
+duration_days = 90.0
+decay = "step"

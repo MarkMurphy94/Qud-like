@@ -9,6 +9,8 @@ extends CanvasLayer
 @onready var hotbar_container: HBoxContainer = $MarginContainer/VBoxContainer/BottomRowContainer/HotbarContainer
 @onready var equip_panel: Control = $MarginContainer/VBoxContainer/BottomRowContainer/EquipPanel
 @onready var margin_container: MarginContainer = $MarginContainer
+@onready var time_label: Label = $MarginContainer/VBoxContainer/TopContainer/ClockContainer/TimeLabel
+@onready var phase_label: Label = $MarginContainer/VBoxContainer/TopContainer/ClockContainer/PhaseLabel
 
 const EQUIP_SLOT_SIZE := 48
 # Order matches the "+" layout positions
@@ -44,6 +46,13 @@ func _ready() -> void:
 	_build_equip_panel()
 	# Defer so the player node is fully ready before we read equipped_items
 	call_deferred("refresh_equipment_display")
+	TurnManager.turn_resolved.connect(func(_world_time: int) -> void: refresh_clock())
+	refresh_clock()
+
+## Also called after a load, which sets the clock without resolving a turn.
+func refresh_clock() -> void:
+	time_label.text = "Day %d  %02d:%02d" % [WorldClock.day() + 1, WorldClock.hour(), WorldClock.minute()]
+	phase_label.text = "%s · %s" % [WorldClock.time_of_day().capitalize(), WorldClock.season().capitalize()]
 
 func _style_bars() -> void:
 	# HP = Red, MP = Blue, SP = Green

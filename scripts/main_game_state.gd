@@ -89,6 +89,9 @@ func add_npc(id: String, data: Dictionary) -> void:
 func get_npc(id: String) -> Dictionary:
 	return important_npcs.get(id, {})
 
+func get_current_hour() -> int:
+	return WorldClock.hour()
+
 func world_to_map(world_pos: Vector2) -> Vector2i:
 	return Vector2i(world_pos / TILE_SIZE)
 

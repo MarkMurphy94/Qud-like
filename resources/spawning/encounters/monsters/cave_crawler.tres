@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EncounterEntry" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/encounter_entry.gd" id="1_entry"]
+[ext_resource type="Script" path="res://resources/spawning/encounter_condition.gd" id="2_cond"]
+
+[sub_resource type="Resource" id="Condition_0"]
+script = ExtResource("2_cond")
+require_all = Array[String](["feature.dungeon_entrance"])
+
+[resource]
+script = ExtResource("1_entry")
+id = "cave_crawler"
+condition = SubResource("Condition_0")
+base_weight = 15.0
+pool_id = "crawlers"
+npc_type = "monster"
+variants = Array[String](["skeleton", "slime"])
+group_min = 1
+group_max = 3
+placement = "cluster"
+weight_tags = Array[String](["monster"])

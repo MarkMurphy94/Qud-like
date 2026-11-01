@@ -30,6 +30,9 @@ var place: Place = null
 var spawned_npcs: Array = []
 var rng := RandomNumberGenerator.new()
 var _map: MapGenerator = null
+## Tile key of the encounter map this spawner filled, so its survivors can be
+## snapshotted when it is torn down; "" for settlements and empty maps.
+var _encounter_tile_key: String = ""
 
 ## How many ambient items a map scatters: settlements are swept clean, the wild
 ## holds a little more the further out (higher tier) it is.
@@ -38,6 +41,23 @@ const AMBIENT_BUDGET_WILDERNESS := 3
 
 # Margin in tiles so NPCs don't spawn right on the map edge.
 const SPAWN_MARGIN_TILES: int = 2
+
+## The old count-from-difficulty wilderness roll, kept for one release while
+## the encounter tables settle.
+const USE_LEGACY_WILDERNESS := false
+
+## The one translation from EncounterEntry.npc_type strings to NPC types.
+const ENCOUNTER_NPC_TYPES := {
+	"animal": MainGameState.NpcType.ANIMAL,
+	"monster": MainGameState.NpcType.MONSTER,
+	"bandit": MainGameState.NpcType.BANDIT,
+	"soldier": MainGameState.NpcType.SOLDIER,
+	"peasant": MainGameState.NpcType.PEASANT,
+	"merchant": MainGameState.NpcType.MERCHANT,
+	"noble": MainGameState.NpcType.NOBLE,
+	"clergy": MainGameState.NpcType.CLERGY,
+	"mage": MainGameState.NpcType.MAGE,
+}
 
 ## Who keeps which functional building, as {type, variant}. A building type
 ## absent here has no keeper and is just somewhere to live. These NPCs are
@@ -57,6 +77,8 @@ func _ready():
 		_map = get_parent() as MapGenerator
 
 func clear():
+	store_snapshot()
+	_encounter_tile_key = ""
 	for n in spawned_npcs:
 		if is_instance_valid(n):
 			n.remove_from_group("NPCs")
@@ -228,10 +250,92 @@ func _find_settlement_entry() -> Dictionary:
 
 # ─── Wilderness spawning ───────────────────────────────────────────────────────
 
-## Spawns wildlife/monsters for a procedural area.
-## Count is auto-derived from encounter_difficulty in area_metadata if not
-## specified explicitly (pass a non-negative value to override).
+## Spawns whoever the encounter tables put on this tile right now — see
+## EncounterResolver. `count` only applies to the legacy roll.
 func spawn_wilderness_npcs(count: int = -1) -> void:
+	if USE_LEGACY_WILDERNESS:
+		_spawn_wilderness_legacy(count)
+		return
+	clear()
+	if not npc_scene:
+		return
+
+	var ctx := EncounterContext.build(area_metadata, place)
+	# The spawner's own rng only rolls variants the entry left open; seeding it
+	# from the context keeps those in step with the encounter roll.
+	rng.seed = ctx.rng.seed
+	var walkable := Callable(_map, "is_walkable") if _map else Callable()
+	var requests := EncounterResolver.resolve(ctx, EncounterDatabase.ambient_entries(), walkable,
+		Vector2i(MapGenerator.WIDTH, MapGenerator.HEIGHT), EncounterDatabase.anchor_entries())
+	_encounter_tile_key = ctx.tile_key
+
+	_log_encounters(requests)
+
+	var area_key := _area_key()
+	var cooled := {}
+	for request in requests:
+		var entry: EncounterEntry = request["entry"]
+		var pos := _walkable_world_pos(request["tile"])
+		var npc_id := "%s/enc.%s.%d.%d" % [area_key, entry.id, request["group"], request["index"]]
+		var npc := _spawn_npc(ENCOUNTER_NPC_TYPES[entry.npc_type], pos, request["variant"], npc_id)
+		npc.set_locations(pos)
+		npc.set_meta("spawn", {
+			"entry_id": entry.id,
+			"pool_id": entry.pool_id,
+			"region_id": ctx.region_id,
+			"tile_key": ctx.tile_key,
+			"group": request["group"],
+			"index": request["index"],
+		})
+		npc.npc_died.connect(EncounterState.record_death)
+		spawned_npcs.append(npc)
+		if not request["restored"] and not cooled.has(entry.id):
+			cooled[entry.id] = true
+			EncounterState.start_cooldown(ctx.tile_key, entry, ctx.now_hour)
+
+
+## One console line naming each spawned group, e.g. "Encounter: wolf_pack x3, boar x1".
+func _log_encounters(requests: Array) -> void:
+	if requests.is_empty():
+		print("Encounter: none")
+		return
+	var groups: Array = []
+	var sizes := {}
+	var restored := false
+	for request in requests:
+		var key := "%s#%d" % [request["entry"].id, request["group"]]
+		if not sizes.has(key):
+			groups.append(key)
+			sizes[key] = 0
+		sizes[key] += 1
+		restored = restored or request["restored"]
+	var parts: PackedStringArray = []
+	for key: String in groups:
+		parts.append("%s x%d" % [key.get_slice("#", 0), sizes[key]])
+	print("Encounter: %s%s" % [", ".join(parts), " (survivors)" if restored else ""])
+
+
+## Record who is still alive on this encounter map and where, so a revisit
+## within EncounterState.REVISIT_HOURS finds them again instead of a fresh roll.
+## Called on teardown and before saving.
+func store_snapshot() -> void:
+	if _encounter_tile_key.is_empty():
+		return
+	var survivors: Array = []
+	for npc in spawned_npcs:
+		if not is_instance_valid(npc) or not npc.is_alive() or not npc.has_meta("spawn"):
+			continue
+		var spawn: Dictionary = npc.get_meta("spawn")
+		survivors.append({
+			"entry_id": spawn["entry_id"],
+			"variant": npc.npc_variant,
+			"group": spawn["group"],
+			"index": spawn["index"],
+			"tile": _map.world_to_tile(npc.global_position) if _map else Vector2i(npc.global_position / MainGameState.TILE_SIZE),
+		})
+	EncounterState.store_snapshot(_encounter_tile_key, WorldClock.total_hours(), survivors)
+
+func _spawn_wilderness_legacy(count: int = -1) -> void:
 	clear()
 	if not npc_scene:
 		return

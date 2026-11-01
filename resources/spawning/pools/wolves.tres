@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PopulationPoolDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/population_pool_def.gd" id="1_pool"]
+
+[resource]
+script = ExtResource("1_pool")
+id = "wolves"
+tags = Array[String](["predator"])
+biomes = Array[String](["temperate", "boreal", "arctic"])
+default_capacity = 15
+capacity_by_biome = {"boreal": 25, "arctic": 20}
+initial_fill = 0.75
+regrowth_per_day = 0.03
+prey = {"deer": 0.4}
+migration_rate = 0.1
+migrate_when_depleted_below = 0.15
