@@ -17,6 +17,15 @@ var road_exits: int = 0
 var rng: RandomNumberGenerator
 var metadata: Dictionary = {}
 var place: Place = null
+## True once load_state() has read the region's pools. Until then pools do not
+## limit anything, which is what headless tests without a region rely on.
+var pools_known: bool = false
+## pool_id -> {count, capacity} for the pools living in this region.
+var pools: Dictionary = {}
+## entry_id -> game hour the entry's cooldown on this tile ends.
+var cooldowns: Dictionary = {}
+## The tile's survivor snapshot if it is recent enough to restore, else {}.
+var snapshot: Dictionary = {}
 var _tags: Dictionary = {}
 
 
@@ -38,7 +47,38 @@ static func build(metadata: Dictionary, area_place: Place = null) -> EncounterCo
 	ctx.rng = RandomNumberGenerator.new()
 	ctx.rng.seed = hash([int(metadata.get("seed", 0)), int(ctx.now_hour)])
 	ctx._emit_tags(WorldClock.time_of_day(), WorldClock.season())
+	ctx.load_state()
 	return ctx
+
+
+## Catch the region up to now and read its pools, plus the tile's cooldowns and
+## snapshot. A context with no region_id is left unlimited.
+func load_state() -> void:
+	if not tile_key.is_empty():
+		cooldowns = EncounterState.cooldowns_for(tile_key, now_hour)
+		snapshot = EncounterState.snapshot_for(tile_key, now_hour)
+	if region_id.is_empty():
+		return
+	EncounterState.catch_up_region(region_id, int(now_day))
+	pools = EncounterState.region_summary(region_id)
+	pools_known = true
+
+
+## How many of a pool live here; unlimited when pools are not known.
+func pool_count(pool_id: String) -> float:
+	if pool_id.is_empty() or not pools_known:
+		return INF
+	return float(pools.get(pool_id, {}).get("count", 0.0))
+
+
+## Sparse populations show up rarely: count / capacity, floored at 0.1.
+func pool_factor(pool_id: String) -> float:
+	if pool_id.is_empty() or not pools_known or not pools.has(pool_id):
+		return 1.0
+	var cap := float(pools[pool_id]["capacity"])
+	if cap <= 0.0:
+		return 0.1
+	return clampf(pool_count(pool_id) / cap, 0.1, 1.0)
 
 
 static func budget_for(difficulty: int) -> int:

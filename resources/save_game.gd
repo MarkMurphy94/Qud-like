@@ -87,6 +87,10 @@ const SAVE_VERSION := 3
 ## Key = place_id.  Value = { slot_id -> Array of item records }.
 @export var spawn_records: Dictionary = {}
 
+# ─── Encounter populations (EncounterState.to_dict snapshot) ────────────
+## Region pools, per-tile cooldowns and survivor snapshots.
+@export var spawn_state: Dictionary = {}
+
 # ═══════════════════════════════════════════════════════════════════════
 #  SLOT HELPERS
 # ═══════════════════════════════════════════════════════════════════════

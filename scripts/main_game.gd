@@ -53,6 +53,7 @@ func _ready() -> void:
 		local_scene.clear_all_layers()
 		local_scene.visible = false
 	_spawn_message_log()
+	EncounterState.world = self
 	create_or_load_save()
 	TurnManager.turn_resolved.connect(_on_turn_resolved)
 	# Check if the main menu requested we load a specific slot
@@ -212,6 +213,7 @@ func create_or_load_save():
 	MainGameState.spawn_records.clear()  # …and nothing rolled
 	TurnManager.world_time = 0
 	WorldClock.sync()
+	EncounterState.reset()  # …and every population at its starting size
 	generate_world_metadata()
 	generate_overworld_tile_seeds()
 
@@ -332,6 +334,8 @@ const REGION_CELL := 8
 var _region_tiles: Dictionary = {}
 ## region_id -> Array[String] of regions sharing a tile edge with it.
 var _region_neighbours: Dictionary = {}
+## region_id -> its most common biome; built on first use.
+var _region_biomes: Dictionary = {}
 
 
 ## Stamp what the encounter spawner reads but the stripped-back world has no
@@ -420,6 +424,23 @@ func region_tiles(region_id: String) -> Array:
 func region_neighbours(region_id: String) -> Array:
 	_ensure_region_index()
 	return _region_neighbours.get(region_id, [])
+
+
+## The biome most of a region's tiles share, or "" if none has art for one.
+func region_biome(region_id: String) -> String:
+	if _region_biomes.has(region_id):
+		return _region_biomes[region_id]
+	var tally := {}
+	for tile: Vector2i in region_tiles(region_id):
+		var biome: String = world_map.biome_at(tile)
+		if not biome.is_empty():
+			tally[biome] = int(tally.get(biome, 0)) + 1
+	var best := ""
+	for biome: String in tally:
+		if best.is_empty() or tally[biome] > tally[best]:
+			best = biome
+	_region_biomes[region_id] = best
+	return best
 
 
 func _ensure_region_index() -> void:
@@ -608,6 +629,9 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 	_save.area_container_state = area_container_state.duplicate(true)
 	_save.spawn_records = MainGameState.spawn_records.duplicate(true)
 	_save.world_time = TurnManager.world_time
+	if player.in_local_area and npc_spawner:
+		npc_spawner.store_snapshot()
+	_save.spawn_state = EncounterState.to_dict()
 
 	# ── Local-area bookmark (so we can re-enter on load) ───────
 	if player.in_local_area and local_scene:
@@ -665,6 +689,7 @@ func load_game_from_slot(slot: int) -> bool:
 	MainGameState.spawn_records = _save.spawn_records.duplicate(true)
 	TurnManager.world_time = _save.world_time
 	WorldClock.sync()
+	EncounterState.from_dict(_save.spawn_state)
 	# ── Overworld tile seeds ─────────────────────────────────
 	overworld_tile_seeds.clear()
 	for key_str in _save.overworld_tile_seeds:

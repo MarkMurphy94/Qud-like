@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="EncounterEntry" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/encounter_entry.gd" id="1_entry"]
+
+[resource]
+script = ExtResource("1_entry")
+id = "wolf_den"
+kind = "anchor"
+anchor_match = Array[String](["camp.wolf_den"])
+base_weight = 10.0
+pool_id = "wolves"
+npc_type = "animal"
+variants = Array[String](["wolf"])
+group_min = 2
+group_max = 10
+placement = "anchor_point"
+weight_tags = Array[String](["predator"])

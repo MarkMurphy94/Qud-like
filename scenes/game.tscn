@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://ckryfe7vjgm1" path="res://scenes/alternate_mode/qud_like_world_map.tscn" id="5_p57ef"]
 [ext_resource type="PackedScene" uid="uid://wfdgw7igahtl" path="res://scenes/local_scene.tscn" id="6_p57ef"]
 [ext_resource type="PackedScene" uid="uid://0ow0juc2fpg5" path="res://scenes/point_and_click_path.tscn" id="8_navov"]
+[ext_resource type="PackedScene" path="res://scenes/debug/encounter_debug_overlay.tscn" id="9_encdbg"]
 
 [node name="Game" type="Node2D" unique_id=2098715570]
 visibility_layer = 7
@@ -15,6 +16,8 @@ script = ExtResource("1_lnu2h")
 layer = 10
 
 [node name="pause" parent="CanvasLayer" unique_id=1467729943 instance=ExtResource("5_iywne")]
+
+[node name="EncounterDebugOverlay" parent="." unique_id=1847201933 instance=ExtResource("9_encdbg")]
 
 [node name="Player" parent="." unique_id=1738736863 instance=ExtResource("1_obwjb")]
 z_index = 2

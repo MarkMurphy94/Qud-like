@@ -30,6 +30,9 @@ var place: Place = null
 var spawned_npcs: Array = []
 var rng := RandomNumberGenerator.new()
 var _map: MapGenerator = null
+## Tile key of the encounter map this spawner filled, so its survivors can be
+## snapshotted when it is torn down; "" for settlements and empty maps.
+var _encounter_tile_key: String = ""
 
 ## How many ambient items a map scatters: settlements are swept clean, the wild
 ## holds a little more the further out (higher tier) it is.
@@ -74,6 +77,8 @@ func _ready():
 		_map = get_parent() as MapGenerator
 
 func clear():
+	store_snapshot()
+	_encounter_tile_key = ""
 	for n in spawned_npcs:
 		if is_instance_valid(n):
 			n.remove_from_group("NPCs")
@@ -260,9 +265,12 @@ func spawn_wilderness_npcs(count: int = -1) -> void:
 	# from the context keeps those in step with the encounter roll.
 	rng.seed = ctx.rng.seed
 	var walkable := Callable(_map, "is_walkable") if _map else Callable()
-	var requests := EncounterResolver.resolve(ctx, EncounterDatabase.ambient_entries(), walkable)
+	var requests := EncounterResolver.resolve(ctx, EncounterDatabase.ambient_entries(), walkable,
+		Vector2i(MapGenerator.WIDTH, MapGenerator.HEIGHT), EncounterDatabase.anchor_entries())
+	_encounter_tile_key = ctx.tile_key
 
 	var area_key := _area_key()
+	var cooled := {}
 	for request in requests:
 		var entry: EncounterEntry = request["entry"]
 		var pos := _walkable_world_pos(request["tile"])
@@ -274,8 +282,35 @@ func spawn_wilderness_npcs(count: int = -1) -> void:
 			"pool_id": entry.pool_id,
 			"region_id": ctx.region_id,
 			"tile_key": ctx.tile_key,
+			"group": request["group"],
+			"index": request["index"],
 		})
+		npc.npc_died.connect(EncounterState.record_death)
 		spawned_npcs.append(npc)
+		if not request["restored"] and not cooled.has(entry.id):
+			cooled[entry.id] = true
+			EncounterState.start_cooldown(ctx.tile_key, entry, ctx.now_hour)
+
+
+## Record who is still alive on this encounter map and where, so a revisit
+## within EncounterState.REVISIT_HOURS finds them again instead of a fresh roll.
+## Called on teardown and before saving.
+func store_snapshot() -> void:
+	if _encounter_tile_key.is_empty():
+		return
+	var survivors: Array = []
+	for npc in spawned_npcs:
+		if not is_instance_valid(npc) or not npc.is_alive() or not npc.has_meta("spawn"):
+			continue
+		var spawn: Dictionary = npc.get_meta("spawn")
+		survivors.append({
+			"entry_id": spawn["entry_id"],
+			"variant": npc.npc_variant,
+			"group": spawn["group"],
+			"index": spawn["index"],
+			"tile": _map.world_to_tile(npc.global_position) if _map else Vector2i(npc.global_position / MainGameState.TILE_SIZE),
+		})
+	EncounterState.store_snapshot(_encounter_tile_key, WorldClock.total_hours(), survivors)
 
 func _spawn_wilderness_legacy(count: int = -1) -> void:
 	clear()

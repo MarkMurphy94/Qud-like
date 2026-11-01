@@ -18,4 +18,5 @@ variants = Array[String](["default", "thief", "barbarian"])
 group_min = 2
 group_max = 4
 placement = "edge"
+cooldown_hours = 24.0
 weight_tags = Array[String](["outlaw"])

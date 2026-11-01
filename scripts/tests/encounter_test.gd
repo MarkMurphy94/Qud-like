@@ -18,6 +18,12 @@ func _ready() -> void:
 	_check_time_gating()
 	_check_biome_gating()
 	_check_budget()
+	_check_ecology()
+	_check_camps()
+	_check_snapshots()
+	_check_cooldowns()
+	_check_state_round_trip()
+	EncounterState.reset()
 	print("[EncounterTest] Done — %d failure(s)" % _failures)
 
 
@@ -100,6 +106,124 @@ func _check_budget() -> void:
 			_expect(spent <= ctx.budget, "difficulty %d seed %d stays within budget (%d/%d)" % [difficulty, seed_value, spent, ctx.budget])
 			_expect(groups.size() <= EncounterResolver.MAX_GROUPS, "at most MAX_GROUPS groups")
 			_expect(tiles.size() == requests.size(), "no two spawns share a tile")
+
+
+func _check_ecology() -> void:
+	EncounterState.reset()
+	for region_id in ["test_cleared", "test_intact"]:
+		EncounterState.register_region(region_id, "temperate")
+		EncounterState.catch_up_region(region_id, 0)
+	var baseline := EncounterState.pool_count("test_intact", "deer")
+	_expect(baseline > 0.0, "a temperate region starts with deer")
+	_expect(EncounterState.pool_count("test_intact", "wolves") > 0.0, "a temperate region starts with wolves")
+	EncounterState.set_pool_count("test_cleared", "wolves", 0.0)
+
+	for region_id in ["test_cleared", "test_intact"]:
+		EncounterState.catch_up_region(region_id, 30)
+	var cleared_deer := EncounterState.pool_count("test_cleared", "deer")
+	var intact_deer := EncounterState.pool_count("test_intact", "deer")
+	print("[EncounterTest] deer after 30 days: cleared %.1f, intact %.1f, baseline %.1f" % [cleared_deer, intact_deer, baseline])
+	_expect(cleared_deer > baseline, "deer rise above baseline once the wolves are gone")
+	_expect(cleared_deer > intact_deer, "deer do better without wolves than with them")
+	_expect(EncounterState.pool_count("test_cleared", "wolves") == 0.0, "an emptied pool does not regrow on its own")
+
+	var forest := ["biome.temperate", "place.forest", "time.day"]
+	for seed_value in SEEDS:
+		var ctx := _ctx(forest, seed_value, 3)
+		ctx.region_id = "test_cleared"
+		ctx.now_day = 30.0
+		ctx.load_state()
+		for request in EncounterResolver.resolve(ctx, EncounterDatabase.ambient_entries()):
+			_expect(request["entry"].id != "wolf_pack", "no wolf_pack where the wolves were killed (seed %d)" % seed_value)
+
+
+func _check_camps() -> void:
+	EncounterState.reset()
+	EncounterState.register_region("test_camp", "temperate")
+	var camp := {"exists": true, "owner": "bandit", "size": "medium"}
+	var ctx := _camp_ctx(camp)
+	var camped := _count_entry(EncounterResolver.resolve(ctx, [], Callable(), Vector2i(80, 80), EncounterDatabase.anchor_entries()), "bandit_camp")
+	_expect(camped >= 4 and camped <= 6, "a medium bandit camp holds 4-6 bandits (got %d)" % camped)
+
+	EncounterState.set_pool_count("test_camp", "bandits", 0.0)
+	ctx = _camp_ctx(camp)
+	camped = _count_entry(EncounterResolver.resolve(ctx, [], Callable(), Vector2i(80, 80), EncounterDatabase.anchor_entries()), "bandit_camp")
+	_expect(camped == 0, "a camp whose pool is empty is abandoned")
+	_expect(ctx.has_tag("flag.camp_abandoned"), "an abandoned camp tags the context")
+
+
+func _check_snapshots() -> void:
+	EncounterState.reset()
+	var survivors := [{"entry_id": "wolf_pack", "variant": "wolf", "group": 1, "index": 0, "tile": Vector2i(5, 5)}]
+	EncounterState.store_snapshot("9,9", 100.0, survivors)
+
+	var soon := _ctx(["biome.temperate", "place.forest", "time.day"], 1, 2)
+	soon.tile_key = "9,9"
+	soon.now_hour = 103.0
+	soon.load_state()
+	var restored := EncounterResolver.resolve(soon, EncounterDatabase.ambient_entries())
+	_expect(restored.size() == 1, "a revisit within REVISIT_HOURS restores exactly the survivors")
+	if restored.size() == 1:
+		_expect(restored[0]["entry"].id == "wolf_pack" and restored[0]["tile"] == Vector2i(5, 5) and restored[0]["restored"],
+			"the survivor comes back as itself, where it stood")
+
+	var late := _ctx(["biome.temperate", "place.forest", "time.day"], 1, 2)
+	late.tile_key = "9,9"
+	late.now_hour = 107.0
+	late.load_state()
+	_expect(late.snapshot.is_empty(), "a snapshot older than REVISIT_HOURS is ignored")
+	for request in EncounterResolver.resolve(late, EncounterDatabase.ambient_entries()):
+		_expect(not request["restored"], "a late revisit rolls fresh")
+
+
+func _check_cooldowns() -> void:
+	EncounterState.reset()
+	var ambush := EncounterDatabase.get_entry("bandit_ambush")
+	_expect(ambush != null and ambush.cooldown_hours > 0.0, "bandit_ambush has a cooldown")
+	if ambush == null:
+		return
+	EncounterState.start_cooldown("8,8", ambush, 10.0)
+	_expect(EncounterState.cooldowns_for("8,8", 20.0).has("bandit_ambush"), "cooldown runs after the ambush")
+	_expect(not EncounterState.cooldowns_for("8,8", 10.0 + ambush.cooldown_hours).has("bandit_ambush"), "cooldown ends on time")
+	for seed_value in SEEDS:
+		var ctx := _ctx(["biome.temperate", "time.day", "near.road", "control.none"], seed_value, 4)
+		ctx.tile_key = "8,8"
+		ctx.now_hour = 20.0
+		ctx.load_state()
+		_expect(_count_entry(EncounterResolver.resolve(ctx, EncounterDatabase.ambient_entries()), "bandit_ambush") == 0,
+			"a cooling-down ambush does not roll (seed %d)" % seed_value)
+
+
+func _check_state_round_trip() -> void:
+	EncounterState.reset()
+	EncounterState.register_region("test_save", "boreal")
+	EncounterState.catch_up_region("test_save", 0)
+	EncounterState.set_pool_count("test_save", "wolves", 3.5)
+	EncounterState.start_cooldown("1,2", EncounterDatabase.get_entry("bandit_ambush"), 0.0)
+	EncounterState.store_snapshot("1,2", 0.0, [{"entry_id": "boar", "variant": "boar", "group": 0, "index": 0, "tile": Vector2i(3, 4)}])
+	var before := EncounterState.to_dict()
+	EncounterState.from_dict(before)
+	var after := EncounterState.to_dict()
+	_expect(var_to_str(before) == var_to_str(after), "spawn_state survives a to_dict/from_dict round-trip")
+	_expect((before["snapshots"] as Dictionary).has("1,2"), "a fresh snapshot is saved")
+	EncounterState.from_dict({})
+	_expect(EncounterState.pools.is_empty(), "an empty spawn_state starts fresh")
+
+
+func _camp_ctx(camp: Dictionary) -> EncounterContext:
+	var ctx := _ctx(["biome.temperate", "feature.camp"], 7, 2)
+	ctx.region_id = "test_camp"
+	ctx.metadata = {"camp": camp}
+	ctx.load_state()
+	return ctx
+
+
+func _count_entry(requests: Array[Dictionary], entry_id: String) -> int:
+	var n := 0
+	for request in requests:
+		if request["entry"].id == entry_id:
+			n += 1
+	return n
 
 
 func _ctx(tags: Array, seed_value: int, difficulty: int) -> EncounterContext:

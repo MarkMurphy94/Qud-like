@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PopulationPoolDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/spawning/population_pool_def.gd" id="1_pool"]
+
+[resource]
+script = ExtResource("1_pool")
+id = "boar"
+tags = Array[String](["prey"])
+biomes = Array[String](["temperate", "jungle"])
+default_capacity = 30
+initial_fill = 0.75
+regrowth_per_day = 0.05
+migration_rate = 0.05
+migrate_when_depleted_below = 0.0

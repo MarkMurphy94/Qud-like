@@ -1,12 +1,16 @@
 extends Node
 
-## Loads every EncounterEntry under ENCOUNTER_PATH (recursively) at startup and
-## drops the ones that cannot spawn, so the resolver only sees well-formed data.
+## Loads every EncounterEntry under ENCOUNTER_PATH (recursively) and every
+## PopulationPoolDef under POOL_PATH at startup, and drops entries that cannot
+## spawn, so the resolver only sees well-formed data.
 
 const ENCOUNTER_PATH := "res://resources/spawning/encounters/"
+const POOL_PATH := "res://resources/spawning/pools/"
 
 ## id -> EncounterEntry
 var entries: Dictionary = {}
+## id -> PopulationPoolDef
+var pools: Dictionary = {}
 
 
 func _ready() -> void:
@@ -15,12 +19,18 @@ func _ready() -> void:
 
 func reload() -> void:
 	entries.clear()
+	pools.clear()
+	_load_pools()
 	var paths: Dictionary = {}  # entry id -> file path, for error messages
 	_load_folder(ENCOUNTER_PATH, paths)
 	for entry_id: String in entries.keys():
 		if not _is_valid(entries[entry_id], paths[entry_id]):
 			entries.erase(entry_id)
-	print("[EncounterDatabase] Loaded %d encounter entries" % entries.size())
+	print("[EncounterDatabase] Loaded %d encounter entries, %d population pools" % [entries.size(), pools.size()])
+
+
+func get_pool(pool_id: String) -> PopulationPoolDef:
+	return pools.get(pool_id)
 
 
 func get_entry(entry_id: String) -> EncounterEntry:
@@ -74,7 +84,39 @@ func _load_folder(path: String, paths: Dictionary) -> void:
 	dir.list_dir_end()
 
 
+func _load_pools() -> void:
+	var dir := DirAccess.open(POOL_PATH)
+	if dir == null:
+		push_warning("[EncounterDatabase] No pool folder at %s" % POOL_PATH)
+		return
+	for file_name in dir.get_files():
+		file_name = file_name.trim_suffix(".remap")
+		if not file_name.ends_with(".tres"):
+			continue
+		var full_path := POOL_PATH + file_name
+		var def := load(full_path) as PopulationPoolDef
+		if def == null:
+			push_error("[EncounterDatabase] %s is not a PopulationPoolDef" % full_path)
+			continue
+		if def.id.is_empty():
+			def.id = file_name.get_basename()
+		if pools.has(def.id):
+			push_error("[EncounterDatabase] %s: pool id '%s' is already used" % [full_path, def.id])
+			continue
+		pools[def.id] = def
+	for def: PopulationPoolDef in pools.values():
+		for prey_id: String in def.prey:
+			if not pools.has(prey_id):
+				push_warning("[EncounterDatabase] pool %s preys on unknown pool %s" % [def.id, prey_id])
+
+
 func _is_valid(entry: EncounterEntry, path: String) -> bool:
+	if not entry.pool_id.is_empty() and not pools.has(entry.pool_id):
+		push_warning("[EncounterDatabase] %s: unknown pool_id '%s'; entry dropped" % [path, entry.pool_id])
+		return false
+	if entry.kind == "anchor" and entry.anchor_match.is_empty():
+		push_warning("[EncounterDatabase] %s: anchor entry matches no camp; entry dropped" % path)
+		return false
 	if not NPCSpawner.ENCOUNTER_NPC_TYPES.has(entry.npc_type):
 		push_warning("[EncounterDatabase] %s: unknown npc_type '%s'; entry dropped" % [path, entry.npc_type])
 		return false
