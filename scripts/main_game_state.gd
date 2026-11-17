@@ -83,6 +83,43 @@ func add_settlement(id: String, data: Dictionary) -> void:
 func get_settlement(id: String) -> Dictionary:
 	return settlements.get(id, {})
 
+## First settlement entry whose "name" field matches. Only for hand-crafted
+## entries that predate place-id keys; everything else should use get_settlement
+## with a place id.
+func find_settlement_by_name(settlement_name: String) -> Dictionary:
+	if settlement_name.is_empty():
+		return {}
+	if settlements.has(settlement_name):
+		return settlements[settlement_name]
+	for entry in settlements.values():
+		if entry is Dictionary and entry.get("name", "") == settlement_name:
+			return entry
+	return {}
+
+## Replace the runtime settlements with a saved snapshot, re-keying entries
+## that were stored under a name (e.g. "town_1") to their place id when the
+## entry records its map_type and pos. The old key is kept as the entry's
+## "name" so find_settlement_by_name still resolves it. Entries that can't be
+## re-keyed, or whose place id is already taken, keep their saved key.
+func load_settlements(data: Dictionary) -> void:
+	settlements.clear()
+	for key in data:
+		var entry = data[key]
+		if entry is Dictionary:
+			entry = (entry as Dictionary).duplicate(true)
+		var place_id: String = str(key)
+		if entry is Dictionary and entry.has("map_type") and entry.get("pos") is Vector2i:
+			var candidate := make_settlement_key(int(entry["map_type"]), entry["pos"])
+			if candidate != place_id and not data.has(candidate) and not settlements.has(candidate):
+				if not entry.has("name"):
+					entry["name"] = place_id
+				place_id = candidate
+		# Older saves initialised "buildings" as {}; it is a list of
+		# Structure.to_record() dicts.
+		if entry is Dictionary and entry.has("buildings") and not entry["buildings"] is Array:
+			entry["buildings"] = []
+		settlements[place_id] = entry
+
 func add_npc(id: String, data: Dictionary) -> void:
 	important_npcs[id] = data
 
@@ -125,7 +162,7 @@ func ensure_settlement_config(map_type: int, world_pos: Vector2i, seed_value: in
 			"seed": seed_value,
 			"width": 80,
 			"height": 80,
-			"buildings": {},
+			"buildings": [],
 			"important_npcs": {}
 		}
 	else:
@@ -136,6 +173,6 @@ func ensure_settlement_config(map_type: int, world_pos: Vector2i, seed_value: in
 			conf["seed"] = seed_value if seed_value != 0 else randi()
 		if not conf.has("width"): conf["width"] = 80
 		if not conf.has("height"): conf["height"] = 80
-		if not conf.has("buildings"): conf["buildings"] = {}
+		if not conf.get("buildings") is Array: conf["buildings"] = []
 	add_settlement(key, conf)
 	return conf

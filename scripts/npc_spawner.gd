@@ -118,6 +118,10 @@ func set_area_metadata(metadata) -> void:
 ## The overworld hint is nested under "overworld" but mirrored top-level, so
 ## check both rather than depending on which builder produced the dict.
 func _has_settlement() -> bool:
+	# The Place is the answer when there is one: an authored town can stand on
+	# a tile the overworld metadata calls wilderness.
+	if place:
+		return place.has_tag("place.settlement")
 	var overworld = area_metadata.get("overworld", {})
 	if overworld is Dictionary and overworld.has("has_settlement"):
 		return bool(overworld["has_settlement"])
@@ -230,23 +234,19 @@ func _free_interior_tile(interior: Rect2i) -> Vector2i:
 		return interior.get_center()
 	return free[rng.randi() % free.size()]
 
-## Looks up the settlement entry in MainGameState by map_name first,
-## then by overworld_tile key (make_settlement_key), so both hand-crafted
-## and dynamically-generated settlements are found.
+## Looks up the settlement entry in MainGameState. The place id
+## (make_settlement_key of map_type + overworld_tile) is the canonical key and
+## is tried first; the authored map_name is kept only as a legacy fallback for
+## hand-crafted entries (e.g. "town_1") saved before place ids existed.
 func _find_settlement_entry() -> Dictionary:
 	if not settlement_data:
 		return {}
-	# 1. Direct name lookup (covers hardcoded entries like "town_1")
-	var map_name := settlement_data.map_name
-	if MainGameState.settlements.has(map_name):
-		return MainGameState.settlements[map_name]
-	# 2. Tile-based key lookup (covers dynamically-created settlements)
 	if settlement_data.overworld_tile != Vector2i.ZERO:
-		for mtype in MapConfig.MapType.values():
-			var key := MainGameState.make_settlement_key(mtype, settlement_data.overworld_tile)
-			if MainGameState.settlements.has(key):
-				return MainGameState.settlements[key]
-	return {}
+		var key := MainGameState.make_settlement_key(
+			int(settlement_data.map_type), settlement_data.overworld_tile)
+		if MainGameState.settlements.has(key):
+			return MainGameState.settlements[key]
+	return MainGameState.find_settlement_by_name(settlement_data.map_name)
 
 # ─── Wilderness spawning ───────────────────────────────────────────────────────
 
@@ -476,31 +476,17 @@ func _faction_map():
 	return root.faction_map() if root and root.has_method("faction_map") else null
 
 
-## Tile positions of the buildings NPCs can call home.
-##
-## Read from the generator's own record, which the settlement, stored-layout and
-## hamlet routes all fill. MapConfig.buildings only ever describes settlements,
-## so asking it left hamlet NPCs standing wherever the dice put them.
+## Tile positions of the buildings NPCs can call home, read from the Place's
+## building slots — the same list whichever pipeline built the map. Falls back
+## to the generator's own record when no Place was handed over.
 func _building_positions() -> Array:
-	if _map and not _map.map_buildings.is_empty():
-		var out: Array = []
+	var out: Array = []
+	if place:
+		for slot in place.slots_of_kind("building"):
+			out.append((slot.data["rect"] as Rect2i).position)
+	elif _map:
 		for b in _map.map_buildings:
 			out.append(b["pos"])
-		return out
-	if settlement_data:
-		return _extract_building_positions(settlement_data.buildings)
-	return []
-
-
-## Extracts tile-space positions from an Array of Structure resources or legacy Dictionaries.
-func _extract_building_positions(buildings: Array) -> Array:
-	var out: Array = []
-	for b in buildings:
-		if b is Structure:
-			if b.POSITION != Vector2i.ZERO:
-				out.append(b.POSITION)
-		elif b is Dictionary and b.has("POSITION"):
-			out.append(b["POSITION"])
 	return out
 
 ## A random tile inside the map, kept clear of the edge.

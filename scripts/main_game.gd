@@ -671,7 +671,7 @@ func load_game_from_slot(slot: int) -> bool:
 
 	# ── Settlements ────────────────────────────────────────────
 	if not _save.settlements_data.is_empty():
-		MainGameState.settlements = _save.settlements_data.duplicate(true)
+		MainGameState.load_settlements(_save.settlements_data)
 
 	# ── Province ownership ─────────────────────────────────────
 	# The provinces were already grown from the map when world_map entered the

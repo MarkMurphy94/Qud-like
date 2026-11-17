@@ -1,0 +1,207 @@
+extends Node
+
+## Place unification checks. Open scenes/tests/place_provider_test.tscn and
+## press F6; results go to the Output panel.
+
+const LOCAL_SCENE := preload("res://scenes/local_scene.tscn")
+const AUTHORED_TILE := Vector2i(41, 37)
+
+var _failures: int = 0
+var _gen: MapGenerator
+
+
+func _ready() -> void:
+	_gen = LOCAL_SCENE.instantiate()
+	_gen.generate_on_ready = false
+	add_child(_gen)
+
+	_check_procedural_place()
+	_check_bespoke_place()
+	_check_bespoke_is_deterministic()
+	_check_settlement_rekey()
+	_check_structure_records()
+	_check_spawner_reads_place()
+	_check_authored_matches_editor()
+	_check_procedural_unaffected_by_authored()
+	AuthoredPlaces.reload()
+	print("[PlaceTest] Done — %d failure(s)" % _failures)
+	if OS.has_feature("headless") or DisplayServer.get_name() == "headless":
+		get_tree().quit(1 if _failures > 0 else 0)
+
+
+func _meta(tile: Vector2i, seed_value: int) -> Dictionary:
+	return {
+		"coords": tile, "seed": seed_value, "terrain": 0, "biome": "temperate",
+		"culture_id": "", "ruling_faction": "house_test",
+		"overworld": {"settlement_density": -1, "has_settlement": false, "is_forest": false},
+		"settlement_density": -1,
+	}
+
+
+func _check_procedural_place() -> void:
+	_gen.generate_local_map(_meta(Vector2i(5, 6), 1234))
+	var place := _gen.build_place()
+	_expect(_gen.place_provider() is ProceduralPlaceProvider, "untagged tile uses the procedural provider")
+	_expect(place.place_id == "area_5_6", "procedural place id is area_5_6 (got %s)" % place.place_id)
+	_expect(place.tile_seed == 1234, "procedural place keeps the tile seed")
+	_expect(place.has_tag("place.wilderness"), "procedural wilderness is tagged place.wilderness")
+	_expect(place.has_tag("faction.house_test"), "procedural place carries the ruler tag")
+	_expect(not place.has_tag("place.authored"), "procedural place is not tagged place.authored")
+
+
+func _authored_config() -> MapConfig:
+	var config := MapConfig.new()
+	config.map_name = "Test Hold"
+	config.map_type = MapConfig.MapType.SETTLEMENT
+	config.building_density = MapConfig.BuildingDensity.SMALL_VILLAGE
+	config.overworld_tile = AUTHORED_TILE
+	config.SEED = 4242
+	var house := Structure.new()
+	house.TYPE = Structure.StructureType.HOUSE
+	house.POSITION = Vector2i(20, 20)
+	config.buildings.append(house)
+	var tavern := Structure.new()
+	tavern.TYPE = Structure.StructureType.HOUSE
+	tavern.POSITION = Vector2i(40, 30)
+	config.buildings.append(tavern)
+	return config
+
+
+func _check_bespoke_place() -> void:
+	AuthoredPlaces.register(_authored_config())
+	# The tile's own metadata says wilderness; the authored config must win.
+	_gen.generate_local_map(_meta(AUTHORED_TILE, 999))
+	var place := _gen.build_place()
+	_expect(_gen.place_provider() is BespokePlaceProvider, "authored tile uses the bespoke provider")
+	_expect(place.place_id == "settlement_%d_%d" % [AUTHORED_TILE.x, AUTHORED_TILE.y],
+		"bespoke place id uses the same scheme (got %s)" % place.place_id)
+	_expect(place.display_name == "Test Hold", "bespoke place takes the authored name")
+	_expect(place.tile_seed == 4242, "bespoke place takes the authored seed")
+	_expect(place.has_tag("place.authored"), "bespoke place is tagged place.authored")
+	_expect(place.has_tag("place.settlement"), "bespoke settlement is tagged place.settlement")
+	_expect(place.has_tag("faction.house_test"), "bespoke place keeps the overworld ruler tag")
+	_expect(place.has_tag("biome.temperate"), "bespoke place has a biome tag")
+	_expect(place.slots_of_kind("building").size() == 2,
+		"both authored buildings become slots (got %d)" % place.slots_of_kind("building").size())
+	_expect(place.get_slot("ambient") != null, "bespoke place has an ambient slot")
+
+
+func _check_bespoke_is_deterministic() -> void:
+	_gen.generate_local_map(_meta(AUTHORED_TILE, 999))
+	var first := _slot_ids(_gen.build_place())
+	_gen.generate_local_map(_meta(Vector2i(5, 6), 1234))  # visit elsewhere in between
+	_gen.generate_local_map(_meta(AUTHORED_TILE, 999))
+	var second := _slot_ids(_gen.build_place())
+	_expect(first == second, "revisiting an authored tile rebuilds the same slots")
+
+
+func _slot_ids(place: Place) -> Array[String]:
+	var out: Array[String] = []
+	for slot in place.slots:
+		out.append(slot.slot_id)
+	return out
+
+
+func _check_settlement_rekey() -> void:
+	var saved_state: Dictionary = MainGameState.settlements.duplicate(true)
+	MainGameState.load_settlements({
+		"town_1": {"map_type": MapConfig.MapType.SETTLEMENT, "pos": Vector2i(17, 18), "seed": 7},
+		"legacy_without_pos": {"seed": 8},
+	})
+	_expect(MainGameState.settlements.has("settlement_17_18"), "name-keyed entry is re-keyed to its place id")
+	_expect(not MainGameState.settlements.has("town_1"), "old name key is gone after re-keying")
+	_expect(MainGameState.find_settlement_by_name("town_1").get("seed") == 7, "re-keyed entry is still found by name")
+	_expect(MainGameState.settlements.has("legacy_without_pos"), "entry without map_type/pos keeps its key")
+	MainGameState.settlements = saved_state
+
+
+func _check_structure_records() -> void:
+	var s := Structure.new()
+	s.TYPE = Structure.StructureType.TAVERN
+	s.POSITION = Vector2i(12, 9)
+	s.INTERIOR_SIZE = Vector2i(6, 5)
+	var back := Structure.from_record(s.to_record())
+	_expect(back.TYPE == s.TYPE and back.POSITION == s.POSITION and back.INTERIOR_SIZE == s.INTERIOR_SIZE,
+		"Structure survives to_record/from_record")
+
+	var saved_state: Dictionary = MainGameState.settlements.duplicate(true)
+	MainGameState.load_settlements({"settlement_3_4": {"map_type": 1, "pos": Vector2i(3, 4), "buildings": {}}})
+	_expect(MainGameState.get_settlement("settlement_3_4")["buildings"] is Array, "old {} buildings load as an Array")
+	MainGameState.settlements = saved_state
+
+
+func _check_spawner_reads_place() -> void:
+	AuthoredPlaces.register(_authored_config())
+	var meta := _meta(AUTHORED_TILE, 999)  # metadata says: no settlement here
+	_gen.generate_local_map(meta)
+	var place := _gen.build_place()
+	var spawner := NPCSpawner.new()
+	spawner.set_area_metadata(meta)
+	spawner.place = place
+	_expect(spawner._has_settlement(), "spawner treats an authored town as a settlement despite wilderness metadata")
+	spawner._map = _gen
+	var homes := spawner._building_positions()
+	var expected: Array = []
+	for b in _gen.map_buildings:
+		expected.append(b["pos"])
+	_expect(homes == expected and homes.size() == 2, "spawner homes come from the Place's building slots")
+	spawner.free()
+
+
+const LAYERS := ["base_terrain", "road", "terrain_features", "structures_exterior",
+	"structures_interior", "foliage", "decor_exterior", "decor_interior"]
+
+
+func _snapshot(gen: MapGenerator) -> Dictionary:
+	var out := {}
+	for layer_name in LAYERS:
+		var layer: TileMapLayer = gen.get_node(layer_name)
+		var cells := {}
+		for c in layer.get_used_cells():
+			cells[c] = [layer.get_cell_source_id(c), layer.get_cell_atlas_coords(c)]
+		out[layer_name] = cells
+	return out
+
+
+func _check_authored_matches_editor() -> void:
+	var config := _authored_config()
+	config.tree_density = MapConfig.TreeDensity.SPARSE
+	config.road_exits = 1
+	AuthoredPlaces.register(config)
+	# The editor previews a config by generating with it as the template.
+	var editor: MapGenerator = LOCAL_SCENE.instantiate()
+	editor.generate_on_ready = false
+	add_child(editor)
+	editor.map_template = config.duplicate(true)
+	editor.clear_all_layers()
+	editor.setup_and_generate()
+	var expected := _snapshot(editor)
+	editor.free()
+	# The tile's metadata asks for other foliage and roads; the author wins.
+	var meta := _meta(AUTHORED_TILE, 999)
+	meta["road_exits"] = 6
+	meta["foliage_profile"] = {"tree_density": 0.4, "bush_density": 0.3}
+	_gen.generate_local_map(meta)
+	_expect(_snapshot(_gen) == expected, "an authored tile paints exactly what the editor previews")
+
+
+func _check_procedural_unaffected_by_authored() -> void:
+	var fresh: MapGenerator = LOCAL_SCENE.instantiate()
+	fresh.generate_on_ready = false
+	add_child(fresh)
+	fresh.generate_local_map(_meta(Vector2i(5, 6), 1234))
+	var expected := _snapshot(fresh)
+	fresh.free()
+	AuthoredPlaces.register(_authored_config())
+	_gen.generate_local_map(_meta(AUTHORED_TILE, 999))
+	_gen.generate_local_map(_meta(Vector2i(5, 6), 1234))
+	_expect(_snapshot(_gen) == expected, "a wilderness tile visited after an authored one is unchanged")
+
+
+func _expect(condition: bool, label: String) -> void:
+	if condition:
+		print("[PlaceTest] ok    %s" % label)
+	else:
+		_failures += 1
+		push_error("[PlaceTest] FAIL  %s" % label)
+		print("[PlaceTest] FAIL  %s" % label)

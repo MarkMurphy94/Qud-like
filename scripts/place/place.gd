@@ -5,11 +5,13 @@ class_name Place
 ## A local map as the rest of the game addresses it: one stable id, the tags
 ## that describe it, and the slots things can be spawned into.
 ##
-## Built by MapGenerator.build_place() after every generation, so it is never
+## Built by MapGenerator.build_place() (through a PlaceProvider) after every generation, so it is never
 ## saved — the same seed rebuilds the same Place, and only what was rolled into
 ## its slots needs persisting (keyed by place_id + slot_id).
 
 @export var place_id: String = ""
+## Human-readable name ("First City"); empty for unnamed wilderness.
+@export var display_name: String = ""
 @export var coords: Vector2i = Vector2i.ZERO
 ## The overworld tile's permanent local-map seed (MainGame.get_tile_seed).
 @export var tile_seed: int = 0
