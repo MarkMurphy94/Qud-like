@@ -21,6 +21,7 @@ func _ready() -> void:
 	_check_settlement_rekey()
 	_check_structure_records()
 	_check_spawner_reads_place()
+	_check_tile_record_rekey()
 	AuthoredPlaces.reload()
 	print("[PlaceTest] Done — %d failure(s)" % _failures)
 	if OS.has_feature("headless") or DisplayServer.get_name() == "headless":
@@ -144,6 +145,32 @@ func _check_spawner_reads_place() -> void:
 		expected.append(b["pos"])
 	_expect(homes == expected and homes.size() == 2, "spawner homes come from the Place's building slots")
 	spawner.free()
+
+
+func _check_tile_record_rekey() -> void:
+	AuthoredPlaces.register(_authored_config())
+	var game: Node = load("res://scripts/main_game.gd").new()
+	game.area_picked_up_items = {
+		"5,6": ["sword@10,12"],
+		"area_5_6": ["area_5_6/b0.container.0/0"],
+		"%d,%d" % [AUTHORED_TILE.x, AUTHORED_TILE.y]: ["bread@3,3"],
+	}
+	game.area_container_state = {"5,6": {"20,21": {"looted": true}}}
+	var moved: int = game._rekey_tile_records()
+	_expect(moved == 3, "three tile-keyed records moved (got %d)" % moved)
+	var wild: Array = game.area_picked_up_items.get("area_5_6", [])
+	_expect("sword@10,12" in wild and "area_5_6/b0.container.0/0" in wild,
+		"wilderness pickups merge into the existing place id record")
+	_expect(game.area_picked_up_items.has("settlement_%d_%d" % [AUTHORED_TILE.x, AUTHORED_TILE.y]),
+		"an authored tile's records go to its settlement place id")
+	_expect(game.area_container_state.get("area_5_6", {}).has("20,21"), "container record moves to its place id")
+	var stray := false
+	for records: Dictionary in [game.area_picked_up_items, game.area_container_state]:
+		for key in records:
+			if "," in str(key):
+				stray = true
+	_expect(not stray, "no tile-keyed records remain")
+	game.free()
 
 
 func _expect(condition: bool, label: String) -> void:
