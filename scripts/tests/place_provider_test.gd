@@ -21,6 +21,8 @@ func _ready() -> void:
 	_check_settlement_rekey()
 	_check_structure_records()
 	_check_spawner_reads_place()
+	_check_authored_matches_editor()
+	_check_procedural_unaffected_by_authored()
 	AuthoredPlaces.reload()
 	print("[PlaceTest] Done — %d failure(s)" % _failures)
 	if OS.has_feature("headless") or DisplayServer.get_name() == "headless":
@@ -144,6 +146,56 @@ func _check_spawner_reads_place() -> void:
 		expected.append(b["pos"])
 	_expect(homes == expected and homes.size() == 2, "spawner homes come from the Place's building slots")
 	spawner.free()
+
+
+const LAYERS := ["base_terrain", "road", "terrain_features", "structures_exterior",
+	"structures_interior", "foliage", "decor_exterior", "decor_interior"]
+
+
+func _snapshot(gen: MapGenerator) -> Dictionary:
+	var out := {}
+	for layer_name in LAYERS:
+		var layer: TileMapLayer = gen.get_node(layer_name)
+		var cells := {}
+		for c in layer.get_used_cells():
+			cells[c] = [layer.get_cell_source_id(c), layer.get_cell_atlas_coords(c)]
+		out[layer_name] = cells
+	return out
+
+
+func _check_authored_matches_editor() -> void:
+	var config := _authored_config()
+	config.tree_density = MapConfig.TreeDensity.SPARSE
+	config.road_exits = 1
+	AuthoredPlaces.register(config)
+	# The editor previews a config by generating with it as the template.
+	var editor: MapGenerator = LOCAL_SCENE.instantiate()
+	editor.generate_on_ready = false
+	add_child(editor)
+	editor.map_template = config.duplicate(true)
+	editor.clear_all_layers()
+	editor.setup_and_generate()
+	var expected := _snapshot(editor)
+	editor.free()
+	# The tile's metadata asks for other foliage and roads; the author wins.
+	var meta := _meta(AUTHORED_TILE, 999)
+	meta["road_exits"] = 6
+	meta["foliage_profile"] = {"tree_density": 0.4, "bush_density": 0.3}
+	_gen.generate_local_map(meta)
+	_expect(_snapshot(_gen) == expected, "an authored tile paints exactly what the editor previews")
+
+
+func _check_procedural_unaffected_by_authored() -> void:
+	var fresh: MapGenerator = LOCAL_SCENE.instantiate()
+	fresh.generate_on_ready = false
+	add_child(fresh)
+	fresh.generate_local_map(_meta(Vector2i(5, 6), 1234))
+	var expected := _snapshot(fresh)
+	fresh.free()
+	AuthoredPlaces.register(_authored_config())
+	_gen.generate_local_map(_meta(AUTHORED_TILE, 999))
+	_gen.generate_local_map(_meta(Vector2i(5, 6), 1234))
+	_expect(_snapshot(_gen) == expected, "a wilderness tile visited after an authored one is unchanged")
 
 
 func _expect(condition: bool, label: String) -> void:

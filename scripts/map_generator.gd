@@ -391,6 +391,10 @@ var current_metadata: Dictionary = {}
 ## The authored MapConfig claiming the tile being generated (AuthoredPlaces),
 ## or null for a procedural tile. Set by generate_local_map().
 var authored_config: MapConfig = null
+## The scene's own template, which procedural tiles fill from metadata. An
+## authored tile swaps map_template for a copy of its config; this puts the
+## scene's template back for the next procedural tile.
+var _procedural_template: MapConfig = null
 
 ## Biome the current map draws its art from, as the lowercase name the band
 ## table in tileset_catalog.gd uses ("temperate", "swamp", "arctic", …).
@@ -766,30 +770,32 @@ func generate_local_map(metadata) -> void:
 	var terrain: int = current_metadata.get("terrain", OverworldTile.GRASS)
 	var map_seed: int = int(current_metadata.get("seed", 0))
 
+	if _procedural_template:
+		map_template = _procedural_template
 	_apply_metadata_to_config()
 	authored_config = AuthoredPlaces.for_tile(world_pos) if current_metadata.has("coords") else null
 	if authored_config:
-		_apply_authored_config(authored_config)
+		_procedural_template = map_template
+		map_template = _authored_template(authored_config)
 
 	clear_all_layers()
+	if authored_config:
+		# Generate exactly as the editor previews it — no overworld position or
+		# terrain mixed into the seeds — so the town looks the way it was authored.
+		setup_and_generate()
+		return
 	# map_type, set just above, picks settlement vs wilderness generation.
 	setup_and_generate(-1, terrain, world_pos, map_seed)
 
-## Overlay an authored location onto the template _apply_metadata_to_config just
-## filled from the tile. The layout (type, buildings, seed, name) is the
-## author's; roads and edge exits stay the overworld's, so the town still joins
-## up with its neighbours.
-func _apply_authored_config(config: MapConfig) -> void:
-	map_template.map_type = config.map_type
-	map_template.building_density = config.building_density
-	map_template.buildings = config.buildings.duplicate()
-	map_template.important_buildings = config.important_buildings.duplicate()
-	map_template.important_npcs = config.important_npcs.duplicate()
-	if not config.map_name.is_empty():
-		map_template.map_name = config.map_name
-	if config.SEED != 0:
-		map_template.SEED = config.SEED
+## The template for an authored tile: a copy of its config, whole, so the
+## runtime map matches what the editor shows — buildings, seed, densities,
+## noise and road exits all come from the author. Set Road Exits on the config
+## to line its roads up with the overworld's.
+func _authored_template(config: MapConfig) -> MapConfig:
+	var template := config.duplicate(true) as MapConfig
+	template.overworld_tile = config.overworld_tile
 	print("[MapGenerator] Tile %s is authored: %s" % [config.overworld_tile, config.resource_path])
+	return template
 
 ## Describe the map just generated as a Place. Must run after generation, since
 ## the slots are read from map_buildings and container_cells.
