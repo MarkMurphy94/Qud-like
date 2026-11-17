@@ -114,6 +114,10 @@ func load_settlements(data: Dictionary) -> void:
 				if not entry.has("name"):
 					entry["name"] = place_id
 				place_id = candidate
+		# Older saves initialised "buildings" as {}; it is a list of
+		# Structure.to_record() dicts.
+		if entry is Dictionary and entry.has("buildings") and not entry["buildings"] is Array:
+			entry["buildings"] = []
 		settlements[place_id] = entry
 
 func add_npc(id: String, data: Dictionary) -> void:
@@ -158,7 +162,7 @@ func ensure_settlement_config(map_type: int, world_pos: Vector2i, seed_value: in
 			"seed": seed_value,
 			"width": 80,
 			"height": 80,
-			"buildings": {},
+			"buildings": [],
 			"important_npcs": {}
 		}
 	else:
@@ -169,6 +173,6 @@ func ensure_settlement_config(map_type: int, world_pos: Vector2i, seed_value: in
 			conf["seed"] = seed_value if seed_value != 0 else randi()
 		if not conf.has("width"): conf["width"] = 80
 		if not conf.has("height"): conf["height"] = 80
-		if not conf.has("buildings"): conf["buildings"] = {}
+		if not conf.get("buildings") is Array: conf["buildings"] = []
 	add_settlement(key, conf)
 	return conf

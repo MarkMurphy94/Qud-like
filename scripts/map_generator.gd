@@ -659,13 +659,8 @@ func _restore_settlement_layout() -> bool:
 	map_template.SEED = int(entry.get("seed", map_template.SEED))
 	map_template.buildings.clear()
 	for bd in stored:
-		if not bd is Dictionary:
-			continue
-		var s := Structure.new()
-		s.TYPE = int(bd.get("type", Structure.StructureType.HOUSE)) as Structure.StructureType
-		s.POSITION = bd.get("pos", Vector2i.ZERO)
-		s.INTERIOR_SIZE = bd.get("size", Vector2i.ZERO)
-		map_template.buildings.append(s)
+		if bd is Dictionary:
+			map_template.buildings.append(Structure.from_record(bd))
 	print("Restored settlement layout '%s' (%d buildings) from MainGameState" % [key, map_template.buildings.size()])
 	return true
 
@@ -685,13 +680,8 @@ func _store_settlement_layout(seed_used: int) -> void:
 		entry["name"] = map_template.map_name
 	var stored_buildings: Array = []
 	for b: Structure in map_template.buildings:
-		if b == null:
-			continue
-		stored_buildings.append({
-			"type": int(b.TYPE),
-			"pos": b.POSITION,
-			"size": b.INTERIOR_SIZE,
-		})
+		if b:
+			stored_buildings.append(b.to_record())
 	entry["buildings"] = stored_buildings
 
 func _paint_settlement_ground(building_rects: Array[Rect2i]) -> void:

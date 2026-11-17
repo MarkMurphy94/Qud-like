@@ -35,7 +35,16 @@ static func world_tags(gen: MapGenerator, map_type: int) -> Array[String]:
 	var faction := str(meta.get("ruling_faction", ""))
 	if not faction.is_empty():
 		tags.append("faction.%s" % faction)
-	tags.append("place.settlement" if map_type == MapConfig.MapType.SETTLEMENT else "place.wilderness")
+	match map_type:
+		MapConfig.MapType.SETTLEMENT:
+			tags.append("place.settlement")
+		MapConfig.MapType.CASTLE_INTERIOR:
+			# Populated like a settlement (see MapGenerator.setup_and_generate).
+			tags.append_array(["place.settlement", "place.castle"])
+		MapConfig.MapType.DUNGEON:
+			tags.append("place.dungeon")
+		_:
+			tags.append("place.wilderness")
 	if bool(overworld.get("is_forest", false)):
 		tags.append("place.forest")
 	var ruins = meta.get("ruins", {})

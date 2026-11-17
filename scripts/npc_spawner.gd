@@ -118,6 +118,10 @@ func set_area_metadata(metadata) -> void:
 ## The overworld hint is nested under "overworld" but mirrored top-level, so
 ## check both rather than depending on which builder produced the dict.
 func _has_settlement() -> bool:
+	# The Place is the answer when there is one: an authored town can stand on
+	# a tile the overworld metadata calls wilderness.
+	if place:
+		return place.has_tag("place.settlement")
 	var overworld = area_metadata.get("overworld", {})
 	if overworld is Dictionary and overworld.has("has_settlement"):
 		return bool(overworld["has_settlement"])
@@ -472,31 +476,17 @@ func _faction_map():
 	return root.faction_map() if root and root.has_method("faction_map") else null
 
 
-## Tile positions of the buildings NPCs can call home.
-##
-## Read from the generator's own record, which the settlement, stored-layout and
-## hamlet routes all fill. MapConfig.buildings only ever describes settlements,
-## so asking it left hamlet NPCs standing wherever the dice put them.
+## Tile positions of the buildings NPCs can call home, read from the Place's
+## building slots — the same list whichever pipeline built the map. Falls back
+## to the generator's own record when no Place was handed over.
 func _building_positions() -> Array:
-	if _map and not _map.map_buildings.is_empty():
-		var out: Array = []
+	var out: Array = []
+	if place:
+		for slot in place.slots_of_kind("building"):
+			out.append((slot.data["rect"] as Rect2i).position)
+	elif _map:
 		for b in _map.map_buildings:
 			out.append(b["pos"])
-		return out
-	if settlement_data:
-		return _extract_building_positions(settlement_data.buildings)
-	return []
-
-
-## Extracts tile-space positions from an Array of Structure resources or legacy Dictionaries.
-func _extract_building_positions(buildings: Array) -> Array:
-	var out: Array = []
-	for b in buildings:
-		if b is Structure:
-			if b.POSITION != Vector2i.ZERO:
-				out.append(b.POSITION)
-		elif b is Dictionary and b.has("POSITION"):
-			out.append(b["POSITION"])
 	return out
 
 ## A random tile inside the map, kept clear of the edge.

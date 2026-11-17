@@ -19,6 +19,8 @@ func _ready() -> void:
 	_check_bespoke_place()
 	_check_bespoke_is_deterministic()
 	_check_settlement_rekey()
+	_check_structure_records()
+	_check_spawner_reads_place()
 	AuthoredPlaces.reload()
 	print("[PlaceTest] Done — %d failure(s)" % _failures)
 	if OS.has_feature("headless") or DisplayServer.get_name() == "headless":
@@ -109,6 +111,39 @@ func _check_settlement_rekey() -> void:
 	_expect(MainGameState.find_settlement_by_name("town_1").get("seed") == 7, "re-keyed entry is still found by name")
 	_expect(MainGameState.settlements.has("legacy_without_pos"), "entry without map_type/pos keeps its key")
 	MainGameState.settlements = saved_state
+
+
+func _check_structure_records() -> void:
+	var s := Structure.new()
+	s.TYPE = Structure.StructureType.TAVERN
+	s.POSITION = Vector2i(12, 9)
+	s.INTERIOR_SIZE = Vector2i(6, 5)
+	var back := Structure.from_record(s.to_record())
+	_expect(back.TYPE == s.TYPE and back.POSITION == s.POSITION and back.INTERIOR_SIZE == s.INTERIOR_SIZE,
+		"Structure survives to_record/from_record")
+
+	var saved_state: Dictionary = MainGameState.settlements.duplicate(true)
+	MainGameState.load_settlements({"settlement_3_4": {"map_type": 1, "pos": Vector2i(3, 4), "buildings": {}}})
+	_expect(MainGameState.get_settlement("settlement_3_4")["buildings"] is Array, "old {} buildings load as an Array")
+	MainGameState.settlements = saved_state
+
+
+func _check_spawner_reads_place() -> void:
+	AuthoredPlaces.register(_authored_config())
+	var meta := _meta(AUTHORED_TILE, 999)  # metadata says: no settlement here
+	_gen.generate_local_map(meta)
+	var place := _gen.build_place()
+	var spawner := NPCSpawner.new()
+	spawner.set_area_metadata(meta)
+	spawner.place = place
+	_expect(spawner._has_settlement(), "spawner treats an authored town as a settlement despite wilderness metadata")
+	spawner._map = _gen
+	var homes := spawner._building_positions()
+	var expected: Array = []
+	for b in _gen.map_buildings:
+		expected.append(b["pos"])
+	_expect(homes == expected and homes.size() == 2, "spawner homes come from the Place's building slots")
+	spawner.free()
 
 
 func _expect(condition: bool, label: String) -> void:
