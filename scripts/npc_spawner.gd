@@ -230,22 +230,21 @@ func _free_interior_tile(interior: Rect2i) -> Vector2i:
 		return interior.get_center()
 	return free[rng.randi() % free.size()]
 
-## Looks up the settlement entry in MainGameState by map_name first,
-## then by overworld_tile key (make_settlement_key), so both hand-crafted
-## and dynamically-generated settlements are found.
+## Looks up the settlement entry in MainGameState. The place id
+## (make_settlement_key of map_type + overworld_tile) is the canonical key and
+## is tried first; the authored map_name is kept only as a legacy fallback for
+## hand-crafted entries (e.g. "town_1") saved before place ids existed.
 func _find_settlement_entry() -> Dictionary:
 	if not settlement_data:
 		return {}
-	# 1. Direct name lookup (covers hardcoded entries like "town_1")
+	if settlement_data.overworld_tile != Vector2i.ZERO:
+		var key := MainGameState.make_settlement_key(
+			int(settlement_data.map_type), settlement_data.overworld_tile)
+		if MainGameState.settlements.has(key):
+			return MainGameState.settlements[key]
 	var map_name := settlement_data.map_name
 	if MainGameState.settlements.has(map_name):
 		return MainGameState.settlements[map_name]
-	# 2. Tile-based key lookup (covers dynamically-created settlements)
-	if settlement_data.overworld_tile != Vector2i.ZERO:
-		for mtype in MapConfig.MapType.values():
-			var key := MainGameState.make_settlement_key(mtype, settlement_data.overworld_tile)
-			if MainGameState.settlements.has(key):
-				return MainGameState.settlements[key]
 	return {}
 
 # ─── Wilderness spawning ───────────────────────────────────────────────────────
