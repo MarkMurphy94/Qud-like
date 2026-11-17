@@ -242,10 +242,7 @@ func _find_settlement_entry() -> Dictionary:
 			int(settlement_data.map_type), settlement_data.overworld_tile)
 		if MainGameState.settlements.has(key):
 			return MainGameState.settlements[key]
-	var map_name := settlement_data.map_name
-	if MainGameState.settlements.has(map_name):
-		return MainGameState.settlements[map_name]
-	return {}
+	return MainGameState.find_settlement_by_name(settlement_data.map_name)
 
 # ─── Wilderness spawning ───────────────────────────────────────────────────────
 
