@@ -682,11 +682,10 @@ func load_game_from_slot(slot: int) -> bool:
 	_last_province = -1
 
 	# ── Item pickup records ─────────────────────────────────────
+	if _save.version < SaveGameResource.SAVE_VERSION:
+		push_warning("[SaveSystem] Slot %d is a v%d save; tile-keyed pickup and container records will be migrated as areas are revisited" % [slot, _save.version])
 	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
 	area_container_state = _save.area_container_state.duplicate(true)
-	if _save.version < SaveGameResource.SAVE_VERSION:
-		var moved := _rekey_tile_records()
-		push_warning("[SaveSystem] Slot %d is a v%d save; moved %d tile-keyed pickup/container record(s) to place ids" % [slot, _save.version, moved])
 	MainGameState.spawn_records = _save.spawn_records.duplicate(true)
 	TurnManager.world_time = _save.world_time
 	WorldClock.sync()
@@ -968,58 +967,21 @@ func _assign_road_exits() -> void:
 #  WORLD ITEM PICKUP TRACKING
 # ═══════════════════════════════════════════════════════════════════════
 
-## The place id a tile's local map will get, worked out without generating it:
-## the same map-type choice MapGenerator makes (authored config, else
-## settlement density). Only needed to migrate saves that predate place ids.
-func _place_id_for_tile(tile: Vector2i) -> String:
-	var authored := AuthoredPlaces.for_tile(tile)
-	var map_type: int
-	if authored:
-		map_type = int(authored.map_type)
-	elif _tile_has_settlement(tile):
-		map_type = MapConfig.MapType.SETTLEMENT
-	else:
-		map_type = MapConfig.MapType.NON_SETTLEMENT
-	return PlaceProvider.place_id_for(map_type, tile)
-
-## Pre-v3 saves keyed pickup and container records by an "x,y" tile string.
-## Move each one under its place id, once, at load — merged with anything
-## already there — so nothing at runtime has to know the old key. The records'
-## contents keep their old shape (position-keyed pickups, cell-keyed
-## containers) and are matched on the next visit, as before. Returns how many
-## records moved.
-func _rekey_tile_records() -> int:
-	var moved := 0
-	for records: Dictionary in [area_picked_up_items, area_container_state]:
-		for key in records.keys():
-			var parts := str(key).split(",")
-			if parts.size() != 2 or not parts[0].is_valid_int() or not parts[1].is_valid_int():
-				continue
-			var place_id := _place_id_for_tile(Vector2i(int(parts[0]), int(parts[1])))
-			var old = records[key]
-			records.erase(key)
-			moved += 1
-			if old is Array:
-				var into: Array = records.get(place_id, [])
-				for entry in old:
-					if entry not in into:
-						into.append(entry)
-				records[place_id] = into
-			elif old is Dictionary:
-				var into: Dictionary = records.get(place_id, {})
-				into.merge(old)
-				records[place_id] = into
-	return moved
+func _area_key_from_tile(tile: Vector2i) -> String:
+	return "%d,%d" % [tile.x, tile.y]
 
 ## Saved state for the containers of a Place, or {} if the player has never
-## looted anything there. A record migrated from a pre-v3 save may still hold
-## cell-keyed entries; ContainerSpawner matches those by cell once.
+## looted anything there. Folds in a pre-v3 record keyed by tile, whose entries
+## are keyed by cell; ContainerSpawner matches those by cell once.
 func _container_state_for_place(place: Place) -> Dictionary:
-	return area_container_state.get(place.place_id, {}).duplicate()
+	var state: Dictionary = area_container_state.get(place.place_id, {}).duplicate()
+	state.merge(area_container_state.get(_area_key_from_tile(place.coords), {}))
+	return state
 
 ## Fold the live map's looted containers back into the persistent record.
 ## Called before the containers are freed, since their state only exists on
-## the nodes themselves.
+## the nodes themselves. A restored pre-v3 record is looted by definition, so
+## it comes back here re-keyed and the tile-keyed copy can go.
 func _store_container_state() -> void:
 	if container_spawner == null or current_place == null:
 		return
@@ -1029,6 +991,7 @@ func _store_container_state() -> void:
 	var existing: Dictionary = area_container_state.get(current_place.place_id, {})
 	existing.merge(dirty, true)
 	area_container_state[current_place.place_id] = existing
+	area_container_state.erase(_area_key_from_tile(current_place.coords))
 
 ## Removes already-collected WorldItems from a freshly populated local area
 ## and records future pickups by spawn_id. Run after every spawner, so items
@@ -1039,8 +1002,7 @@ func _apply_area_pickup_records(place: Place, area_root: Node) -> void:
 
 	var place_id := place.place_id
 	var recorded: Array = area_picked_up_items.get(place_id, [])
-	# Pre-v3 records ("item_id@x,y") were folded in under the place id at load.
-	var has_legacy := recorded.any(func(k) -> bool: return "@" in str(k))
+	var legacy: Array = area_picked_up_items.get(_area_key_from_tile(place.coords), [])
 
 	for wi: WorldItem in area_root.find_children("*", "WorldItem", true, false):
 		if not is_instance_valid(wi) or not wi.item_resource:
@@ -1051,7 +1013,7 @@ func _apply_area_pickup_records(place: Place, area_root: Node) -> void:
 		if wi.spawn_id in recorded:
 			wi.queue_free()
 			continue
-		if has_legacy and _make_item_key(wi.item_resource, wi.global_position) in recorded:
+		if not legacy.is_empty() and _make_item_key(wi.item_resource, wi.global_position) in legacy:
 			push_warning("[MainGame] Matched %s against a pre-v3 position-keyed pickup record" % wi.spawn_id)
 			_record_item_pickup(wi.spawn_id, place_id)
 			wi.queue_free()
