@@ -32,6 +32,10 @@ extends CharacterBody2D
 ## script resolves even before Godot has rescanned for global classes.
 const ContextMenuUI := preload("res://scripts/context_menu.gd")
 
+## Fired once when health reaches zero. `killer` is whatever dealt the blow, or
+## null. MainGame answers it with the death screen and the respawn.
+signal died(killer: Node)
+
 # ── Scene references ─────────────────────────────────────────────────────
 # The cross-scene ones are deliberately untyped: they are reached by path and
 # resolved dynamically, so a missing node degrades to null instead of failing
@@ -121,6 +125,8 @@ var current_mana: int = 50
 var max_stamina: int = 100
 var current_stamina: int = 100
 var gold: int = 0
+## Set from the killing blow until revive(). Blocks every action and further damage.
+var is_dead: bool = false
 
 ## Base stats read by the combat systems.
 var stats: Dictionary = {
@@ -204,6 +210,8 @@ func _process(_delta: float) -> void:
 	_update_path_preview()
 	_keep_view_in_bounds()
 
+	if is_dead:
+		return
 	if Input.is_action_just_pressed("ui_inventory"):
 		_toggle_inventory_screen()
 	if Input.is_action_just_pressed("ui_interact"):
@@ -235,6 +243,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	if is_dead:
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			# Any left click ends a look-around and brings the view home first,
@@ -390,7 +400,8 @@ func _held_direction() -> Vector2i:
 ## no dialogue or full-screen UI is up — there is no "whose turn is it"
 ## question to ask, because the world only moves when the player does.
 func can_act() -> bool:
-	return not TurnManager.resolving \
+	return not is_dead \
+		and not TurnManager.resolving \
 		and current_interacting_npc == null \
 		and not _is_ui_open()
 
@@ -1023,6 +1034,8 @@ func _refresh_hud_bars() -> void:
 
 ## Take damage from any source.
 func take_damage(amount: int, source: Node2D = null) -> void:
+	if is_dead:
+		return
 	current_health = maxi(0, current_health - amount)
 	if hud:
 		hud.update_hp(current_health, max_health)
@@ -1030,16 +1043,27 @@ func take_damage(amount: int, source: Node2D = null) -> void:
 		% [amount, current_health, max_health], "attack")
 
 	if current_health <= 0:
+		is_dead = true
 		_play_animation(&"fall")
 		cancel_navigation()
 		TurnManager.log_message("You have been slain!", "death")
-		print("Player died!")
-		# TODO: game-over handling
+		died.emit(source)
 		return
 
 	# Being hit is reason enough to stop walking a route.
 	if source != null:
 		cancel_navigation()
+
+
+## Back on your feet after MainGame has restored the respawn checkpoint, which
+## already put health and position back. Cooldowns are not part of a save, so
+## they are cleared rather than carried across the reset.
+func revive() -> void:
+	is_dead = false
+	spell_cooldowns.clear()
+	cancel_navigation()
+	_play_animation(&"idle")
+	_refresh_hud_bars()
 
 
 ## Melee `target`. Costs one turn. Returns true if the blow was struck.

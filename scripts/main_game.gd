@@ -56,12 +56,16 @@ func _ready() -> void:
 	EncounterState.world = self
 	create_or_load_save()
 	TurnManager.turn_resolved.connect(_on_turn_resolved)
+	player.died.connect(_on_player_died)
 	# Check if the main menu requested we load a specific slot
 	if MainGameState.has_meta("pending_load_slot"):
 		var slot: int = MainGameState.get_meta("pending_load_slot")
 		MainGameState.remove_meta("pending_load_slot")
 		# Defer so the scene tree is fully set up first
 		call_deferred("load_game_from_slot", slot)
+	else:
+		# Deferred behind the player's own grid snap, so the start position is final.
+		_checkpoint_here.call_deferred()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -509,12 +513,26 @@ func enter_local_map() -> void:
 	if container_spawner:
 		container_spawner.populate_local_map(current_place, _container_state_for_place(current_place))
 	_apply_area_pickup_records(current_place, local_scene)
+	_record_settlement_visit(tile)
 	print("[MainGame] Entered local map for tile %s (seed %d)" % [tile, map_seed])
 
 ## Return to the overworld tile the player descended from.
 func exit_local_map() -> void:
 	if world_map == null or not player.in_local_area:
 		return
+	_teardown_local_area()
+	player.cancel_navigation()
+	player.global_position = player.overworld_tile_pos
+
+	await get_tree().physics_frame
+	player.snap_to_grid()
+	player.update_camera_limits()
+	player.rebuild_nav_grid()
+	print("[MainGame] Returned to overworld tile %s" % player.overworld_tile)
+
+## Drop the current local map and put the overworld back, leaving the player's
+## position to the caller.
+func _teardown_local_area() -> void:
 	if npc_spawner:
 		# NPCs belong to the map that is being torn down; leaving them alive would
 		# strand them under a hidden local_scene.
@@ -530,17 +548,10 @@ func exit_local_map() -> void:
 		# keep blocking overworld tiles while the local map sits hidden.
 		local_scene.clear_all_layers()
 		local_scene.visible = false
-	world_map.visible = true
+	if world_map:
+		world_map.visible = true
 	player.in_local_area = false
 	player.world_map = world_map
-	player.cancel_navigation()
-	player.global_position = player.overworld_tile_pos
-
-	await get_tree().physics_frame
-	player.snap_to_grid()
-	player.update_camera_limits()
-	player.rebuild_nav_grid()
-	print("[MainGame] Returned to overworld tile %s" % player.overworld_tile)
 
 ## First-visit hook for procedural wilderness tiles. Rolls the tile's
 ## permanent seed on the first descent (replacing the derived placeholder from
@@ -571,84 +582,8 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 	elif _save.slot_name == "":
 		_save.slot_name = "Save %d" % (slot + 1)
 
-	# ── Player position ────────────────────────────────────────
-	_save.player_overworld_position = player.overworld_tile_pos if player.in_local_area else player.global_position
-	_save.player_in_local_area = player.in_local_area
-	_save.player_overworld_tile = player.overworld_tile
-	if player.in_local_area:
-		_save.player_local_position = player.global_position
-	else:
-		_save.player_local_position = Vector2.ZERO
-	_save.player_current_scene_path = get_tree().current_scene.scene_file_path
-
-	# ── Player stats ───────────────────────────────────────────
-	_save.player_health = player.current_health
-	_save.player_max_health = player.max_health
-	_save.player_mana = player.current_mana
-	_save.player_max_mana = player.max_mana
-	_save.player_stamina = player.current_stamina
-	_save.player_max_stamina = player.max_stamina
-	_save.player_gold = player.gold
-
-	# ── Inventory ──────────────────────────────────────────────
-	if player.inventory:
-		_save.inventory_data = player.inventory.to_dict()
-
-	# ── Spells ─────────────────────────────────────────────────
-	var paths := PackedStringArray()
-	for spell in player.learned_spells:
-		if spell.resource_path != "":
-			paths.append(spell.resource_path)
-	_save.learned_spell_paths = paths
-
-	# ── World tile metadata (only discovered / visited tiles) ──
-	_save.world_tile_data.clear()
-	for pos_key in world_tile_data:
-		var meta: TileMetadata = world_tile_data[pos_key]
-		if meta.discovered:
-			var key_str := "%d,%d" % [pos_key.x, pos_key.y]
-			_save.world_tile_data[key_str] = meta.to_dict()
-
-	# ── Settlements ────────────────────────────────────────────
-	_save.settlements_data = MainGameState.settlements.duplicate(true)
-	# ── Province ownership ─────────────────────────────────────
-	# Only who holds what: the borders themselves are regrown on load.
-	var provinces = province_map()
-	if provinces:
-		_save.province_ownership = provinces.ownership_dict()
-	# ── Overworld tile seeds ─────────────────────────────────
-	_save.overworld_tile_seeds.clear()
-	for tile: Vector2i in overworld_tile_seeds:
-		_save.overworld_tile_seeds["%d,%d" % [tile.x, tile.y]] = overworld_tile_seeds[tile]
-	# ── Item pickup records ─────────────────────────────────────
-	_save.area_picked_up_items = area_picked_up_items.duplicate(true)
-	# ── Container records ───────────────────────────────────────
-	# The live map's containers are only in memory until now.
-	if player.in_local_area:
-		_store_container_state()
-	_save.area_container_state = area_container_state.duplicate(true)
-	_save.spawn_records = MainGameState.spawn_records.duplicate(true)
-	_save.world_time = TurnManager.world_time
-	if player.in_local_area and npc_spawner:
-		npc_spawner.store_snapshot()
-	_save.spawn_state = EncounterState.to_dict()
-
-	# ── Local-area bookmark (so we can re-enter on load) ───────
-	if player.in_local_area and local_scene:
-		_save.local_area_settlement_path = ""
-		var meta: TileMetadata = world_tile_data.get(player.overworld_tile)
-		if meta:
-			_save.local_area_metadata = _build_local_map_metadata(
-				player.overworld_tile,
-				get_tile_seed(player.overworld_tile),
-				meta.to_dict())
-		else:
-			_save.local_area_metadata = _build_local_map_metadata(
-				player.overworld_tile,
-				get_tile_seed(player.overworld_tile))
-	else:
-		_save.local_area_settlement_path = ""
-		_save.local_area_metadata = {}
+	_capture_world_state(_save)
+	_save.checkpoint = _checkpoint
 
 	# ── Play time ──────────────────────────────────────────────
 	_save.play_time_seconds += _play_timer
@@ -657,6 +592,87 @@ func save_game_to_slot(slot: int, slot_name: String = "") -> void:
 	_save.write_to_slot(slot)
 	_current_slot = slot
 	print("[SaveSystem] Saved to slot %d  (%s)" % [slot, _save.slot_name])
+
+## Copy the live world into `res`. Shared by slot saves and respawn checkpoints;
+## slot metadata and play time are the caller's business.
+func _capture_world_state(res: SaveGameResource) -> void:
+	# ── Player position ────────────────────────────────────────
+	res.player_overworld_position = player.overworld_tile_pos if player.in_local_area else player.global_position
+	res.player_in_local_area = player.in_local_area
+	res.player_overworld_tile = player.overworld_tile
+	if player.in_local_area:
+		res.player_local_position = player.global_position
+	else:
+		res.player_local_position = Vector2.ZERO
+	res.player_current_scene_path = get_tree().current_scene.scene_file_path
+
+	# ── Player stats ───────────────────────────────────────────
+	res.player_health = player.current_health
+	res.player_max_health = player.max_health
+	res.player_mana = player.current_mana
+	res.player_max_mana = player.max_mana
+	res.player_stamina = player.current_stamina
+	res.player_max_stamina = player.max_stamina
+	res.player_gold = player.gold
+
+	# ── Inventory ──────────────────────────────────────────────
+	if player.inventory:
+		res.inventory_data = player.inventory.to_dict()
+
+	# ── Spells ─────────────────────────────────────────────────
+	var paths := PackedStringArray()
+	for spell in player.learned_spells:
+		if spell.resource_path != "":
+			paths.append(spell.resource_path)
+	res.learned_spell_paths = paths
+
+	# ── World tile metadata (only discovered / visited tiles) ──
+	res.world_tile_data.clear()
+	for pos_key in world_tile_data:
+		var meta: TileMetadata = world_tile_data[pos_key]
+		if meta.discovered:
+			var key_str := "%d,%d" % [pos_key.x, pos_key.y]
+			res.world_tile_data[key_str] = meta.to_dict()
+
+	# ── Settlements ────────────────────────────────────────────
+	res.settlements_data = MainGameState.settlements.duplicate(true)
+	# ── Province ownership ─────────────────────────────────────
+	# Only who holds what: the borders themselves are regrown on load.
+	var provinces = province_map()
+	if provinces:
+		res.province_ownership = provinces.ownership_dict()
+	# ── Overworld tile seeds ─────────────────────────────────
+	res.overworld_tile_seeds.clear()
+	for tile: Vector2i in overworld_tile_seeds:
+		res.overworld_tile_seeds["%d,%d" % [tile.x, tile.y]] = overworld_tile_seeds[tile]
+	# ── Item pickup records ─────────────────────────────────────
+	res.area_picked_up_items = area_picked_up_items.duplicate(true)
+	# ── Container records ───────────────────────────────────────
+	# The live map's containers are only in memory until now.
+	if player.in_local_area:
+		_store_container_state()
+	res.area_container_state = area_container_state.duplicate(true)
+	res.spawn_records = MainGameState.spawn_records.duplicate(true)
+	res.world_time = TurnManager.world_time
+	if player.in_local_area and npc_spawner:
+		npc_spawner.store_snapshot()
+	res.spawn_state = EncounterState.to_dict()
+
+	# ── Local-area bookmark (so we can re-enter on load) ───────
+	res.local_area_settlement_path = ""
+	if player.in_local_area and local_scene:
+		var meta: TileMetadata = world_tile_data.get(player.overworld_tile)
+		if meta:
+			res.local_area_metadata = _build_local_map_metadata(
+				player.overworld_tile,
+				get_tile_seed(player.overworld_tile),
+				meta.to_dict())
+		else:
+			res.local_area_metadata = _build_local_map_metadata(
+				player.overworld_tile,
+				get_tile_seed(player.overworld_tile))
+	else:
+		res.local_area_metadata = {}
 
 ## Load all state from a specific slot and apply it.
 func load_game_from_slot(slot: int) -> bool:
@@ -668,46 +684,63 @@ func load_game_from_slot(slot: int) -> bool:
 	_save = loaded
 	_current_slot = slot
 	_play_timer = 0.0
+	if _save.version < SaveGameResource.SAVE_VERSION:
+		push_warning("[SaveSystem] Slot %d is a v%d save; tile-keyed pickup and container records will be migrated as areas are revisited" % [slot, _save.version])
+
+	await _apply_world_state(_save)
+	_checkpoint = _save.checkpoint.deep_copy() if _save.checkpoint else null
+	if _checkpoint == null:
+		# Saved before respawning existed: the load point is the best haven there is.
+		_checkpoint_here()
+	print("[SaveSystem] Loaded slot %d  (%s)" % [slot, _save.slot_name])
+	return true
+
+## Replace the live world with the one recorded in `res`. Used by slot loads
+## and by respawning; nothing here touches slot metadata or play time.
+func _apply_world_state(res: SaveGameResource) -> void:
+	# The current local map goes first, while its own records are still the
+	# live ones — tearing it down later would fold its state into the restored
+	# records, and spawning on top of it would leave its NPCs standing.
+	if player.in_local_area:
+		_teardown_local_area()
 
 	# ── Settlements ────────────────────────────────────────────
-	if not _save.settlements_data.is_empty():
-		MainGameState.load_settlements(_save.settlements_data)
+	if not res.settlements_data.is_empty():
+		MainGameState.load_settlements(res.settlements_data)
 
 	# ── Province ownership ─────────────────────────────────────
 	# The provinces were already grown from the map when world_map entered the
 	# tree; this only hands them back to their owners.
 	var provinces = province_map()
-	if provinces and not _save.province_ownership.is_empty():
-		provinces.apply_ownership(_save.province_ownership)
+	if provinces and not res.province_ownership.is_empty():
+		provinces.apply_ownership(res.province_ownership)
 	_last_province = -1
 
 	# ── Item pickup records ─────────────────────────────────────
-	if _save.version < SaveGameResource.SAVE_VERSION:
-		push_warning("[SaveSystem] Slot %d is a v%d save; tile-keyed pickup and container records will be migrated as areas are revisited" % [slot, _save.version])
-	area_picked_up_items = _save.area_picked_up_items.duplicate(true)
-	area_container_state = _save.area_container_state.duplicate(true)
-	MainGameState.spawn_records = _save.spawn_records.duplicate(true)
-	TurnManager.world_time = _save.world_time
+	area_picked_up_items = res.area_picked_up_items.duplicate(true)
+	area_container_state = res.area_container_state.duplicate(true)
+	MainGameState.spawn_records = res.spawn_records.duplicate(true)
+	TurnManager.world_time = res.world_time
 	WorldClock.sync()
-	EncounterState.from_dict(_save.spawn_state)
+	EncounterState.from_dict(res.spawn_state)
 	# ── Overworld tile seeds ─────────────────────────────────
 	overworld_tile_seeds.clear()
-	for key_str in _save.overworld_tile_seeds:
+	for key_str in res.overworld_tile_seeds:
 		var parts := (key_str as String).split(",")
 		if parts.size() == 2:
-			overworld_tile_seeds[Vector2i(int(parts[0]), int(parts[1]))] = int(_save.overworld_tile_seeds[key_str])
+			overworld_tile_seeds[Vector2i(int(parts[0]), int(parts[1]))] = int(res.overworld_tile_seeds[key_str])
 	# Older saves (or map edits) may leave land tiles unseeded — top them up
 	# without touching the seeds that were restored above.
 	generate_overworld_tile_seeds()
 	# ── World metadata ─────────────────────────────────────────
 	generate_world_metadata()
 	# Overlay saved discovered-tile state on top of the freshly-generated metadata
-	for key_str in _save.world_tile_data:
+	for key_str in res.world_tile_data:
 		var parts := (key_str as String).split(",")
 		if parts.size() == 2:
 			var pos := Vector2i(int(parts[0]), int(parts[1]))
 			if world_tile_data.has(pos):
-				var saved_meta: Dictionary = _save.world_tile_data[key_str]
+				var saved_meta: Dictionary = res.world_tile_data[key_str]
 				var meta: TileMetadata = world_tile_data[pos]
 				meta.discovered = saved_meta.get("discovered", false)
 				meta.last_visited = saved_meta.get("last_visited", 0)
@@ -720,13 +753,13 @@ func load_game_from_slot(slot: int) -> bool:
 				meta.generated_at = saved_meta.get("generated_at", meta.generated_at)
 
 	# ── Player stats ───────────────────────────────────────────
-	player.current_health = _save.player_health
-	player.max_health = _save.player_max_health
-	player.current_mana = _save.player_mana
-	player.max_mana = _save.player_max_mana
-	player.current_stamina = _save.player_stamina
-	player.max_stamina = _save.player_max_stamina
-	player.gold = _save.player_gold
+	player.current_health = res.player_health
+	player.max_health = res.player_max_health
+	player.current_mana = res.player_mana
+	player.max_mana = res.player_max_mana
+	player.current_stamina = res.player_stamina
+	player.max_stamina = res.player_max_stamina
+	player.gold = res.player_gold
 
 	player.hud.update_hp(player.current_health, player.max_health)
 	player.hud.update_mp(player.current_mana, player.max_mana)
@@ -734,25 +767,26 @@ func load_game_from_slot(slot: int) -> bool:
 	player.hud.refresh_clock()
 
 	# ── Inventory ──────────────────────────────────────────────
-	if not _save.inventory_data.is_empty() and player.inventory:
-		player.inventory.from_dict(_save.inventory_data)
+	if not res.inventory_data.is_empty() and player.inventory:
+		player.inventory.from_dict(res.inventory_data)
 
 	# ── Spells ─────────────────────────────────────────────────
 	player.learned_spells.clear()
-	for path in _save.learned_spell_paths:
+	for path in res.learned_spell_paths:
 		var spell: Spell = load(path) as Spell
 		if spell:
 			player.learned_spells.append(spell)
 
 	# ── Position & local-area re-entry ─────────────────────────
-	if _save.player_in_local_area and local_scene and world_map:
+	player.cancel_navigation()
+	if res.player_in_local_area and local_scene and world_map:
 		# Put the player on the overworld tile first, then descend
-		player.global_position = _save.player_overworld_position
-		player.overworld_tile = _save.player_overworld_tile
-		player.overworld_tile_pos = _save.player_overworld_position
+		player.global_position = res.player_overworld_position
+		player.overworld_tile = res.player_overworld_tile
+		player.overworld_tile_pos = res.player_overworld_position
 
 		# Re-enter the local map from saved metadata (or synthesize minimal data).
-		var meta_dict: Dictionary = _save.local_area_metadata.duplicate(true)
+		var meta_dict: Dictionary = res.local_area_metadata.duplicate(true)
 		if meta_dict.is_empty():
 			meta_dict = _build_local_map_metadata(
 				player.overworld_tile,
@@ -769,7 +803,7 @@ func load_game_from_slot(slot: int) -> bool:
 		local_scene.visible = true
 		await get_tree().physics_frame
 		player.map_rect = local_scene.bounds
-		player.global_position = _save.player_local_position
+		player.global_position = res.player_local_position
 		player.in_local_area = true
 		player.world_map = local_scene
 		player.snap_to_grid()
@@ -783,26 +817,118 @@ func load_game_from_slot(slot: int) -> bool:
 	else:
 		# Overworld. A save taken inside a local area lands the player back on
 		# the overworld tile they descended from.
-		if player.in_local_area:
-			if npc_spawner:
-				npc_spawner.clear()
-			if container_spawner:
-				container_spawner.clear()
-			current_place = null
-			if local_scene:
-				local_scene.clear_all_layers()
-				local_scene.visible = false
-			if world_map:
-				world_map.visible = true
-			player.in_local_area = false
-			player.world_map = world_map
-		player.global_position = _save.player_overworld_position
+		player.global_position = res.player_overworld_position
 		player.snap_to_grid()
 		player.rebuild_nav_grid()
 		player.update_camera_limits()
 
-	print("[SaveSystem] Loaded slot %d  (%s)" % [slot, _save.slot_name])
-	return true
+# ═══════════════════════════════════════════════════════════════════════
+#  DEATH AND RESPAWN
+# ═══════════════════════════════════════════════════════════════════════
+
+const DeathScreenUI := preload("res://scripts/death_screen.gd")
+
+## The last settlement the player descended into, as the whole world stood at
+## that moment. Death restores it. Never null once the game is running: a new
+## game starts with one at the starting position.
+var _checkpoint: SaveGameResource = null
+
+
+## Every settlement is a province capital, so a town is named after its province.
+func settlement_name_at(tile: Vector2i) -> String:
+	if not _tile_has_settlement(tile):
+		return ""
+	var provinces = province_map()
+	var province = provinces.province_for_tile(tile) if provinces else null
+	if province != null and province.capital_tile == tile:
+		return province.display_name
+	return "the settlement at %d,%d" % [tile.x, tile.y]
+
+
+## A place name for the death screen and checkpoint labels.
+func describe_location(tile: Vector2i) -> String:
+	var town := settlement_name_at(tile)
+	if town != "":
+		return town
+	var provinces = province_map()
+	var province = provinces.province_for_tile(tile) if provinces else null
+	return "the wilds of %s" % province.display_name if province != null else "the wilds"
+
+
+func _player_overworld_tile() -> Vector2i:
+	if player.in_local_area:
+		return player.overworld_tile
+	return world_map.world_to_tile(player.global_position) if world_map else Vector2i.ZERO
+
+
+func _take_checkpoint(place_name: String) -> void:
+	var snapshot := SaveGameResource.new()
+	_capture_world_state(snapshot)
+	snapshot.checkpoint_place = place_name
+	_checkpoint = snapshot.deep_copy()
+
+
+## A checkpoint where the player stands, for when no settlement has been
+## visited yet: the start of a new game, or a save older than respawning.
+func _checkpoint_here() -> void:
+	_take_checkpoint(describe_location(_player_overworld_tile()))
+
+
+## Called on every local-map entry. Any settlement moves the respawn point;
+## the log says so only when it actually moves.
+func _record_settlement_visit(tile: Vector2i) -> void:
+	if not _tile_has_settlement(tile):
+		return
+	var town := settlement_name_at(tile)
+	var moved := _checkpoint == null or _checkpoint.checkpoint_place != town
+	_take_checkpoint(town)
+	if moved:
+		TurnManager.log_message("Should you fall, you will wake in %s." % town, "info")
+
+
+func _on_player_died(killer: Node) -> void:
+	var report := {
+		"killer": _killer_label(killer),
+		"place": describe_location(_player_overworld_tile()),
+		"when": _describe_now(),
+		"respawn": _checkpoint.checkpoint_place if _checkpoint else "",
+	}
+	# The blow usually lands inside TurnManager's actor loop; let it finish
+	# before the tree pauses.
+	_open_death_screen.call_deferred(report)
+
+
+func _open_death_screen(report: Dictionary) -> void:
+	var screen: CanvasLayer = DeathScreenUI.new()
+	add_child(screen)
+	screen.show_report(report)
+	screen.continue_pressed.connect(_respawn)
+
+
+func _respawn() -> void:
+	if _checkpoint == null:
+		_checkpoint_here()
+	# Restore from a copy: the checkpoint has to survive the next death too.
+	await _apply_world_state(_checkpoint.deep_copy())
+	player.revive()
+	TurnManager.log_message("You wake in %s." % _checkpoint.checkpoint_place, "info")
+
+
+func _killer_label(killer: Node) -> String:
+	if killer == null or not is_instance_valid(killer):
+		return "unknown causes"
+	if killer is NPC:
+		var npc := killer as NPC
+		if npc.npc_name != "":
+			return npc.npc_name
+		var kind := npc.get_display_name().to_lower()
+		return ("an " if kind.left(1) in ["a", "e", "i", "o", "u"] else "a ") + kind
+	return String(killer.name)
+
+
+func _describe_now() -> String:
+	return "day %d, %02d:%02d (%s, %s)" % [WorldClock.day() + 1, WorldClock.hour(),
+		WorldClock.minute(), WorldClock.time_of_day(), WorldClock.season()]
 
 ## Legacy wrappers (called from old pause.gd flow) ─────────────────────
 func save_game() -> void:

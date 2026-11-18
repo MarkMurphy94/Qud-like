@@ -91,6 +91,14 @@ const SAVE_VERSION := 3
 ## Region pools, per-tile cooldowns and survivor snapshots.
 @export var spawn_state: Dictionary = {}
 
+# ─── Respawn point ─────────────────────────────────────────────────────
+## The whole world as it stood when the player last entered a friendly or
+## neutral settlement. Death restores it, so everything since is undone.
+## A checkpoint's own `checkpoint` is always null.
+@export var checkpoint: SaveGameResource = null
+## Where this resource was taken, when it is a checkpoint. Shown on the death screen.
+@export var checkpoint_place: String = ""
+
 # ═══════════════════════════════════════════════════════════════════════
 #  SLOT HELPERS
 # ═══════════════════════════════════════════════════════════════════════
@@ -188,6 +196,20 @@ static func load_savegame() -> SaveGameResource:
 ## @deprecated – reset is now just "start a new game"
 static func reset_savegame() -> void:
 	pass # No-op; new game simply doesn't load any slot.
+
+## A copy sharing no Dictionary or Array with this one. A checkpoint lives in
+## memory for a long time; restoring it from a shallow copy would let play
+## mutate it through the live state and break the next death.
+func deep_copy() -> SaveGameResource:
+	var out := SaveGameResource.new()
+	for prop in get_property_list():
+		if not (prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		var value = get(prop.name)
+		if value is Dictionary or value is Array:
+			value = value.duplicate(true)
+		out.set(prop.name, value)
+	return out
 
 # ─── Internal ───────────────────────────────────────────────────────────
 static func _ensure_save_dir() -> void:
